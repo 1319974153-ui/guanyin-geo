@@ -1,0 +1,12 @@
+{
+  "name": "观引 GEO 工作台",
+  "author": "温舒",
+  "location": "杭州",
+  "role": "FDE / 全栈工程师",
+  "repository": "https://github.com/1319974153-ui/guanyin-geo",
+  "source_license": "MIT（第三方组件保留原许可）",
+  "free_scope": "自有源码免费获取、修改和自行运行",
+  "external_costs": "模型 API、托管和第三方服务费用另计",
+  "status": "开发预览；以功能文档及验证记录为准",
+  "ai_discovery": "公开仓库可供检索；不保证任何搜索引擎或 AI 产品收录、引用或推荐"
+}

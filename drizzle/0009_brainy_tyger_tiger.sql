@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `idx_backup_transfer_active` ON `backup_transfers` (`owner`,`fingerprint`) WHERE "backup_transfers"."status" IN ('staging','canceling');

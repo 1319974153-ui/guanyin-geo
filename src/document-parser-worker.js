@@ -1,0 +1,2 @@
+import {parseDocument} from './document-parser.js';
+self.addEventListener('message',async e=>{try{const result=await parseDocument(e.data.bytes,e.data.filename,{baseUrl:self.location.origin,ocrMode:e.data.ocrMode||'off',language:e.data.language||'chi_sim+eng',progress:(page,total,detail={})=>self.postMessage({progress:{page,total,...detail}})});self.postMessage({result});}catch(error){self.postMessage({error:error.name==='PasswordException'?'此 PDF 有密码保护，请先提供已解锁的文件':error.name==='InvalidPDFException'?'PDF 文件无效或已损坏':error.message||'文件解析失败'});}});

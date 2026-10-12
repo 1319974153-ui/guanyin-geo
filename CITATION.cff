@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+message: "如需引用本项目，请保留项目名称、作者与对应版本链接。"
+title: "观引 GEO 工作台"
+authors:
+  - family-names: "温舒"
+repository-code: "https://github.com/1319974153-ui/guanyin-geo"
+license: MIT

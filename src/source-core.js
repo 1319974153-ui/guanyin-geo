@@ -1,0 +1,25 @@
+import {canonicalUrl,domain} from './url-core.js';
+export const SOURCE_CATEGORIES=['待分类','品牌官网','行业媒体','综合资讯','社区与问答','电商与产品目录','研究与公共资料','其他'];
+const unique=x=>[...new Set(x.filter(Boolean))];
+const ordered=x=>x.sort((a,b)=>b.verifiedAnswerIds.length-a.verifiedAnswerIds.length||a.url.localeCompare(b.url));
+export function sourceTrend(answers,key='',scope='domain'){
+ const days=new Map();
+ for(const a of answers){if(!Number.isFinite(Date.parse(a.date)))continue;const day=new Date(a.date).toISOString().slice(0,10);if(!days.has(day))days.set(day,{date:day,answerIds:[],knownAnswerIds:[],citedAnswerIds:[],observedAnswerIds:[]});const r=days.get(day);r.answerIds.push(a.id);if(a.citationKnown===true)r.knownAnswerIds.push(a.id);const hit=(a.citations||[]).some(c=>{const u=canonicalUrl(c.url);return u&&(!key||(scope==='page'?u===key:domain(u)===key))});if(hit){r.observedAnswerIds.push(a.id);if(a.citationKnown===true)r.citedAnswerIds.push(a.id);}}
+ return [...days.values()].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>({...r,answerIds:unique(r.answerIds),knownAnswerIds:unique(r.knownAnswerIds),citedAnswerIds:unique(r.citedAnswerIds),observedAnswerIds:unique(r.observedAnswerIds)}));
+}
+function annotation(labels,scope,key){const r=labels.find(l=>l.scope===scope&&l.key===key);if(!r)return null;const {history,...snapshot}=r;return structuredClone(snapshot);}
+export function analyzeSources(pages,answers,brand,labels=[]){
+ labels=labels.filter(l=>l.brandId===brand.id);const official=domain(canonicalUrl(brand.site));const verified=new Map(answers.filter(a=>a.citationKnown===true).map(a=>[a.id,a]));
+ const decorate=(s,scope)=>{const own=annotation(labels,scope,scope==='page'?s.url:s.domain),inherited=scope==='page'?annotation(labels,'domain',s.domain):null,note=own||inherited,isOfficial=!!official&&s.domain===official;return {...s,category:note?.category||(isOfficial?'品牌官网':'待分类'),classification:note?'人工核对':isOfficial?'品牌官网域名匹配':'未核对',annotation:note,annotationInherited:!!(!own&&inherited),isOfficial,verifiedQuestionIds:unique(s.verifiedAnswerIds.map(id=>verified.get(id)?.promptId)),verifiedPlatforms:unique(s.verifiedAnswerIds.map(id=>verified.get(id)?.platform))};};
+ const sources=ordered(pages.map(p=>decorate(p,'page')));
+ const domains=ordered(unique(pages.map(p=>p.domain)).map(d=>{const list=pages.filter(p=>p.domain===d),dates=list.flatMap(p=>p.dates).sort();return decorate({url:list[0].url,domain:d,title:d,pages:list.map(p=>p.url),answerIds:unique(list.flatMap(p=>p.answerIds)),verifiedAnswerIds:unique(list.flatMap(p=>p.verifiedAnswerIds)),questionIds:unique(list.flatMap(p=>p.questionIds)),platforms:unique(list.flatMap(p=>p.platforms)),first:dates[0],last:dates.at(-1)},'domain')}));
+ // A page annotation never promotes the entire domain: candidates retain the exact assessed scope.
+ const eligible=s=>!s.isOfficial&&!['品牌官网','待分类'].includes(s.category)&&s.annotation?.relevance==='relevant'&&s.annotation?.availability!=='unavailable';
+ const candidate=(s,list)=>{const answerIds=unique(list.flatMap(p=>p.verifiedAnswerIds));return {scope:s.pages?'domain':'page',key:s.pages?s.domain:s.url,category:s.category,annotation:s.annotation,answerIds,questionIds:unique(answerIds.map(id=>verified.get(id)?.promptId)),platforms:unique(answerIds.map(id=>verified.get(id)?.platform)),urls:list.map(p=>p.url)}};
+ const candidates=domains.filter(eligible).map(s=>candidate(s,sources.filter(p=>p.domain===s.domain&&eligible(p)))).filter(s=>s.answerIds.length>=2&&s.questionIds.length>0);
+ for(const s of sources.filter(p=>p.annotation?.scope==='page'&&eligible(p))){if(candidates.some(c=>c.urls.includes(s.url)))continue;const c=candidate(s,[s]);if(c.answerIds.length>=2&&c.questionIds.length>0)candidates.push(c);}
+ const recommendations=candidates.sort((a,b)=>b.questionIds.length-a.questionIds.length||b.platforms.length-a.platforms.length||b.answerIds.length-a.answerIds.length||a.key.localeCompare(b.key));
+ return {schema:1,pages:sources,domains,recommendations,trend:sourceTrend(answers),method:'日期按 UTC；只列出实际采样日。每天分母为引用状态已核对的回答数，同一回答引用同一来源多次只计一次；未核对引用不计入比例。来源分类与行业相关性是人工核对记录，官网默认仅按品牌官网精确域名匹配。候选须至少两条已核对回答、明确相关性说明及来源分类；按覆盖问题数、平台数、回答数依次排序，不代表权威度、流量、可发布性或未来引用效果。页面核对不会替代整个域名的行业判断。'};
+}
+const clean=x=>String(x||'').replace(/[\r\n|]/g,' ');
+export function sourceMarkdown(a){if(!a)return '';return '\n## 来源分类与渠道候选\n\n'+a.method+'\n\n'+a.domains.map(s=>'- '+clean(s.domain)+'：'+s.category+'；'+s.classification+'；已核对回答 '+s.verifiedAnswerIds.length+'；'+(s.annotation?'行业说明：'+clean(s.annotation.note)+'；核对时间 '+s.annotation.updated:'尚无行业核对说明')).join('\n')+'\n\n### 候选及依据\n'+(a.recommendations.map(s=>'- '+clean(s.key)+'（'+s.scope+'）：'+s.category+'；问题 '+s.questionIds.length+'，平台 '+s.platforms.length+'；回答 ID：'+s.answerIds.join('、')+'；'+clean(s.annotation.note)+'；发布条件：'+s.annotation.availability).join('\n')||'当前范围没有满足条件的渠道候选。')+'\n\n### 已观察日期引用趋势\n|日期 UTC|有效回答|引用已核对|存在引用的已核对回答|\n|---|---|---|---|\n'+a.trend.map(d=>'|'+d.date+'|'+d.answerIds.length+'|'+d.knownAnswerIds.length+'|'+d.citedAnswerIds.length+'|').join('\n')+'\n';}

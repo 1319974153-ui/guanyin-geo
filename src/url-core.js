@@ -1,0 +1,2 @@
+export function canonicalUrl(value){try{const u=new URL(value);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)return '';u.hash='';u.hostname=u.hostname.toLowerCase();for(const k of [...u.searchParams.keys()])if(/^utm_/i.test(k)||['fbclid','gclid','msclkid'].includes(k.toLowerCase()))u.searchParams.delete(k);u.searchParams.sort();return u.href;}catch{return '';}}
+export function domain(value){try{return new URL(value).hostname.toLowerCase().replace(/^www\./,'')}catch{return '';}}
