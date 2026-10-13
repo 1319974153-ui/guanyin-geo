@@ -9,7 +9,7 @@ function industryTopics(industry) {
   return ['选型比较','迁移实施','采购预算','系统集成','安全合规','使用服务'];
 }
 function migrateExperience() {
-  state.viewMode = state.viewMode === 'client' ? 'client' : 'operator';
+  if(!state.simpleExperienceVersion){state.viewMode='simple';state.simpleExperienceVersion=1;}else state.viewMode=['simple','client','operator'].includes(state.viewMode)?state.viewMode:'simple';
   state.siteChecks ||= [];
   if (!state.experienceVersion) {
     const old = ['选型比较','迁移实施','采购预算','系统集成','安全合规','使用服务'];
@@ -26,8 +26,9 @@ function context() { return new URLSearchParams(location.hash.split('?')[1] || '
 function routeLink(target,values={},inherit=true) { values=inherit?analyticsNavigationValues(target,values):values;const p=new URLSearchParams();for(const [k,v] of Object.entries(values))if(v)p.set(k,v);return '#'+target+(p.size?'?'+p:''); }
 function go(target,values={},inherit=true) { const next=routeLink(target,values,inherit); if(location.hash===next)render();else location.hash=next; }
 function replaceContext(values) { const p=context();for(const [k,v] of Object.entries(values)){if(v)p.set(k,v);else p.delete(k)}history.replaceState(null,'',routeLink(route,Object.fromEntries(p),false)); }
-function pageName(id) {return ({'delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
+function pageName(id) {return ({today:'今天',inbox:'待我确认',results:'效果','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
 function renderNavigation() {
+  if(state.viewMode==='simple'){renderSimpleNavigation();return;}
   const client=state.viewMode==='client';
   const groups=client?[['客户交付',[['overview','品牌概览','dashboard'],['answers','回答记录','file'],['knowledge','资料确认','book'],['content','内容确认','edit'],['reports','效果报告','file']]]]:[
     ['监测与分析',[['overview','品牌概览','dashboard'],['monitor','监测问题','radar'],['answers','回答记录','file'],['insights','品牌洞察','chart'],['sources','引用来源','link']]],
@@ -40,6 +41,7 @@ function renderNavigation() {
   document.body.dataset.view=state.viewMode;
 }
 function sectionNavigation() {
+  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回今天</a></p>';
   let links=[];
   if(['monitor','demand','tasks','operations'].includes(route)) links=[['monitor','监测问题'],['answers','回答记录'],['demand','需求数据'],['tasks','任务与批量执行'],['operations','告警与待办'],['insights','品牌与竞品'],['sources','引用来源'],['audit','网站诊断']];
   if(['knowledge','content','dso'].includes(route)&&state.viewMode!=='client')links=[['content','内容工作台'],['knowledge','品牌资料'],['dso','DSO 内容实验室']];
@@ -57,10 +59,11 @@ function filterNotice(text,back='') {
   return `<div class="filter-notice"><span>${esc(text)}</span>${btn('显示全部','clear-context','ghost small')}${back?`<a href="${back}">返回主题机会 →</a>`:''}</div>`;
 }
 function workflowProgress() {
-  const facts=own('facts'),questions=own('questions'),contents=own('contents');
-  const stages=[['品牌资料',facts.length>0&&facts.every(f=>GEO_KNOWLEDGE.factUsable(f)),'knowledge'],['监测问题',questions.length>0,'monitor'],['回答证据',own('answers').some(a=>a.surface==='import'),'monitor'],['内容审核',contents.some(c=>c.status==='已审核'),'content'],['发布登记',own('publications').some(p=>p.url&&!p.demo),'publish'],['真实复测',false,'reports']];
-  return `<nav class="journey" aria-label="品牌工作流程">${stages.map(([name,done,to],i)=>`<a href="#${to}"><span class="journey-index ${done?'done':''}">${done?'✓':i+1}</span><span>${name}<small>${done?'已有记录':i===5?'待接入': '待完成'}</small></span></a>`).join('')}</nav>`;
+  const facts=own('facts'),questions=own('questions'),contents=own('contents'),answers=own('answers').filter(a=>a.surface==='import'&&!a.demo&&a.status!=='failed');
+  const stages=[['品牌资料',facts.some(f=>GEO_KNOWLEDGE.factUsable(f)),'knowledge','已有可用事实'],['监测问题',questions.length>0,'monitor','已有题目'],['回答证据',answers.some(a=>a.citationKnown===true&&a.recommendationLabeled===true),'answers','已有已复核记录'],['内容审核',contents.some(c=>c.status==='已审核'),'content','已有审核稿'],['发布登记',own('publications').some(p=>p.url&&!p.demo),'publish','已登记链接'],['报告与复测',false,'reports','']];
+  return `<nav class="journey" aria-label="品牌工作流程">${stages.map(([name,done,to,label],i)=>`<a href="#${to}"><span class="journey-index ${done?'done':''}">${done?'✓':i+1}</span><span>${name}<small>${done?label:i===5?'持续核验':'下一步可处理'}</small></span></a>`).join('')}</nav>`;
 }
+
 function renderTaskOverview() {
   const r=currentEvidenceReport(),b=brand(),facts=own('facts'),pending=facts.filter(f=>f.status==='待确认'),review=own('contents').filter(c=>c.status==='待审核'),drafts=own('contents').filter(c=>c.status==='草稿'),pub=own('publications').filter(p=>!p.url);
   const tasks=[];
@@ -112,8 +115,8 @@ function renderSiteAudit() {
  renderSchemaPanel()+`<details class="advanced"><summary>粘贴 HTML 检查 <span>技术人员使用</span></summary><section class="panel"><div class="panel-body"><form id="audit-form"><label class="field">页面 HTML<textarea id="audit-html" name="html" required placeholder="粘贴网页源码…"></textarea></label><button class="button" type="submit">检查页面结构</button></form><div id="audit-results"></div></div></section></details>`;
 }
 function renderSettings() {
- return title('设置与完整功能','日常操作保持简洁，专业配置集中管理。')+
- `<section class="settings-list">${[['guide','GEO 执行指南','九个环节的具体做法、入口与效果核验。','book'],['brands','客户与品牌','切换客户、创建品牌、开始资料初始化。','building'],['team','团队与访问范围','成员角色、品牌授权、配额、审计与备份恢复。','users'],['integrations','外部服务连接','检查采样、模型与发布服务的接入状态。','plug'],['roadmap','完整功能与实施路径','36 项能力、API、开源工具、开发阶段和验收标准。','layers']].map(([id,t,d,i])=>`<a href="#${id}" class="setting-row"><span class="task-icon">${icon(i)}</span><div><h3>${t}</h3><p>${d}</p></div><span>→</span></a>`).join('')}</section><div class="section-title"><h2>工作区资料</h2></div><div class="settings-actions">${btn('导出工作区','backup-workspace')}<a class="button" href="docs/当前版本与使用说明.md" download>下载使用说明</a><a class="button" href="docs/实施方案.md" download>下载完整实施方案</a></div><div class="callout"><b>视图与权限：</b>“运营视图 / 客户视图”只改变当前界面的组织方式；账号由平台登录保护，团队成员由服务器按角色与品牌授权；两种视图只改变展示方式。</div>`;
+ return title('设置与完整功能','日常操作保持简洁，专业配置集中管理。')+(typeof localRuntimeNotice==='function'?localRuntimeNotice():'')+
+ `<section class="settings-list">${[['guide','GEO 执行指南','九个环节的具体做法、入口与效果核验。','book'],['brands','客户与品牌','切换客户、创建品牌、开始资料初始化。','building'],['team','团队与访问范围','成员角色、品牌授权、配额、审计与备份恢复。','users'],['integrations','外部服务连接','检查采样、模型与发布服务的接入状态。','plug'],['roadmap','完整功能与实施路径','36 项能力、API、开源工具、开发阶段和验收标准。','layers']].map(([id,t,d,i])=>`<a href="#${id}" class="setting-row"><span class="task-icon">${icon(i)}</span><div><h3>${t}</h3><p>${d}</p></div><span>→</span></a>`).join('')}</section><div class="section-title"><h2>工作区资料</h2></div><div class="settings-actions">${btn('导出工作区','backup-workspace')}<a class="button" href="docs/当前版本与使用说明.md" download>下载使用说明</a><a class="button" href="docs/实施方案.md" download>下载完整实施方案</a></div><div class="callout"><b>视图与权限：</b>“运营视图 / 客户视图”只改变当前界面的组织方式；${typeof isLocalRuntime==='function'&&isLocalRuntime()?'当前是本机单用户实例，访问同一实例的人共用数据；团队角色需在配置真实登录身份的托管版使用。':'账号由平台登录保护，团队成员由服务器按角色与品牌授权；两种视图只改变展示方式。'}</div>`;
 }
 
 function suggestedQuestions(industry,name) {
@@ -124,11 +127,12 @@ function suggestedQuestions(industry,name) {
 }
 function setupDraft() {return setupBuffer ||= state.setupDraft || {name:'',site:'',industry:'企业服务',source:'',material:'',questions:''};}
 function renderBrandSetup() {
+ if(state.viewMode==='simple')return renderSimpleSetup();
  const d=setupDraft();let fields='';
  if(setupStep===1)fields=`${field('品牌名称','name',d.name,'例如：你的品牌')}<label class="field">官网地址（选填）<input name="site" type="url" value="${esc(d.site)}" placeholder="https://example.com"><small>只记录网址，不会自动抓取或编造品牌事实。</small></label>${selectField('所属行业','industry',['企业服务','家居生活','旅行住宿','其他'],d.industry)}`;
  if(setupStep===2)fields=`<p class="setup-intro">粘贴已有产品说明，或选择本地文本资料。完成建档后会自动核对这些段落的出处，可稍后补充。</p><label class="file-picker">选择 TXT / Markdown 文件<input type="file" id="setup-file" accept=".txt,.md,text/plain,text/markdown"></label><label class="field">资料出处<input name="source" value="${esc(d.source)}" placeholder="例如：产品手册第 1 页"></label><label class="field">产品资料（选填）<textarea name="material" rows="7" maxlength="50000" placeholder="可保留标题、问题和答案，系统会合并上下文。不要填写密钥或密码。">${esc(d.material)}</textarea><small>保留原文并逐段核对。PDF / Word 可在完成建档后从知识库上传原文件。</small></label>`;
  if(setupStep===3)fields=`<div class="setup-summary"><b>${esc(d.name)}</b><span>${esc(d.industry)} · ${d.material.trim()?splitFacts(d.material).length+' 条待确认资料':'资料可稍后补充'}</span></div><label class="field">确认监测问题（每行一个）<textarea name="questions" rows="7" required maxlength="12000">${esc(d.questions)}</textarea><small>以下是行业模板建议，可直接改写；不是搜索热度或 AI 已验证的问题。</small></label><div class="callout">完成后创建品牌与问题，并自动比对导入资料的出处；不会调用付费模型。</div>`;
- return title('建立你的品牌工作区','用三个步骤完成建档，后续可继续补充。',`<a class="button" href="#brands">稍后继续</a>`)+`<div class="setup-layout"><aside class="setup-steps">${['品牌信息','整理资料','确认问题'].map((s,i)=>`<div class="${setupStep===i+1?'active':''}"><span>${i+1<setupStep?'✓':i+1}</span><div><b>${s}</b><small>${['先确定服务对象','从已有资料开始','带着问题看效果'][i]}</small></div></div>`).join('')}<p>草稿自动保存到工作区，离开后可以继续。</p></aside><section class="panel"><div class="panel-head"><h2>${['品牌信息','整理已有资料','确认第一组问题'][setupStep-1]}</h2><span class="muted">${setupStep} / 3</span></div><div class="panel-body"><form data-form="brand-setup">${fields}<p class="form-error" role="alert"></p><div class="form-actions">${setupStep>1?btn('上一步','setup-back','','type="button"'):''}<button class="button primary" type="submit">${setupStep===3?'创建品牌工作区':'下一步'} →</button></div></form></div></section></div>`;
+ return title('建立你的品牌工作区','用三个步骤完成建档，后续可继续补充。',`<a class="button" href="#brands">稍后继续</a>`)+(typeof localRuntimeNotice==='function'?localRuntimeNotice():'')+`<div class="setup-layout"><aside class="setup-steps">${['品牌信息','整理资料','确认问题'].map((s,i)=>`<div class="${setupStep===i+1?'active':''}"><span>${i+1<setupStep?'✓':i+1}</span><div><b>${s}</b><small>${['先确定服务对象','从已有资料开始','带着问题看效果'][i]}</small></div></div>`).join('')}<p>草稿自动保存到工作区，离开后可以继续。</p></aside><section class="panel"><div class="panel-head"><h2>${['品牌信息','整理已有资料','确认第一组问题'][setupStep-1]}</h2><span class="muted">${setupStep} / 3</span></div><div class="panel-body"><form data-form="brand-setup">${fields}<p class="form-error" role="alert"></p><div class="form-actions">${setupStep>1?btn('上一步','setup-back','','type="button"'):''}<button class="button primary" type="submit">${setupStep===3?'创建品牌工作区':'下一步'} →</button></div></form></div></section></div>`;
 }
 function splitFacts(text) {return GEO_KNOWLEDGE.documentFacts(String(text).split(/\n\s*\n/).map((text,i)=>({text,index:i+1}))).map(f=>f.value);}
 function rememberSetup(form) {

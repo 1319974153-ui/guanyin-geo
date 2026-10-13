@@ -53,8 +53,8 @@ async function reviewFactsBatch(ids,options={}) {
       state=d.state;serverRevision=d.revision;results.push(...d.reviews);processed+=ids.slice(i,i+12).length;matched+=d.reviews.filter(r=>r.status==='matched').length;
     }
   }catch(e){failure=e.message}finally{runtimeLock(false);document.getElementById('request-status').textContent='正在执行请求，请稍候。';}
-  closeDrawer();go('knowledge',{status:'待确认'});render();
   const pending=results.filter(r=>r.status!=='matched');
+  closeDrawer();go('knowledge',{status:pending.length||failure||processed<ids.length?'待确认':'已确认'});render();
   openDrawer('出处核对结果',`<p><b>${matched} 条自动通过</b>，${pending.length} 条需要处理${processed<ids.length?`，${ids.length-processed} 条尚未处理`:''}。</p>${failure?`<p class="form-error">${esc(failure)}，已完成的结果已经保存。</p>`:''}`+
     `${(options.warnings||[]).map(w=>`<p class="helper">${esc(w)}</p>`).join('')}<p class="helper">自动核对比较摘录与原文是否一致。业务结论仍以原始资料的准确性为前提。</p>`+
     pending.map(r=>{const f=own('facts').find(f=>f.id===r.id);return `<div class="source-evidence"><b>${esc(f?.key||'资料')}</b><p>${esc(r.reason)}</p>${btn('处理这一项','confirm-fact','small',`data-id="${r.id}"`)}</div>`}).join('')+

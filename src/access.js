@@ -37,7 +37,7 @@ export async function accessibleWorkspaces(env,ctx){
 }
 export function visibleState(state,ctx){
  if(ctx.brands===null&&!ctx.key)return state;
- const out={version:state.version,experienceVersion:state.experienceVersion,viewMode:state.viewMode,scope:state.scope};
+ const out={version:state.version,experienceVersion:state.experienceVersion,simpleExperienceVersion:state.simpleExperienceVersion,viewMode:state.viewMode,scope:state.scope};
  for(const [key,value] of Object.entries(state))if(Array.isArray(value))out[key]=key==='brands'?value.filter(x=>canBrand(ctx,x.id)):value.filter(x=>x.brandId&&canBrand(ctx,x.brandId));
  out.currentBrand=out.brands.some(b=>b.id===state.currentBrand)?state.currentBrand:out.brands[0]?.id||'';
  return out;
@@ -71,7 +71,7 @@ export function mergeVisibleState(current,incoming,ctx){
   result[key]=[...current[key].filter(x=>!x.brandId||!canBrand(ctx,x.brandId)),...next];
  }
  if(typeof incoming.currentBrand==='string'&&old.brands.some(b=>b.id===incoming.currentBrand))result.currentBrand=incoming.currentBrand;
- if(['operator','client'].includes(incoming.viewMode))result.viewMode=incoming.viewMode;
+ if(['simple','operator','client'].includes(incoming.viewMode))result.viewMode=incoming.viewMode;
  if(['import','api'].includes(incoming.scope))result.scope=incoming.scope;
  return result;
 }

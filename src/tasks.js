@@ -105,7 +105,7 @@ export async function tasksApi(req,env,ctx,h){
  if(path==='/api/tasks'&&method==='GET'){
   const plans=await taskList(env,ctx,url.searchParams.get('brandId'));
   const last=await env.DB.prepare("SELECT created FROM audit_events WHERE owner=? AND action IN ('POST /api/v1/tasks/tick','POST /api/runner/tick') AND status=200 AND (actor LIKE 'key:%' OR actor='runner:local-machine') ORDER BY created DESC LIMIT 1").bind(ctx.owner).first();
-  return h.json({plans,executor:{lastExternalTick:last?.created||null,status:last?(Date.now()-Date.parse(last.created)<300000?'执行器最近 5 分钟有响应':'执行器最近 5 分钟未响应，检查电脑或网络'):'尚未连接外部定时触发器'}});
+  return h.json({plans,localBackground:env.LOCAL_RUNTIME?.status()||null,executor:{lastExternalTick:last?.created||null,status:last?(Date.now()-Date.parse(last.created)<300000?'执行器最近 5 分钟有响应':'执行器最近 5 分钟未响应，检查电脑或网络'):'尚未连接外部定时触发器'}});
  }
  if(path==='/api/tasks/items'&&method==='GET'){
   const id=url.searchParams.get('planId'),plan=await planFor(env,ctx,id);const r=await env.DB.prepare('SELECT * FROM task_items WHERE owner=? AND plan_id=? ORDER BY created DESC,id LIMIT 500').bind(ctx.owner,id).all();

@@ -1,6 +1,6 @@
 window.GEO_CONFIG={
 nav:[['工作空间',[['overview','运营概览','dashboard'],['brands','客户与品牌','building'],['monitor','问题与监测','radar'],['insights','品牌与竞品洞察','chart'],['sources','信源与文章追踪','link']]],['优化与交付',[['knowledge','品牌知识库','book'],['content','内容工作台','edit'],['publish','发布与复测','send'],['audit','网站诊断','globe'],['reports','客户报告','file']]],['平台管理',[['team','团队与客户门户','users'],['integrations','连接与 API','plug'],['roadmap','功能全景与实施','layers']]]],
-platforms:['豆包','DeepSeek','腾讯元宝','通义千问','Kimi','文心'],
+platforms:['豆包','DeepSeek','Kimi','腾讯元宝','通义千问','文心','ChatGPT'],
 integrations:[
  {id:'aidso',name:'AIDSO / 授权采样服务',letter:'爱',tag:'P0 优先验证',desc:'评估借助现有服务取得真实回答、品牌诊断与引用证据，缩短消费端采集验证周期。',limit:'官方展示虾搜与诊断能力；接口权限、原始数据、商用转供和费用需向供应商核实。未完成接入。',url:'https://geo.aidso.com/',steps:['取得你名下的供应商账号与正式 API 文档，核对商业使用与数据导出权限。','先用 20 个固定问题做小额验证，检查原回答、入口、模式、采样时间及实际引用。','满足证据完整度和稳定性门槛后再进入定时采样；不能只回传一个总分。']},
  {id:'ark',name:'火山方舟 / 豆包助手',letter:'豆',tag:'P0 验证',desc:'验证 doubao_app 能力；支持官方模型测试、联网研究、结构化抽取与内容生成。',limit:'App 同款能力不自动等同当前前台结果；模型测试与消费端监测分开。',url:'https://docs.volcengine.com/docs/ark/responses-api-tool-calling?lang=zh',steps:['准备火山账号、模型或应用权限和服务端 API Key。','测试 Responses、doubao_app 或 web_search，按实际账号能力选择。','保存 request_id、原答案、引用、模型、模式和用量；按品牌限制预算。']},

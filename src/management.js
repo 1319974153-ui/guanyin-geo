@@ -1,3 +1,4 @@
+import {attachCaptureBaseline} from './capture-core.js';
 import {importedAnswer,importIdentity} from './answer-import-core.js';
 import {access,accessibleWorkspaces,visibleState,mergeVisibleState,requireAdmin,requireOwner,canBrand,policy,DEFAULT_POLICY,reject,digest,elevated} from './access.js';
 import {createBackup,trimBackups,downloadBackup,restoreBackup,deleteBrand} from './governance.js';
@@ -57,7 +58,7 @@ export async function management(req,env,ctx,h){
   if(!ctx.key&&!['owner','admin','editor'].includes(ctx.role))reject(403,'当前角色不能导入回答');
   const b=await body(req),w=await h.workspace(env,owner),brand=w.state.brands.find(x=>x.id===b.brandId),question=w.state.questions.find(x=>x.brandId===b.brandId&&x.id===b.questionId);
   if(!brand||!question)reject(404,'品牌或问题不存在');
-  const record=importedAnswer(b,brand,question),importHash=await digest(importIdentity(record));
+  const record=attachCaptureBaseline(importedAnswer(b,brand,question),b,w.state),importHash=await digest(importIdentity(record));
   let id,existing=false;
   await appendResult(env,owner,s=>{
    const previous=s.answers.find(x=>x.brandId===brand.id&&x.externalId===record.externalId);
@@ -67,7 +68,7 @@ export async function management(req,env,ctx,h){
    }
    const currentBrand=s.brands.find(x=>x.id===brand.id),currentQuestion=s.questions.find(x=>x.id===question.id&&x.brandId===brand.id);
    if(!currentBrand||!currentQuestion)reject(409,'品牌或问题已移除，请重新载入');
-   const current=importedAnswer({...b,questionVersion:record.questionVersion},currentBrand,currentQuestion);
+   const current=attachCaptureBaseline(importedAnswer({...b,questionVersion:record.questionVersion},currentBrand,currentQuestion),b,s);
    if(importIdentity(current)!==importIdentity(record))reject(409,'问题资料已更新，请重新载入后核对版本');
    id=crypto.randomUUID();s.answers.push({...current,id,importHash,source:ctx.key?'api-import':'manual-import',receivedAt:stamp(),receivedBy:ctx.actor});
   });

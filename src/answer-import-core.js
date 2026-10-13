@@ -11,6 +11,7 @@ function url(value){try{const u=new URL(value);if(!['http:','https:'].includes(u
 
 // Normalize the collector's supplied evidence, not assumptions about the platform.
 export function importedAnswer(input,brand,question,clock=new Date()){
+ if(input.dataPurpose!==undefined&&!['formal','trial'].includes(input.dataPurpose))invalid('请选择正式采集或试用演练');
  const externalId=text(input.externalId,'采集编号',160),platform=text(input.platform,'平台',80),mode=text(input.mode,'回答模式',100);
  if(!['web','app','api'].includes(input.entry))invalid('请选择 Web、App 或 API 入口');
  const region=text(input.region,'地区',80),language=text(input.language,'语言',40);
@@ -26,8 +27,8 @@ export function importedAnswer(input,brand,question,clock=new Date()){
  const recommendation=input.recommendation||'unknown';if(!['unknown','no','yes'].includes(recommendation))invalid('推荐判断不正确');
  const mention=hasName(input.text,brand);if(recommendation==='yes'&&!mention)invalid('原文未匹配品牌或别名，请先核对品牌资料');
  const model=text(input.model,'模型',120,true),sourceUrl=input.sourceUrl?url(input.sourceUrl):'',publicSearchProcess=text(input.publicSearchProcess,'公开搜索过程',20000,true);
- return {externalId,brandId:brand.id,...importedProduct(brand,question,version,dateText),promptId:question.id,questionVersion:version,questionText:snapshot.text,platform,surface:input.entry==='api'?'api':'import',entry:input.entry,mode,region,language,model,sourceUrl,date:new Date(time).toISOString(),dateZone:text(input.dateZone,'采集设备时区',100,true),text:input.text,citations,citationKnown:input.citationKnown===true,recommendationLabeled:recommendation!=='unknown',recommended:recommendation==='yes',mention,official:false,sentiment:mention?'待复核':'未提及',status:'ok',publicSearchProcess,demo:false};
+ return {externalId,brandId:brand.id,...importedProduct(brand,question,version,dateText),promptId:question.id,questionVersion:version,questionText:snapshot.text,platform,surface:input.entry==='api'?'api':'import',entry:input.entry,mode,region,language,model,sourceUrl,date:new Date(time).toISOString(),dateZone:text(input.dateZone,'采集设备时区',100,true),text:input.text,citations,citationKnown:input.citationKnown===true,recommendationLabeled:recommendation!=='unknown',recommended:recommendation==='yes',mention,official:false,sentiment:mention?'待复核':'未提及',status:'ok',publicSearchProcess,demo:input.dataPurpose==='trial'};
 }
 
 // Hash only submitted context. Later brand aliases or review labels do not change a retry.
-export function importIdentity(a){return JSON.stringify(Object.fromEntries(['externalId','brandId','promptId','questionVersion','questionText','platform','entry','mode','region','language','model','sourceUrl','date','dateZone','text','citations','publicSearchProcess'].map(k=>[k,a[k]??''])))}
+export function importIdentity(a){return JSON.stringify({...Object.fromEntries(['externalId','brandId','promptId','questionVersion','questionText','platform','entry','mode','region','language','model','sourceUrl','date','dateZone','text','citations','publicSearchProcess'].map(k=>[k,a[k]??''])),...(a.demo?{demo:true}:{}),...(a.baselineAnswerId?{baselineAnswerId:a.baselineAnswerId,baselineContext:a.baselineContext,baselineDate:a.baselineDate}:{})})}
