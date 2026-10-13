@@ -80,7 +80,6 @@ npm test
 ## 相关项目与作者
 
 - [温舒 GitHub](https://github.com/1319974153-ui)
-- [拾帧 · 新媒体 2.0](https://github.com/1319974153-ui/shizhen-newmedia)
 - [温舒知乎主页](https://www.zhihu.com/people/wen-shu-80-67)
 
 文档由 AI 辅助整理，作者对公开事实与版本说明负责。仓库内容不构成第三方平台认证、合作或排名背书。
