@@ -18,6 +18,19 @@ English: Guanyin GEO is an open-source local workbench for generative engine opt
 
 完整范围和已知限制见 [当前版本与使用说明](public/docs/当前版本与使用说明.md)、[功能验收矩阵](public/docs/功能验收矩阵.md)。当前源码版本见 package.json。
 
+## 下载与新版界面
+
+当前公开版：**0.48.2**。查看 [版本说明和下载](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.48.2)。
+
+- [Windows x64 独立包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.48.2/GuanyinGEO-0.48.2-win32-x64.zip)
+- [Apple Silicon Mac 独立包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.48.2/GuanyinGEO-0.48.2-darwin-arm64.zip)
+
+默认黑曜石深色、局部折射光和鼠标跟随高光，光效自动开启；支持系统减少动态效果设置。保留浅色切换和“今天、待我确认、效果”三个入口。首页可切换七个 AI 平台，检测入口跟随所选平台。
+
+![观引 0.48.2 界面](docs/images/nocturne-0.48.2.png)
+
+Windows 本轮桌面双击验收待补充；具体验证范围见 [版本说明](docs/releases/0.48.2.md)。下载包只包含程序和运行时，使用你自己的资料与模型连接。旧版不会自动更新：先导出业务备份并停止旧实例，解压新版后使用应用内备份恢复迁移资料。模型连接与密钥请在新版中重新核对。
+
 ## 本地启动
 
 需要 Node.js 24+、npm 和 zip。
@@ -77,7 +90,7 @@ npm test
 自有代码使用 [MIT](LICENSE)。第三方解析、OCR、模型运行及字体组件见 [第三方声明](THIRD_PARTY_NOTICES.md) 和 `public/vendor/` 中保留的许可。
 
 
-## 普通用户独立启动包（0.47）
+## 普通用户独立启动包（0.48.2）
 
 Apple Silicon Mac 与 Windows x64 包内含 Node 24 运行时和构建产物，无需安装 npm 或 Codex。解压后双击“启动观引”，分别提供停止、诊断与卸载说明。每份全新解压有自己的实例编号、动态端口和用户数据目录；不携带开发者资料或密钥。同一实例仍是本机单用户，不能作为多人登录网站公开部署。移动或复制已启动目录会建立新实例；迁移前先停止、备份，再在新实例恢复。
 
