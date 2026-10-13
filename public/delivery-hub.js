@@ -18,10 +18,10 @@ function renderDeliveryHub(){
  else body=`<section class="panel">${table(['能力','真实执行方式','下一步'],[
  ['消费者网页采样','浏览器助手单次操作；登录、安全验证、联网模式逐平台核对。尚无独立无人值守执行器。','<a href="#monitor">选择问题</a> · <a href="#answers">原回答与证据</a>'],
  ['模型 API 批量任务','已有后台队列；仅执行已启用的计划，费用按服务配置与配额控制。','<a href="#tasks">任务与执行器状态</a>'],
- ['知乎 / 头条号 / 百家号','审核稿发布包与平台入口；本次未把浏览器登录认定为自动发布授权。','<a href="#publish">发布回执与复测</a>'],
+ ['知乎 / 头条号 / 百家号','下载审核稿发布包，到目标平台自行发布，再登记实际回执。','<a href="#publish">发布回执与复测</a>'],
  ['抖音图文','本机 SAU 适配命令；需专用登录和图片，CLI 返回成功后仍须核对平台回执。','<a href="/docs/外部连接与交付说明.md" target="_blank">接入说明</a>'],
  ['自有 WordPress','已实现连接验证、媒体、远端草稿与发布；需要自有站点授权。','<a href="#publish">网站连接</a>'],
- ['周期报告 / 网页复测','已有本机执行器。电脑休眠或离线时延后。','<a href="#reports">设置周期报告</a>'],
+ ['周期报告 / 网页复测','需要在线的后台执行器；本机版请先在任务中心开启。电脑休眠或离线时延后。','<a href="#reports">设置周期报告</a>'],
  ['站长平台','保存官方界面观察原文，不使用网页 HTTP 200 代替收录。','<a href="#delivery-hub?tab=webmaster">导入站长回执</a>']])}</section><section class="panel panel-body"><h2>审核稿多平台发布包</h2><p>保留完整正文、事实版本和审核时间，生成知乎、头条号、百家号、抖音的交付清单。导出不会自动公开发布。</p><form data-hub-package><label class="field">已审核稿件<select name="contentId">${own('contents').filter(c=>c.status==='已审核').map(c=>`<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select></label><p class="form-error" role="alert"></p><button type="submit" class="button">下载发布包</button></form></section>`;
  return title('交付与连接','从可执行能力到真实回执，逐项完成验收。')+brandFilter()+navigation+(hubError?`<p class="form-error" role="alert">${esc(hubError)}</p>`:'')+body;
 }

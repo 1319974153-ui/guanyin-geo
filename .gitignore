@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .local/
+.local*/
 .wrangler/
 .venv/
 .env
