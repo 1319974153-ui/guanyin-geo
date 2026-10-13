@@ -78,6 +78,13 @@
       "when": 1790704093349,
       "tag": "0010_wild_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1791864098179,
+      "tag": "0011_ambiguous_centennial",
+      "breakpoints": true
     }
   ]
 }

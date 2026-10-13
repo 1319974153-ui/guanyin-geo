@@ -32,3 +32,11 @@ test('manual published receipts require evidence even when no public article URL
  assert.doesNotThrow(()=>core.validatePublicationRecord({publicationStage:'published',url:'',platformNote:'平台后台显示：已发布'}));
  assert.equal(core.canCheckPublication({publicationStage:'published',url:'',platformReceiptUrl:'https://creator.douyin.com/creator-micro/home'}),false);
 });
+test('handoff snapshots must match the saved approved version and stay immutable',()=>{
+ const c={id:'c',brandId:'b',status:'已审核',title:'审核标题',text:'审核正文',factSnapshots:[]};
+ const current={publications:[],contents:[c],facts:[]};const p={id:'p',brandId:'b',contentId:'c',handoffSnapshot:{contentId:'c',brandId:'b',title:c.title,text:c.text,factSnapshots:[]}};
+ assert.doesNotThrow(()=>core.protectHandoffSnapshots(current,{publications:[p]}));
+ assert.throws(()=>core.protectHandoffSnapshots(current,{publications:[{...p,handoffSnapshot:{...p.handoffSnapshot,text:'伪造正文'}}]}),/审核稿/);
+ assert.throws(()=>core.protectHandoffSnapshots({...current,publications:[p]},{publications:[{...p,handoffSnapshot:{...p.handoffSnapshot,text:'覆盖'}}]}),/不可覆盖/);
+ assert.throws(()=>core.protectHandoffSnapshots({...current,contents:[{...c,status:'草稿'}]},{publications:[p]}),/审核稿/);
+});

@@ -1,4 +1,16 @@
 import {canonicalUrl,entryOf} from './analytics-core.js';
+import {factUsable} from './knowledge-core.js';
+export function protectHandoffSnapshots(current,next){
+ for(const p of next.publications){
+  const prior=current.publications.find(x=>x.id===p.id);
+  if(prior?.handoffSnapshot&&(p.contentId!==prior.contentId||p.brandId!==prior.brandId||JSON.stringify(prior.handoffSnapshot)!==JSON.stringify(p.handoffSnapshot)))throw Object.assign(new Error('交付副本不可覆盖，请保留历史版本'),{status:409});
+  if(!p.handoffSnapshot||prior?.handoffSnapshot)continue;
+  const c=current.contents.find(c=>c.id===p.contentId&&c.brandId===p.brandId),s=p.handoffSnapshot;
+  if(c?.status!=='已审核'||s.title!==c.title||s.text!==c.text||s.contentId!==c.id||s.brandId!==c.brandId||JSON.stringify(s.factSnapshots||[])!==JSON.stringify(c.factSnapshots||[]))throw Object.assign(new Error('交付副本必须对应已保存的审核稿'),{status:409});
+  if(c.productId&&current.brands.find(b=>b.id===c.brandId)?.productLines?.find(x=>x.id===c.productId)?.status!=='active')throw Object.assign(new Error('稿件产品已归档，请重新审核'),{status:409});
+  for(const f of c.factSnapshots||[]){const live=current.facts.find(x=>x.id===f.id&&x.brandId===c.brandId);if(!live||!factUsable(live)||live.value!==f.value||live.source!==f.source||(live.version||1)!==(f.version||1))throw Object.assign(new Error('稿件依据已变化，请重新审核'),{status:409});}
+ }
+}
 export const PUBLICATION_STAGES={planned:'待发布',draft:'平台草稿',in_review:'平台审核中',rejected:'平台审核未通过',registered:'已登记链接 · 上线待核对',published:'平台已发布 · 人工登记',offline:'已下线 · 人工登记'};
 export function publicationStage(p){return p.publicationStage||(p.url?'registered':'planned');}
 export function isPlatformReceiptUrl(value){
@@ -24,7 +36,7 @@ export function validatePublicationRecord(p){
 export function validatePublicationConfigs(state){for(const p of state.publications){validatePublicationRecord(p);if(p.autoRetest!==undefined&&typeof p.autoRetest!=='boolean')throw new Error('文章自动复测开关格式不正确');if(p.retestEveryHours!==undefined&&![6,24,168].includes(p.retestEveryHours))throw new Error('文章复测频率支持 6、24、168 小时');if(p.retestWindowDays!==undefined&&![7,30,90].includes(p.retestWindowDays))throw new Error('文章引用窗口支持 7、30、90 天');}}
 export function observePublication(state,p,clock=new Date()){
  const config=publicationConfig(p),to=clock.toISOString(),from=new Date(Date.parse(to.slice(0,10)+'T00:00:00Z')-(config.windowDays-1)*86400000).toISOString();
- const rows=state.answers.filter(a=>a.brandId===p.brandId&&a.status==='ok'&&typeof a.text==='string'&&a.text.trim()&&Date.parse(a.date)>=Date.parse(from)&&Date.parse(a.date)<=clock.getTime());
+ const rows=state.answers.filter(a=>!a.demo&&a.brandId===p.brandId&&a.status==='ok'&&typeof a.text==='string'&&a.text.trim()&&Date.parse(a.date)>=Date.parse(from)&&Date.parse(a.date)<=clock.getTime());
  return {url:config.url,window:{from,to,days:config.windowDays},surfaces:['import','api'].map(surface=>{
   const answers=rows.filter(a=>a.surface===surface),linked=answers.filter(a=>a.citations?.some(c=>canonicalUrl(c.url)===config.url&&config.url)),verified=linked.filter(a=>a.citationKnown===true),recommendations=verified.filter(a=>a.recommendationLabeled===true),dates=a=>a.map(x=>x.date).sort((a,b)=>Date.parse(a)-Date.parse(b));
   const firstVerifiedAnswer=verified.slice().sort((a,b)=>Date.parse(a.date)-Date.parse(b.date))[0],evidenceRows=[...(firstVerifiedAnswer?[firstVerifiedAnswer]:[]),...linked.slice().sort((a,b)=>Date.parse(b.date)-Date.parse(a.date)).filter(a=>a.id!==firstVerifiedAnswer?.id)].slice(0,50);

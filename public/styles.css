@@ -59,3 +59,5 @@ small,.sub,.helper{line-height:1.75}.button{min-height:38px}.button.small{min-he
 .source-trend figcaption { color: #657480; font-size: 12px; margin-top: 8px; }
 
 [data-question-xlsx][hidden]{display:none}
+
+[data-answer-import] [hidden] { display: none !important; }
