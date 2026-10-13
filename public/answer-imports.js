@@ -40,7 +40,7 @@ document.addEventListener('submit',async e=>{
   const receipt=await apiRequest('/api/v1/answers',{method:'POST',body:serialized});
   f.dataset.saved=receipt.id;
   const d=await apiRequest('/api/state');state=d.state;serverRevision=d.revision;serverConnections=d.connections;
-  state.scope='import';runtimeLock(false);go('monitor',{surface:'import'});render();answerDetail(receipt.id);toast(receipt.existing?'已找回此前保存的回答，没有新增重复样本':'实际回答已保存，可继续添加截图证据');
+  state.scope='import';runtimeLock(false);if(f.dataset.simple==='capture'){closeDrawer();go('results');render();}else{go('monitor',{surface:'import'});render();answerDetail(receipt.id);}toast(receipt.existing?'已找回此前保存的回答，没有新增重复样本':'实际回答已保存，可继续添加截图证据');
  }catch(err){
   if(err.status&&err.status<500&&err.status!==409)delete f.dataset.submitted;
   error.textContent=(f.dataset.saved?'回答已保存，页面刷新未完成。保持内容不变后重试可找回记录。 ':'')+err.message;button.disabled=false;

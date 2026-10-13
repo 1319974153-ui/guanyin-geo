@@ -9,7 +9,7 @@ function industryTopics(industry) {
   return ['选型比较','迁移实施','采购预算','系统集成','安全合规','使用服务'];
 }
 function migrateExperience() {
-  state.viewMode = state.viewMode === 'client' ? 'client' : 'operator';
+  if(!state.simpleExperienceVersion){state.viewMode='simple';state.simpleExperienceVersion=1;}else state.viewMode=['simple','client','operator'].includes(state.viewMode)?state.viewMode:'simple';
   state.siteChecks ||= [];
   if (!state.experienceVersion) {
     const old = ['选型比较','迁移实施','采购预算','系统集成','安全合规','使用服务'];
@@ -26,8 +26,9 @@ function context() { return new URLSearchParams(location.hash.split('?')[1] || '
 function routeLink(target,values={},inherit=true) { values=inherit?analyticsNavigationValues(target,values):values;const p=new URLSearchParams();for(const [k,v] of Object.entries(values))if(v)p.set(k,v);return '#'+target+(p.size?'?'+p:''); }
 function go(target,values={},inherit=true) { const next=routeLink(target,values,inherit); if(location.hash===next)render();else location.hash=next; }
 function replaceContext(values) { const p=context();for(const [k,v] of Object.entries(values)){if(v)p.set(k,v);else p.delete(k)}history.replaceState(null,'',routeLink(route,Object.fromEntries(p),false)); }
-function pageName(id) {return ({'delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
+function pageName(id) {return ({today:'今天',inbox:'待我确认',results:'效果','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
 function renderNavigation() {
+  if(state.viewMode==='simple'){renderSimpleNavigation();return;}
   const client=state.viewMode==='client';
   const groups=client?[['客户交付',[['overview','品牌概览','dashboard'],['answers','回答记录','file'],['knowledge','资料确认','book'],['content','内容确认','edit'],['reports','效果报告','file']]]]:[
     ['监测与分析',[['overview','品牌概览','dashboard'],['monitor','监测问题','radar'],['answers','回答记录','file'],['insights','品牌洞察','chart'],['sources','引用来源','link']]],
@@ -40,6 +41,7 @@ function renderNavigation() {
   document.body.dataset.view=state.viewMode;
 }
 function sectionNavigation() {
+  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回今天</a></p>';
   let links=[];
   if(['monitor','demand','tasks','operations'].includes(route)) links=[['monitor','监测问题'],['answers','回答记录'],['demand','需求数据'],['tasks','任务与批量执行'],['operations','告警与待办'],['insights','品牌与竞品'],['sources','引用来源'],['audit','网站诊断']];
   if(['knowledge','content','dso'].includes(route)&&state.viewMode!=='client')links=[['content','内容工作台'],['knowledge','品牌资料'],['dso','DSO 内容实验室']];
@@ -125,6 +127,7 @@ function suggestedQuestions(industry,name) {
 }
 function setupDraft() {return setupBuffer ||= state.setupDraft || {name:'',site:'',industry:'企业服务',source:'',material:'',questions:''};}
 function renderBrandSetup() {
+ if(state.viewMode==='simple')return renderSimpleSetup();
  const d=setupDraft();let fields='';
  if(setupStep===1)fields=`${field('品牌名称','name',d.name,'例如：你的品牌')}<label class="field">官网地址（选填）<input name="site" type="url" value="${esc(d.site)}" placeholder="https://example.com"><small>只记录网址，不会自动抓取或编造品牌事实。</small></label>${selectField('所属行业','industry',['企业服务','家居生活','旅行住宿','其他'],d.industry)}`;
  if(setupStep===2)fields=`<p class="setup-intro">粘贴已有产品说明，或选择本地文本资料。完成建档后会自动核对这些段落的出处，可稍后补充。</p><label class="file-picker">选择 TXT / Markdown 文件<input type="file" id="setup-file" accept=".txt,.md,text/plain,text/markdown"></label><label class="field">资料出处<input name="source" value="${esc(d.source)}" placeholder="例如：产品手册第 1 页"></label><label class="field">产品资料（选填）<textarea name="material" rows="7" maxlength="50000" placeholder="可保留标题、问题和答案，系统会合并上下文。不要填写密钥或密码。">${esc(d.material)}</textarea><small>保留原文并逐段核对。PDF / Word 可在完成建档后从知识库上传原文件。</small></label>`;

@@ -13,17 +13,18 @@ function enhanceCaptureForm(baseline){
  const f=document.querySelector('[data-answer-import]');if(!f)return;
  const children=[...f.children],pages=[1,2,3].map(i=>{const p=document.createElement('section');p.dataset.capturePage=i;return p});let n=0;
  for(const child of children){if(child.querySelector('[name="text"]'))n=1;if(child.querySelector('[name="recommendation"]'))n=2;if(child.matches('.form-error,button[type="submit"]'))continue;pages[n].append(child)}
- const intro=document.createElement('div');intro.innerHTML='<h3 data-capture-progress tabindex="-1"></h3><p>在元宝等平台实际提问，再回到这里保存证据。此向导不会代登录或把模型 API 当成消费端回答。</p>';
- f.prepend(intro,...pages);pages[0].insertAdjacentHTML('beforeend','<div class="callout"><b>本次固定问题</b><p data-capture-question></p><button type="button" class="button" data-action="capture-copy">复制当前问题</button> <a class="button" href="https://yuanbao.tencent.com/" target="_blank" rel="noopener noreferrer">打开腾讯元宝</a><p>使用新会话并核对联网模式；地区或模型未展示时如实留未知。返回后填写实际采样时间。</p></div>');
+ const intro=document.createElement('div');intro.innerHTML='<h3 data-capture-progress tabindex="-1"></h3><p>在豆包等平台实际提问，再回到这里保存证据。此向导不会代登录或把模型 API 当成消费端回答。</p>';
+ f.prepend(intro,...pages);pages[0].insertAdjacentHTML('beforeend','<div class="callout"><b>本次固定问题</b><p data-capture-question></p><button type="button" class="button" data-action="capture-copy">复制当前问题</button> <a class="button" data-capture-entry href="https://www.doubao.com/chat/" target="_blank" rel="noopener noreferrer">打开豆包</a><p>使用新会话并核对联网模式；地区或模型未展示时如实留未知。返回后填写实际采样时间。</p></div>');
  pages[2].insertAdjacentHTML('afterbegin','<div class="callout"><b>即将保存</b><p data-capture-summary></p><p>原文与引用照录；未知状态不计作成功。保存后可添加截图或文件证据。</p></div>');
  f.querySelector('button[type="submit"]').insertAdjacentHTML('beforebegin','<button type="button" class="button" data-action="capture-back">上一步</button> <button type="button" class="button primary" data-action="capture-next">下一步</button> ');
- f.elements.platform.value='腾讯元宝';f.elements.region.value='未记录';f.elements.mode.value='未记录';
+ f.elements.platform.value='豆包';f.elements.region.value='未记录';f.elements.mode.value='未记录';
  if(baseline){
   f.elements.questionId.value=baseline.promptId;const q=own('questions').find(q=>q.id===baseline.promptId);f.elements.questionVersion.innerHTML=answerImportVersionOptions(q);
   for(const [k,value] of Object.entries({questionVersion:baseline.questionVersion,platform:baseline.platform,entry:baseline.entry,mode:baseline.mode,region:baseline.region,language:baseline.language,model:baseline.model||''}))f.elements[k].value=value;
   const hidden=document.createElement('input');hidden.type='hidden';hidden.name='baselineAnswerId';hidden.value=baseline.id;f.append(hidden);
   intro.insertAdjacentHTML('beforeend',`<p class="callout">同条件复测：基线 ${esc(new Date(baseline.date).toLocaleString('zh-CN'))}。条件由服务端核对；需要改变条件时关闭向导，另建新基线。</p>`);
  }
+ const link=f.querySelector('[data-capture-entry]');if(link&&SIMPLE_ENTRIES[f.elements.platform.value]){link.href=SIMPLE_ENTRIES[f.elements.platform.value];link.textContent='打开'+f.elements.platform.value;}
  captureGuideStep(f,1);
 }
 async function captureGuideAction(name,el){
@@ -50,3 +51,5 @@ function captureRetestPanel(a){
 }
 
 document.addEventListener("change",e=>{const f=e.target.closest("[data-capture-step]")?.closest("form");if(f&&["questionId","questionVersion"].includes(e.target.name)){const label=f.querySelector("[data-capture-question]");if(label)label.textContent=captureQuestion(f);}});
+
+document.addEventListener('change',e=>{const f=e.target.closest('[data-answer-import]');if(f&&e.target.name==='platform'){const a=f.querySelector('[data-capture-entry]');if(a&&SIMPLE_ENTRIES[e.target.value]){a.href=SIMPLE_ENTRIES[e.target.value];a.textContent='打开'+e.target.value;}}});

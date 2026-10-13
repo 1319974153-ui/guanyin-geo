@@ -1,3 +1,4 @@
+import {simpleFlowApi,advanceSimpleFlows} from './simple-flow.js';
 import {budgetApi,reserveBudget,settleBudget} from './budget.js';
 import {protectTrialAnswers} from './capture-core.js';
 import {deliveryHubApi} from './delivery-hub.js';
@@ -95,6 +96,8 @@ async function api(req,env,ctx){
 }
 async function apiCore(req,env,ctx){const owner=ctx.owner,path=new URL(req.url).pathname;if(req.method!=='GET'&&!ctx.key)writeGuard(req);allowRoute(ctx,path,req.method);
  const workspace=async(e,o)=>{const w=await loadWorkspace(e,o);return {...w,state:visibleState(w.state,ctx)}};
+ const simpleHelpers={json,body,workspace,loadWorkspace,putState,appendResult,connection,reserveRun,modelCall,PROVIDERS,inspectPage,publicUrl};
+ const simpleResponse=await simpleFlowApi(req,env,ctx,simpleHelpers);if(simpleResponse)return simpleResponse;
  if(path==='/api/local/runner'&&req.method==='POST'){requireOwner(ctx);if(env.GEO_LOCAL_MODE!=='true'||!env.LOCAL_RUNTIME)fail(404,'当前部署不支持本机后台执行');const b=await body(req);if(typeof b.enabled!=='boolean')fail(400,'请选择开启或关闭');return json({background:env.LOCAL_RUNTIME.setEnabled(b.enabled)});}
  const budgetResponse=await budgetApi(req,env,ctx,{json,body});if(budgetResponse)return budgetResponse;
  const hubResponse=await deliveryHubApi(req,env,ctx,{json,body,workspace,publicUrl});if(hubResponse)return hubResponse;
@@ -110,7 +113,7 @@ async function apiCore(req,env,ctx){const owner=ctx.owner,path=new URL(req.url).
  const catalogResponse=await catalogApi(req,env,ctx,{json,body,loadWorkspace,workspace,putState});if(catalogResponse)return catalogResponse;
  const schemaResponse=await schemasApi(req,env,ctx,{json,body,workspace,appendResult});if(schemaResponse)return schemaResponse;
  const taskResponse=await tasksApi(req,env,ctx,{json,body,loadWorkspace,workspace,putState,appendResult,connection,reserveRun,modelCall,PROVIDERS});if(taskResponse){if(path.endsWith('/tick')){
-  const result=await taskResponse.json();let articles,reports,alerts,siteAudits,webhooks,retests,backups;if(path==='/api/runner/tick'){
+  const result=await taskResponse.json();await advanceSimpleFlows(env,ctx,simpleHelpers);let articles,reports,alerts,siteAudits,webhooks,retests,backups;if(path==='/api/runner/tick'){
    try{backups=await tickBackupSchedule(env,ctx)}catch{backups={state:'failed',error:'自动备份暂不可用'}}
    if(result.state==='idle'){try{siteAudits=await tickSiteAudits(env,ctx,{publicUrl,checkDNS});}catch(e){siteAudits={state:'failed',error:e.status?e.message:'网站检查暂不可用'};}try{articles=await tickPublicationChecks(env,ctx,{workspace,publicUrl,loadPage:u=>inspectPage(u,true,25000)});}catch(e){articles={state:'failed',error:e.status?e.message:'文章复测暂不可用'};}}
    try{reports=await tickReportSchedules(env,ctx,{workspace});}catch(e){reports={error:e.status?e.message:'周期报告暂不可用'};}
