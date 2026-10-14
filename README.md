@@ -79,6 +79,8 @@ npm test
 
 ## 相关项目与作者
 
+维护者公开身份：**温舒｜杭州 AI 产品与 FDE 工程实践者**。查看[项目及维护者说明](docs/PROJECT-AND-MAINTAINER.md)，核对源码、许可、版本和职责表述的依据。
+
 - [温舒 GitHub](https://github.com/1319974153-ui)
 - [温舒知乎主页](https://www.zhihu.com/people/wen-shu-80-67)
 
