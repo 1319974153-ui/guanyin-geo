@@ -1,5 +1,6 @@
 import {requireAdmin,reject} from './access.js';
-const fields=['name','client','site','industry','aliases','owner','description','logo'];
+import {ENTITY_TYPES} from './entity-core.js';
+const fields=['name','client','site','industry','aliases','owner','description','logo','entityType','goalQuery'];
 const productFields=['name','description','url','image','category','sku','status'];
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const snapshot=(r,keys)=>Object.fromEntries(keys.map(k=>[k,r[k]||'']));
@@ -8,7 +9,7 @@ export function catalogUrl(value,label='网址'){
  if(!['http:','https:'].includes(u.protocol)||u.username||u.password)reject(400,label+'只支持不含账号密码的 HTTP / HTTPS 地址');
  return u.href;
 }
-function clean(input,keys){const out={};for(const k of keys){const v=input[k]??'';if(typeof v!=='string'||v.length>(k==='description'?5000:1000))reject(400,'资料字段过长或格式不正确：'+k);out[k]=v.trim();}if(!out.name||out.name.length>160)reject(400,'名称必填，最多 160 字');for(const k of ['site','logo','url','image'])if(k in out)out[k]=catalogUrl(out[k],k);return out;}
+function clean(input,keys){const out={};for(const k of keys){const v=input[k]??(k==='entityType'?'brand':'');if(typeof v!=='string'||v.length>(k==='description'?5000:k==='goalQuery'?500:1000))reject(400,'资料字段过长或格式不正确：'+k);out[k]=v.trim();}if('entityType' in out&&!ENTITY_TYPES.includes(out.entityType))reject(400,'请选择品牌、产品或个人');if(!out.name||out.name.length>160)reject(400,'名称必填，最多 160 字');for(const k of ['site','logo','url','image'])if(k in out)out[k]=catalogUrl(out[k],k);return out;}
 export function protectCatalog(before,after){
  for(const b of after.brands){const old=before.brands.find(x=>x.id===b.id);for(const k of ['productLines','profileHistory','profileVersion'])if(!equal(old?.[k]??(k==='profileVersion'?0:[]),b[k]??(k==='profileVersion'?0:[])))reject(403,'产品线和资料历史请通过品牌管理修改');}
 }
@@ -23,7 +24,9 @@ export async function catalogApi(req,env,ctx,h){
  requireAdmin(ctx);if(req.method!=='POST')reject(405,'请使用 POST 保存品牌资料');
  const input=await h.body(req),w=await h.loadWorkspace(env,ctx.owner),b=w.state.brands.find(x=>x.id===input.brandId);if(!b)reject(404,'品牌不存在');if(input.revision!==w.revision)reject(409,'品牌资料已更新，请刷新后再保存');
  const before=structuredClone(w.state),at=new Date().toISOString();let item;
- if(path.endsWith('/profile')){Object.assign(b,clean(input,fields));recordBrandProfiles(before,w.state,ctx.actor);}
+ if(path.endsWith('/profile')){Object.assign(b,clean({...input,entityType:input.entityType??b.entityType??'brand',goalQuery:input.goalQuery??b.goalQuery??''},fields));recordBrandProfiles(before,w.state,ctx.actor);
+  if(b.goalQuery&&!w.state.questions.some(q=>q.brandId===b.id&&q.text.trim()===b.goalQuery))w.state.questions.push({id:crypto.randomUUID(),brandId:b.id,text:b.goalQuery,version:'v1',topic:'目标需求',intent:'决策',demo:false});
+ }
  else{
   const data=clean(input,productFields);if(!['active','archived'].includes(data.status))reject(400,'产品线状态不正确');
   const id=input.id;if(!/^[a-zA-Z0-9_-]{1,80}$/.test(id||''))reject(400,'产品线标识不正确');

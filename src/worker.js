@@ -55,7 +55,7 @@ export function validateState(s){
  s.questionDiscoveries ||= [];
  s.analysisChecks ||= [];
  for(const key of COLLECTIONS){if(!Array.isArray(s[key])||s[key].length>10000)fail(400,'工作区记录数量或格式不正确：'+key);}
- const brands=new Set();for(const b of s.brands){if(!/^[a-zA-Z0-9_-]{1,80}$/.test(b.id||'')||typeof b.name!=='string'||!b.name||b.demo||brands.has(b.id))fail(400,'品牌必须唯一且使用真实资料');brands.add(b.id)}
+ const brands=new Set();for(const b of s.brands){if(!/^[a-zA-Z0-9_-]{1,80}$/.test(b.id||'')||typeof b.name!=='string'||!b.name||b.demo||brands.has(b.id))fail(400,'名称必须唯一关联且使用真实资料');if(b.entityType!==undefined&&!['brand','product','person'].includes(b.entityType)||b.goalQuery!==undefined&&(typeof b.goalQuery!=='string'||b.goalQuery.length>500))fail(400,'对象类型或目标问题不正确');brands.add(b.id)}
  for(const key of COLLECTIONS.filter(k=>!['brands','logs'].includes(k))){const ids=new Set();for(const r of s[key]){if(!/^[a-zA-Z0-9_-]{1,80}$/.test(r.id||'')||ids.has(r.id)||!brands.has(r.brandId)||(r.demo&&key!=='answers'))fail(400,'记录关联或身份不正确：'+key);ids.add(r.id)}}
  for(const a of s.answers){if(!['import','api'].includes(a.surface)||!Array.isArray(a.citations))fail(400,'回答必须注明真实来源和引用');}
  try{validatePublicationConfigs(s)}catch(e){fail(400,e.message)}

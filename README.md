@@ -18,6 +18,10 @@ English: Guanyin GEO is an open-source local workbench for generative engine opt
 
 完整范围和已知限制见 [当前版本与使用说明](public/docs/当前版本与使用说明.md)、[功能验收矩阵](public/docs/功能验收矩阵.md)。当前源码版本见 package.json。
 
+## 当前分支的产品简化改进
+
+本分支尚未进入下方 0.48.2 下载包。首次使用可选择品牌、产品或个人，填写名称、介绍和一个目标问题；后续只围绕工作台、内容与确认、AI 引用与推荐推进。未配置模型也能先用已确认资料建立本地模板草稿。验收范围见 [产品完善记录](docs/产品完善-2026-10-15.md)。
+
 ## 下载与新版界面
 
 当前公开版：**0.48.2**。查看 [版本说明和下载](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.48.2)。

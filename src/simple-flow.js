@@ -1,12 +1,10 @@
 import {requireAdmin,canBrand,reject,digest} from './access.js';
 import {factUsable} from './knowledge-core.js';
 import {tasksApi} from './tasks.js';
+import {ENTITY_TYPES,starterQuestions} from './entity-core.js';
+export {starterQuestions} from './entity-core.js';
 const stamp=()=>new Date().toISOString();
 export const SIMPLE_PLATFORMS=['豆包','DeepSeek','Kimi','腾讯元宝','通义千问','文心','ChatGPT'];
-export function starterQuestions(name,description){
- const topic=String(description||name).split(/[。\n！？]/)[0].slice(0,65);
- return [`想了解${topic}，应该先确认哪些条件？`,`选择这类产品或服务时，应该比较哪些方案？`,`这类产品或服务的费用和使用限制有哪些？`,`有哪些适合不同需求的相关产品或服务？`,`${name}适合哪些人，使用前需要核实什么？`];
-}
 const value=(v,max)=>typeof v==='string'?v.trim().slice(0,max):'';
 const callTasks=(env,ctx,h,data,path='/api/tasks')=>tasksApi(new Request('https://internal'+path,{method:'POST',body:JSON.stringify(data)}),env,ctx,h);
 async function rows(env,ctx,brandId){const r=await env.DB.prepare("SELECT * FROM operation_records WHERE owner=? AND kind='simple_flow' ORDER BY created DESC LIMIT 100").bind(ctx.owner).all();return r.results.filter(r=>canBrand(ctx,r.brand_id)&&(!brandId||r.brand_id===brandId));}
@@ -43,15 +41,17 @@ export async function simpleFlowApi(req,env,ctx,h){
  if(path==='/api/simple/setup'){
   requireAdmin(ctx);if(!/^[a-zA-Z0-9-]{16,60}$/.test(b.id||''))reject(400,'建档编号无效');
   const name=value(b.name,160),description=value(b.description,5000),text=value(b.text,50000),source=value(b.source,1000);
+  const entityType=b.entityType??'brand',goalQuery=value(b.goalQuery,500);
+  if(!ENTITY_TYPES.includes(entityType)||b.goalQuery!==undefined&&(typeof b.goalQuery!=='string'||b.goalQuery.length>500))reject(400,'请选择品牌、产品或个人，目标问题最多 500 字');
   if(!name||description.length<8||text.length<8||!source||b.confirmed!==true)reject(400,'请核对业务名称、介绍和原始资料');
   const platforms=Array.isArray(b.platforms)?b.platforms:[];if(!platforms.length||platforms.some(p=>!SIMPLE_PLATFORMS.includes(p))||new Set(platforms).size!==platforms.length)reject(400,'请选择支持的 AI 平台');
-  const site=b.site?h.publicUrl(b.site).href:'',hash=await digest(JSON.stringify({name,description,text,source,site,platforms}));
+  const site=b.site?h.publicUrl(b.site).href:'',hash=await digest(JSON.stringify({name,description,text,source,site,platforms,...(entityType!=='brand'?{entityType}:{}),...(goalQuery?{goalQuery}:{})}));
   await h.appendResult(env,ctx.owner,s=>{
    const old=s.brands.find(x=>x.id===b.id);if(old){if(old.setupHash!==hash)reject(409,'这次建档已保存，请刷新查看；修改请编辑业务资料');return;}
-   s.brands.push({id:b.id,name,description,client:name,industry:'其他',aliases:name,owner:'',site,demo:false,setupHash:hash,platforms});s.currentBrand=b.id;s.scope='import';s.viewMode='simple';
+   s.brands.push({id:b.id,name,description,entityType,goalQuery,client:name,industry:'其他',aliases:name,owner:'',site,demo:false,setupHash:hash,platforms});s.currentBrand=b.id;s.scope='import';s.viewMode='simple';
    s.sourceDocuments.push({id:b.id+'-source',brandId:b.id,title:source,text,kind:'uploaded',created:stamp()});
-   s.facts.push({id:b.id+'-fact',brandId:b.id,key:'已核对的业务介绍',value:description,source,sourceDocumentId:b.id+'-source',status:'已确认',confirmationMethod:'manual'});
-   starterQuestions(name,description).forEach((text,i)=>s.questions.push({id:b.id+'-q'+i,brandId:b.id,text,version:'v1',topic:'初始问题建议',intent:i===4?'了解':'比较',demo:false}));
+   s.facts.push({id:b.id+'-fact',brandId:b.id,key:'已核对的'+({brand:'品牌',product:'产品',person:'个人'})[entityType]+'介绍',value:description,source,sourceDocumentId:b.id+'-source',status:'已确认',confirmationMethod:'manual'});
+   starterQuestions(name,description,entityType,goalQuery).forEach((text,i)=>s.questions.push({id:b.id+'-q'+i,brandId:b.id,text,version:'v1',topic:i===0&&goalQuery?'目标需求':'初始问题建议',intent:i===4?'了解':i===0?'决策':'比较',demo:false}));
   });return h.json(await h.workspace(env,ctx.owner));
  }
  if(path==='/api/simple/prepare'){
