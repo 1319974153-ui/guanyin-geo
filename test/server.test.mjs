@@ -69,3 +69,22 @@ test('publication metadata resolves title without creating a publication and ref
  const e=env();await populated(e);const old=globalThis.fetch;let login=false;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});return new Response(login?'<title>账号登录</title>':'<title>产品介绍 &amp; 常见问答</title><h1>产品介绍</h1>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'});assert.equal(r.status,200);assert.equal(r.data.title,'产品介绍 & 常见问答');assert.equal((await request(e,'A','/api/state')).data.state.publications.length,0);login=true;assert.equal((await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,422);assert.equal((await request(e,'B','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,404)}finally{globalThis.fetch=old}
 });
+test('model-only edits retain encrypted key within the same owner and provider, without network calls',async()=>{
+ const e=env(),key='TEST_ONLY_CONNECTION_SECRET';let calls=0;const fetch=globalThis.fetch;globalThis.fetch=async()=>{calls++;throw Error('must not call provider when saving')};
+ try{
+  assert.equal((await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash',key})).status,200);
+  const before=await e.DB.prepare('SELECT secret FROM connections WHERE owner=? AND provider=?').bind('A','deepseek').first();
+  const changed=await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-v4-pro',key:''});
+  assert.equal(changed.status,200);assert.equal(changed.data.connections[0].model,'deepseek-v4-pro');assert.ok(!JSON.stringify(changed).includes(key));
+  const after=await e.DB.prepare('SELECT secret FROM connections WHERE owner=? AND provider=?').bind('A','deepseek').first();assert.equal(after.secret,before.secret);
+  assert.equal((await request(e,'B','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash'})).status,400);
+  assert.equal((await request(e,'A','/api/connections','POST',{provider:'qwen',model:'qwen-plus'})).status,400);
+  for(const invalid of [{provider:'toString',model:'model',key},{provider:'deepseek',model:[],key},{provider:'deepseek',model:'model',key:{}}])assert.equal((await request(e,'A','/api/connections','POST',invalid)).status,400);
+  assert.equal(calls,0);
+ }finally{globalThis.fetch=fetch}
+});
+test('preset DeepSeek verification disables thinking, has bounded output, and cannot duplicate a request',async()=>{
+ const e=env();await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash',key:'TEST_ONLY_KEY'});const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://api.deepseek.com/chat/completions');const sent=JSON.parse(options.body);assert.deepEqual(sent.thinking,{type:'disabled'});assert.equal(sent.max_tokens,32);return Response.json({id:'preset-test',choices:[{message:{content:'OK'}}],usage:{prompt_tokens:3,completion_tokens:1}})};
+ try{const input={provider:'deepseek',runId:'preset-verification-0001'};assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,200);assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,409);assert.equal(calls,1)}finally{globalThis.fetch=original}
+});
