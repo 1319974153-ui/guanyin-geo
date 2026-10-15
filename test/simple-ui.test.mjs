@@ -28,3 +28,13 @@ test('manual queue progress has an immediate execution action, paused and failed
  vm.runInContext("simpleFlows[0].paused=false;simpleFlows[0].stage='needs_attention'",ctx);html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/继续流程/);assert.doesNotMatch(html,/暂停流程/);
  vm.runInContext("simpleFlows[0].stage='writing';runtimeContext.background.enabled=true",ctx);assert.doesNotMatch(vm.runInContext('simpleFlowCards()',ctx),/执行下一步/);
 });
+
+test('restored setup draft retains source URL and user edits with escaped HTML',()=>{
+ const {ctx}=ui();
+ Object.assign(ctx,{state:{simpleSetupDraft:{id:'saved-draft',name:'手写名称',description:'已经核对的手写业务介绍',entityType:'product',goalQuery:'用户的选型问题',site:'https://example.com/',url:'https://example.com/docs?section="intro"&lang=zh',text:'此前粘贴的资料正文',source:'官方文档',platforms:['腾讯元宝']}},title:()=>'',esc:v=>String(v??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;')});
+ const html=vm.runInContext('renderSimpleSetup()',ctx);
+ assert.match(html,/name="url"[^>]*value="https:\/\/example.com\/docs\?section=&quot;intro&quot;&amp;lang=zh"/);
+ assert.match(html,/value="手写名称"/);assert.match(html,/已经核对的手写业务介绍/);
+ assert.match(html,/value="用户的选型问题"/);assert.match(html,/value="腾讯元宝" checked/);
+ assert.match(html,/此前粘贴的资料正文/);assert.match(html,/data-id="saved-draft"/);
+});

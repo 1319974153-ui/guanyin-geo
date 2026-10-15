@@ -24,7 +24,7 @@ function renderSimpleSetup(){
  <label class="field">希望用户怎样问 AI 时找到你？<input name="goalQuery" required maxlength="500" value="${esc(d.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>写真实需求，尽量不带自己的名字。它是目标，不是已经获得的推荐。</small></label>
  <details class="simple-detail setup-extras"><summary>补充网址、导入资料或调整平台</summary>
  <label class="field">公开网站（可选）<input name="site" type="url" value="${esc(d.site||'')}" placeholder="https://"></label>
- <label class="field">从网页读取资料<input name="url" type="url" placeholder="https://"></label>
+ <label class="field">从网页读取资料<input name="url" type="url" value="${esc(d.url||'')}" placeholder="https://"></label>
  <label class="file-picker">上传 PDF、Word、文本或图片<input type="file" name="file" data-simple-file accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"></label>
  <label class="field">也可粘贴现有资料<textarea name="text" maxlength="50000" rows="3">${esc(d.text||'')}</textarea></label>
  <input type="hidden" name="source" value="${esc(d.source||'用户确认的公开介绍')}"><button type="button" class="button small" data-action="simple-cancel-parse" hidden>取消文件解析</button>
