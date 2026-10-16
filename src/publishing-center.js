@@ -1,4 +1,5 @@
 import {canBrand,reject} from './access.js';
+import {wordpressAccount,wordpressProvider} from './publishing-accounts.js';
 
 // A directory entry is a roadmap item, not evidence of an installed connector.
 const groups = {
@@ -28,14 +29,16 @@ export async function publishingCenterApi(req,env,ctx,h){
  const brandId=url.searchParams.get('brandId'),w=await h.workspace(env,ctx.owner);
  if(!w.state.brands.some(b=>b.id===brandId)||!canBrand(ctx,brandId))reject(404,'找不到授权品牌');
  // Select metadata only: this endpoint never reads/decrypts credentials or contacts a platform.
- const row=await env.DB.prepare('SELECT model,updated FROM connections WHERE owner=? AND provider=?').bind(ctx.owner,'wordpress:'+brandId).first();
+ const prefix='wordpress:'+brandId;
+ const rows=(await env.DB.prepare('SELECT provider,model,updated FROM connections WHERE owner=? AND (provider=? OR substr(provider,1,length(?))=?) ORDER BY provider').bind(ctx.owner,prefix,prefix+':',prefix+':').all()).results;
  const accounts=[];
- if(row){
+ for(const row of rows){
   let m;try{m=JSON.parse(row.model)}catch{reject(409,'网站连接记录无法读取，请重新配置');}
-  if(!m||m.brandId!==brandId)reject(409,'网站连接品牌不匹配，请重新配置');
+  const accountId=row.provider===prefix?'default':wordpressAccount(row.provider.slice(prefix.length+1));
+  if(!m||m.brandId!==brandId||(m.accountId||'default')!==accountId||wordpressProvider(brandId,accountId)!==row.provider)reject(409,'网站连接品牌或账号不匹配，请重新配置');
   const verified=!!m.verifiedAt&&Number.isSafeInteger(m.userId)&&m.userId>0;
   const enabled=m.enabled===true,canOperate=['owner','admin','editor'].includes(ctx.role);
-  accounts.push({id:'wordpress:'+brandId,platform:'wordpress',brandId,
+  accounts.push({id:row.provider,accountId,platform:'wordpress',brandId,
    site:m.site,username:m.username,remoteAccountId:verified?String(m.userId):null,
    connectionRevision:m.revision,updatedAt:row.updated,
    status:!enabled?'disabled':!verified?'unverified':m.canPublish!==true?'permission_limited':'verified',
@@ -46,6 +49,6 @@ export async function publishingCenterApi(req,env,ctx,h){
  }
  return h.json({brandId,platforms:publishingCatalog(),accounts,
   batchPublishingAvailable:false,
-  connectionLimit:'目前每个品牌仅复用一个 WordPress 连接，多账号连接待实现',
+  connectionLimit:'支持同一品牌多个 WordPress 账号；旧连接保留为默认账号',
   exports:[{id:'markdown',name:'Markdown',kind:'local_export'},{id:'pdf',name:'PDF',kind:'local_export'}]});
 }

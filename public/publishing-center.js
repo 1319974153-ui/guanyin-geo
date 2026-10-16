@@ -1,0 +1,57 @@
+let publishingCenterData=null,publishingCenterLoaded='',publishingCenterLoading=false,publishingCenterError='',publishingCenterErrorScope='';
+const publishingAccountStates={disabled:'已暂停',unverified:'待验证身份',permission_limited:'仅有编辑权限',verified:'已核验发布权限'};
+function publishingCenterInvalidate(){publishingCenterLoaded='';publishingCenterError='';}
+function publishingCenterCurrent(){return publishingCenterLoaded===wordpressBaseScope()?publishingCenterData:null}
+async function refreshPublishingCenter(){
+ if(publishingCenterLoading||!brand()?.id)return;
+ const scope=wordpressBaseScope(),brandId=brand().id;publishingCenterLoading=true;
+ try{const d=await apiRequest('/api/publishing-center?'+new URLSearchParams({brandId}));if(scope===wordpressBaseScope()){publishingCenterData=d;publishingCenterLoaded=scope;publishingCenterError='';}}
+ catch(e){if(scope===wordpressBaseScope()){publishingCenterError=e.message;publishingCenterErrorScope=scope;}}
+ finally{publishingCenterLoading=false;if(['integrations','publish'].includes(route))render();}
+}
+function publishingCenterDecorate(){
+ if(['integrations','publish'].includes(route)&&brand()?.id&&publishingCenterLoaded!==wordpressBaseScope()&&!publishingCenterLoading&&(!publishingCenterError||publishingCenterErrorScope!==wordpressBaseScope()))refreshPublishingCenter();
+}
+function publishingAccountSelector(){
+ const d=publishingCenterCurrent(),selected=wordpressSelectedAccount();
+ if(!d)return '<p class="helper"><a href="#integrations">管理发布账号</a></p>';
+ const rows=d.accounts.filter(a=>a.platform==='wordpress');
+ const options=rows.map(a=>`<option value="${esc(a.accountId)}" ${a.accountId===selected?'selected':''}>${esc(a.username)} · ${esc(a.site)} · ${esc(publishingAccountStates[a.status]||a.status)}</option>`).join('');
+ return `<label class="field">发布到哪个账号<select data-publishing-account aria-label="WordPress 发布账号">${!rows.some(a=>a.accountId===selected)?`<option value="${esc(selected)}" selected>未配置的${selected==='default'?'默认':'新'}账号</option>`:''}${options}</select></label><a href="#integrations">添加或管理发布账号 →</a>`;
+}
+function renderPublishingCenter(){
+ if(!brand()?.id)return '';
+ const d=publishingCenterCurrent(),error=publishingCenterErrorScope===wordpressBaseScope()?publishingCenterError:'';
+ const actions=a=>`${btn('查看稿件与回执','publishing-account-open','small',`data-account="${esc(a.accountId)}"`)}${isManager()?btn('管理连接','publishing-account-config','small',`data-account="${esc(a.accountId)}"`)+(a.status!=='disabled'?btn('验证身份与权限','publishing-account-verify','small',`data-account="${esc(a.accountId)}"`):''):''}`;
+ return `<section class="panel"><div class="panel-head"><div><h2>发布账号</h2><p>连接自己的账号，再选择要发布的内容。账号按当前品牌保存。</p></div>${btn('刷新账号','publishing-refresh','small')}${isManager()?btn('添加 WordPress 账号','publishing-account-add','primary small'):''}</div><div class="panel-body">${error?`<p class="form-error" role="alert">${esc(error)}</p>`:!d?'<p role="status">正在读取发布账号…</p>':''}${d?table(['发布账号','上次核验','操作'],d.accounts.map(a=>[esc(a.username)+'<span class="sub">'+esc(a.site)+(a.remoteAccountId?' · #'+esc(a.remoteAccountId):'')+'</span>',badge(publishingAccountStates[a.status]||a.status)+(a.verifiedAt?'<span class="sub">'+esc(a.verifiedAt.slice(0,16).replace('T',' '))+' UTC</span>':''),actions(a)]),'还没有发布账号。添加后先验证身份和权限。'):''}<p class="helper">当前可连接 WordPress，使用网站自己的应用密码。保存连接不会发布文章；查询显示上次核验结果，执行前仍检查权限。每个账号的稿件、封面和回执分别保存。</p>${d?`<details class="simple-detail"><summary>更多平台 · 待接入</summary><p>以下渠道尚未接入自动发布，完成真实账号和发布回执验收后逐步开放。</p><div class="integration-grid">${d.platforms.filter(p=>p.implementation==='planned').map(p=>`<article class="integration"><h3>${esc(p.name)}</h3><p>待接入</p></article>`).join('')}</div><p class="helper">Markdown / PDF 为本地导出，不计作平台发布。</p></details>`:''}</div></section>`;
+}
+async function publishingCenterAction(name,el){
+ if(!name.startsWith('publishing-'))return false;
+ if(name==='publishing-refresh'){publishingCenterInvalidate();await refreshPublishingCenter();return true;}
+ const baseScope=wordpressBaseScope();
+ if(name==='publishing-account-add'){
+  if(!isManager())throw new Error('只有管理员可以连接发布账号');
+  wordpressSelectAccount('wp-'+crypto.randomUUID());
+  openDrawer('添加 WordPress 发布账号',wordpressConfigForm(),'新账号独立保存 · 不覆盖已有连接');return true;
+ }
+ const account=publishingCenterCurrent()?.accounts.find(a=>a.accountId===el.dataset.account);
+ if(!account)throw new Error('账号列表已变化，请刷新后重试');
+ if(name==='publishing-account-open'){wordpressSelectAccount(account.accountId);location.hash='publish';await refreshWordpress();return true;}
+ if(name==='publishing-account-verify'){
+  if(!isManager())throw new Error('只有管理员可以验证连接');
+  wordpressSelectAccount(account.accountId);runtimeLock(true);
+  try{await wordpressMutation('verify',{brandId:brand().id});if(baseScope===wordpressBaseScope())toast('账号身份与权限已核验');}finally{runtimeLock(false)}return true;
+ }
+ if(name==='publishing-account-config'){
+  if(!isManager())throw new Error('只有管理员可以管理连接');
+  wordpressSelectAccount(account.accountId);await refreshWordpress();
+  if(baseScope!==wordpressBaseScope()||account.accountId!==wordpressSelectedAccount())return true;
+  if(wordpressLoaded!==wordpressScope())throw new Error(wordpressError||'未能读取账号，请稍后重试');
+  openDrawer('管理 WordPress 发布账号',wordpressConfigForm(),'修改连接后需要重新验证权限');return true;
+ }
+ return true;
+}
+document.addEventListener('change',async e=>{
+ if(!e.target.matches('[data-publishing-account]')||runtimeBusy)return;
+ wordpressSelectAccount(e.target.value);render();await refreshWordpress();
+});
