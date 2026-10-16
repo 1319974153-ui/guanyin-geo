@@ -8,6 +8,7 @@ import {benchmarksApi} from './benchmarks.js';
 import {demandApi} from './demand.js';
 import {ocrAssetResponse} from './ocr-assets.js';
 import {wordpressApi,protectWordpress} from './wordpress.js';
+import {publishingCenterApi} from './publishing-center.js';
 import {dsoApi} from './dso.js';
 import {questionImportsApi} from './question-imports.js';
 import {answerEvidenceApi,protectAnswerEvidence} from './answer-evidence.js';
@@ -101,6 +102,7 @@ async function apiCore(req,env,ctx){const owner=ctx.owner,path=new URL(req.url).
  if(path==='/api/local/runner'&&req.method==='POST'){requireOwner(ctx);if(env.GEO_LOCAL_MODE!=='true'||!env.LOCAL_RUNTIME)fail(404,'当前部署不支持本机后台执行');const b=await body(req);if(typeof b.enabled!=='boolean')fail(400,'请选择开启或关闭');return json({background:env.LOCAL_RUNTIME.setEnabled(b.enabled)});}
  const budgetResponse=await budgetApi(req,env,ctx,{json,body});if(budgetResponse)return budgetResponse;
  const hubResponse=await deliveryHubApi(req,env,ctx,{json,body,workspace,publicUrl});if(hubResponse)return hubResponse;
+ const publishingCenterResponse=await publishingCenterApi(req,env,ctx,{json,workspace});if(publishingCenterResponse)return publishingCenterResponse;
  const ocrAsset=await ocrAssetResponse(req,env);if(ocrAsset)return ocrAsset;
  const wordpressResponse=await wordpressApi(req,env,ctx,{json,body,workspace,appendResult,encrypt,decrypt,publicUrl,checkDNS});if(wordpressResponse)return wordpressResponse;
  const offlineResponse=await offlineBackupsApi(req,env,ctx,{json,body,loadWorkspace,validateState,encrypt,decrypt});if(offlineResponse)return offlineResponse;
