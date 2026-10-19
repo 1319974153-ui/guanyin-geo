@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import {csdnPage} from '../browser-extension/csdn.js';
-function fixture(){
+function fixture(options={}){
  let title='测试文章',html='<p>正文</p>',clicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
  class Input{get value(){return title}set value(v){title=v}getClientRects(){return[{}]}dispatchEvent(){}}
  class Textarea extends Input{get value(){return title}set value(v){title=v}}
  const titleEl=new Textarea();const button={getClientRects:()=>[{}],textContent:'发布博客',click:()=>clicks++};
  const editor={status:'ready',getData:()=>html,setData:(v,opts)=>{html=v;opts.callback()}};
  const document={querySelector(selector){if(selector.startsWith('#txtTitle'))return titleEl;if(selector.startsWith('iframe[src'))return captcha?{}:null;if(selector==='.el_mcm-form-item.is-error')return dirty?{}:null;return null},querySelectorAll(selector){
-  if(selector.startsWith('#csdn-toolbar'))return [{href:'https://blog.csdn.net/'+account,textContent:'作者'}];
+  if(selector.startsWith('#csdn-toolbar'))return [{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??''}];
   if(selector==='.btn-outline-danger')return[button];if(selector.includes('.is-closable'))return selected.map(textContent=>({textContent}));return[];
  }};
  class Parser{parseFromString(value){return{body:{textContent:value.replace(/<[^>]*>/g,''),querySelectorAll:()=>[]},querySelectorAll:()=>[]}}}
@@ -35,4 +35,10 @@ test('CSDN success is parsed from actual page and does not fabricate a public UR
 });
 test('extension permissions stay opt-in and do not request cookies, all-sites, or history',()=>{
  const m=JSON.parse(fs.readFileSync(new URL('../browser-extension/manifest.json',import.meta.url)));assert.deepEqual(m.optional_host_permissions,['http://127.0.0.1/*','https://mp.csdn.net/*']);assert.deepEqual(m.permissions,['storage','scripting','alarms']);assert.equal(m.content_scripts,undefined);assert.equal(m.externally_connectable,undefined);assert.equal(m.host_permissions,undefined);
+});
+
+test('avatar-only toolbar identity falls back to title or verified account ID after trimming',async()=>{
+ for(const [options,expected] of [[{identityText:' \n ',identityTitle:' 温舒 '},'温舒'],[{identityText:' \n ',identityTitle:' '},'author'],[{identityText:'',identityTitle:''},'author']]){
+  const f=fixture(options);const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,expected);assert.equal(me.editorReady,true);assert.equal(f.clicks,0);
+ }
 });

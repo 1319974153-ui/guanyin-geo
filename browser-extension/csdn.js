@@ -15,7 +15,7 @@ export async function csdnPage({action,article,accountId}) {
  const editor=editors[0];
  // Restrict identity evidence to the signed-in toolbar, never links in article content.
  const links=[...document.querySelectorAll('#csdn-toolbar .toolbar-btn-loginfun a[href], #csdn-toolbar .toolbar-btn-user a[href]')];
- const identities=links.map(a=>{try{const u=new URL(a.href);const m=u.pathname.match(/^\/([A-Za-z0-9_-]+)\/?$/);return u.origin==='https://blog.csdn.net'&&m?{accountId:m[1],name:(a.textContent||a.title||m[1]).trim().slice(0,100)}:null}catch{return null}}).filter(Boolean);
+ const identities=links.map(a=>{try{const u=new URL(a.href);const m=u.pathname.match(/^\/([A-Za-z0-9_-]+)\/?$/);return u.origin==='https://blog.csdn.net'&&m?{accountId:m[1],name:((a.textContent||'').trim()||(a.title||'').trim()||m[1]).slice(0,100)}:null}catch{return null}}).filter(Boolean);
  const unique=[...new Set(identities.map(a=>a.accountId))];
  if(unique.length!==1||document.querySelector('#csdn-toolbar a[href*="passport.csdn.net/login"]'))fail('尚未读取到唯一的已登录账号，请登录后再核验');
  const identity=identities[0];
