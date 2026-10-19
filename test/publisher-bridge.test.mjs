@@ -90,3 +90,8 @@ test('revoking a connection cancels queued work but leaves possible submitted wo
 test('explicitly re-enqueueing cancelled work can bind a replacement connection without a duplicate row',async t=>{
  const e=setup(t);await e.pair();await e.account();const first=await e.enqueue();await e.app('revoke',{sessionId:e.connection.sessionId});await e.pair();await e.account();const second=await e.enqueue();assert.equal(second.data.job.id,first.data.job.id);assert.equal(second.data.job.state,'queued');assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);assert.ok((await e.ext('claim')).data.job);
 });
+
+test('a token issued on one port cannot authenticate a restarted instance on another port',async t=>{
+ const e=setup(t);await e.pair();const moved=publisherBridge({db:e.db,readState:()=>e.state,origin:'http://127.0.0.1:58730'});
+ const r=await moved.handle(new Request('http://127.0.0.1:58730/bridge/publisher/pending',{method:'POST',headers:{origin:EXT,authorization:'Bearer '+e.connection.token},body:JSON.stringify({instance:e.connection.instance})}));assert.equal(r.status,403);
+});

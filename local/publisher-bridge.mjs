@@ -28,7 +28,12 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   if(j.state==='submitting'&&j.leaseExpires<clock()){j.state='uncertain';j.error='提交结果未知，请核对平台回执；不会重复提交';save('publisher_jobs',j)}
  }}
  // Restart never renews old authority or replays an interrupted click.
- for(const j of jobs())if(['queued','preparing','submitting'].includes(j.state)){j.state=j.state==='submitting'?'uncertain':'needs_attention';j.error='本机服务已重启，请核对后继续';save('publisher_jobs',j)}
+ for(const s of sessions())if(s.origin!==origin){s.revoked=true;save('publisher_sessions',s)}
+ for(const j of jobs())if(['queued','preparing','submitting'].includes(j.state)){
+  const revoked=sessions().find(s=>s.id===j.sessionId)?.revoked;
+  j.state=j.state==='submitting'?'uncertain':revoked?'cancelled':'needs_attention';
+  j.error=revoked?'本机端口已变化，请重新配对；旧任务不会重发':'本机服务已重启，请核对后继续';save('publisher_jobs',j);
+ }
  function state(){const s=readState();if(!s)fail(409,'请先在观引建立品牌');return s}
  function brand(id){if(!state().brands.some(b=>b.id===id&&!b.demo))fail(404,'品牌不存在');}
  function snapshot(brandId,contentId){
@@ -106,11 +111,11 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    }
    if(action==='pair'){
     if(!pairing||pairing.expires<clock()||hash(String(b.code))!==hash(pairing.code)||b.instance!==instance)fail(403,'配对码无效或已过期');
-    brand(pairing.brandId);const token=secret(),s={id:randomUUID(),brandId:pairing.brandId,tokenHash:hash(token),extensionOrigin:requestOrigin,created:clock()};
+    brand(pairing.brandId);const token=secret(),s={id:randomUUID(),brandId:pairing.brandId,tokenHash:hash(token),extensionOrigin:requestOrigin,origin,created:clock()};
     db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s));pairing=null;return respond({token,sessionId:s.id,brandId:s.brandId,instance});
    }
    const auth=req.headers.get('authorization')||''; // Token is accepted only in the header.
-   const session=sessions().find(s=>!s.revoked&&s.extensionOrigin===requestOrigin&&s.tokenHash===hash(auth.replace(/^Bearer /,''))&&auth.startsWith('Bearer '));
+   const session=sessions().find(s=>!s.revoked&&s.origin===origin&&s.extensionOrigin===requestOrigin&&s.tokenHash===hash(auth.replace(/^Bearer /,''))&&auth.startsWith('Bearer '));
    if(!session||b.instance!==instance)fail(403,'连接凭据或本机实例不匹配');
    brand(session.brandId);session.lastSeen=clock();save('publisher_sessions',session);
    if(action==='account'){
