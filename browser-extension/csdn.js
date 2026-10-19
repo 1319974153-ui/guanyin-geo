@@ -14,11 +14,17 @@ export async function csdnPage({action,article,accountId}) {
  const editors=Object.values(globalThis.CKEDITOR?.instances||{}).filter(e=>e.status==='ready');
  if(!visible(title)||editors.length!==1)fail('当前编辑器结构未通过适配检查，未提交');
  const editor=editors[0];
- // Restrict identity evidence to the signed-in toolbar, never links in article content.
- const links=[...document.querySelectorAll('#csdn-toolbar .toolbar-btn-loginfun a[href], #csdn-toolbar .toolbar-btn-user a[href]')];
+ // Current creator pages can render the avatar outside the legacy toolbar.
+ // Only accept visible avatar links above and before the title, never article/sidebar links.
+ const inHeader=a=>visible(a)&&!a.closest('[contenteditable], article, main, aside')&&
+  !!a.querySelector('img')&&!!(a.compareDocumentPosition(title)&Node.DOCUMENT_POSITION_FOLLOWING)&&
+  a.getBoundingClientRect().bottom<=title.getBoundingClientRect().top;
+ const legacy=[...document.querySelectorAll('#csdn-toolbar .toolbar-btn-loginfun a[href], #csdn-toolbar .toolbar-btn-user a[href]')].filter(visible);
+ const avatars=[...document.querySelectorAll('a[href^="https://blog.csdn.net/"]')].filter(inHeader);
+ const links=[...new Set([...legacy,...avatars])];
  const identities=links.map(a=>{try{const u=new URL(a.href);const m=u.pathname.match(/^\/([A-Za-z0-9_-]+)\/?$/);return u.origin==='https://blog.csdn.net'&&m?{accountId:m[1],name:((a.textContent||'').trim()||(a.title||'').trim()||m[1]).slice(0,100)}:null}catch{return null}}).filter(Boolean);
  const unique=[...new Set(identities.map(a=>a.accountId))];
- if(unique.length!==1||document.querySelector('#csdn-toolbar a[href*="passport.csdn.net/login"]'))fail('尚未读取到唯一的已登录账号，请登录后再核验');
+ if(unique.length!==1||[...document.querySelectorAll('#csdn-toolbar a[href*="passport.csdn.net/login"]')].some(visible))fail('尚未读取到唯一的已登录账号，请登录后再核验');
  const identity=identities[0];
  if(accountId&&accountId!==identity.accountId)fail('浏览器账号已切换，已停止提交');
  const evidence={...identity,editorReady:true,evidenceUrl:location.origin+location.pathname};

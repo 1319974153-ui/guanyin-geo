@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,clicks=0;const actions=[],requests=[],stored={connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
- globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
+ let handler,alarm,clicks=0;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
@@ -55,4 +55,14 @@ test('extension service-worker import graph must compile without top-level await
 
 test('null or failed page responses cannot reach account registration or claim a task',async t=>{
  const f=await fixture(t,{identityResult:null});const r=await f.send('run');assert.equal(f.requests.filter(x=>x==='account').length,0);assert.equal(f.requests.filter(x=>x==='claim').length,0);assert.match(f.stored.status,/编辑器操作结果/);assert.equal(f.clicks,0);
+});
+
+test('verification recovers a closed editor tab without claiming or publishing a job',async t=>{
+ const f=await fixture(t,{editorTab:9,missingTab:true});assert.equal((await f.send('verify')).ok,true);assert.deepEqual(f.actions,['get-tab','new-tab','identity']);assert.deepEqual(f.requests,['account']);assert.equal(f.stored.editorTab,1);assert.equal(f.clicks,0);
+});
+test('verification preserves an existing owned tab',async t=>{
+ const f=await fixture(t,{editorTab:9});assert.equal((await f.send('verify')).ok,true);assert.deepEqual(f.actions,['get-tab','identity']);assert.equal(f.clicks,0);
+});
+test('popup command errors remain visible after closing and reopening it',async t=>{
+ const f=await fixture(t);const result=await f.send('unknown');assert.match(result.error,/不支持/);assert.equal(f.stored.status,result.error);
 });

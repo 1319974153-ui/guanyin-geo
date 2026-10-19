@@ -5,16 +5,18 @@ import fs from 'node:fs';
 import {csdnPage} from '../browser-extension/csdn.js';
 function fixture(options={}){
  let title='测试文章',html='<p>正文</p>',clicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
- class Input{get value(){return title}set value(v){title=v}getClientRects(){return[{}]}dispatchEvent(){}}
+ class Input{get value(){return title}set value(v){title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:100,bottom:140}}dispatchEvent(){}}
  class Textarea extends Input{get value(){return title}set value(v){title=v}}
  const titleEl=new Textarea();const button={getClientRects:()=>[{}],textContent:'发布博客',click:()=>clicks++};
  const editor={status:'ready',getData:()=>html,setData:(v,opts)=>{html=v;opts.callback()}};
  const document={querySelector(selector){if(selector.startsWith('#txtTitle'))return titleEl;if(selector.startsWith('iframe[src'))return captcha?{}:null;if(selector==='.el_mcm-form-item.is-error')return dirty?{}:null;return null},querySelectorAll(selector){
-  if(selector.startsWith('#csdn-toolbar'))return [{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??''}];
+  if(selector.includes('passport.csdn.net/login'))return options.visibleLogin?[{getClientRects:()=>[{}]}]:[{getClientRects:()=>[]}];
+  if(selector.startsWith('#csdn-toolbar'))return options.modernHeader?[]:[{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??'',getClientRects:()=>[{}]}];
+  if(selector.startsWith('a[href^='))return options.modernHeader?(options.avatars||[{}]).map(a=>({href:'https://blog.csdn.net/'+(a.account||account),textContent:'',getClientRects:()=>a.hidden?[]:[{}],closest:()=>a.insideContent?{}:null,querySelector:()=>a.noAvatar?null:{},compareDocumentPosition:()=>a.afterTitle?2:4,getBoundingClientRect:()=>({bottom:a.belowTitle?200:50})})):[];
   if(selector==='.btn-outline-danger')return[button];if(selector.includes('.is-closable'))return selected.map(textContent=>({textContent}));return[];
  }};
  class Parser{parseFromString(value){return{body:{textContent:value.replace(/<[^>]*>/g,''),querySelectorAll:()=>[]},querySelectorAll:()=>[]}}}
- const context=vm.createContext({URL,document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{},setTimeout,clearTimeout});
+ const context=vm.createContext({URL,Node:{DOCUMENT_POSITION_FOLLOWING:4},document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{},setTimeout,clearTimeout});
  const raw=(action,patch={})=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:false},...patch});
  const run=async(action,patch={})=>{const result=await raw(action,patch);if(result?.connectorError)throw new Error(result.connectorError);return result};
  return {raw,run,context,get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
@@ -46,4 +48,13 @@ test('avatar-only toolbar identity falls back to title or verified account ID af
 
 test('page exceptions cross the Chrome injection boundary as explicit errors',async()=>{
  const f=fixture();f.setAccount('other');const result=await f.raw('identity');assert.match(result.connectorError,/账号已切换/);assert.equal(result.accountId,undefined);assert.equal(f.clicks,0);
+});
+
+test('current creator header can identify a visible avatar outside the legacy toolbar',async()=>{
+ const f=fixture({modernHeader:true});const result=await f.run('identity');assert.equal(result.accountId,'author');assert.equal(result.name,'author');assert.equal(f.clicks,0);
+});
+test('identity rejects content links, hidden avatars, ambiguous accounts and visible login prompts',async()=>{
+ for(const options of [{avatars:[{insideContent:true}]},{avatars:[{hidden:true}]},{avatars:[{noAvatar:true}]},{avatars:[{afterTitle:true}]},{avatars:[{belowTitle:true}]},{avatars:[{}, {account:'other'}]},{visibleLogin:true}]){
+  const f=fixture({modernHeader:true,...options});await assert.rejects(f.run('identity'),/唯一的已登录账号/);assert.equal(f.clicks,0);
+ }
 });

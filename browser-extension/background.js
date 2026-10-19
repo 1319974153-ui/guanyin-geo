@@ -62,12 +62,17 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   }
   if(message.action==='open'){await freshEditor();return {ok:true}}
   if(message.action==='verify'){
-   const {editorTab}=await chrome.storage.local.get('editorTab');if(!editorTab)throw new Error('请先打开 CSDN 编辑器');const me=await identity(editorTab);await api('account',me);await setStatus('已核验账号：'+me.name+'（'+me.accountId+'）');return {ok:true};
+   let {editorTab}=await chrome.storage.local.get('editorTab');
+   // Browser restart/tab cleanup can invalidate a stored ID. Verification may
+   // open a fresh blank editor, but never resumes or submits an interrupted job.
+   if(editorTab){try{await chrome.tabs.get(editorTab)}catch{editorTab=null}}
+   if(!editorTab)editorTab=await freshEditor();
+   const me=await identity(editorTab);await api('account',me);await setStatus('已核验账号：'+me.name+'（'+me.accountId+'）');return {ok:true};
   }
   if(message.action==='run'){if((await chrome.storage.local.get('inflight')).inflight)await reconcile();else await run();return {ok:true}}
   if(message.action==='reconcile'){await reconcile();return {ok:true}}
   throw new Error('不支持的操作');
- })().then(sendResponse,e=>sendResponse({error:e.message}));return true;
+ })().then(sendResponse,async e=>{try{await requireStorage();await setStatus(e.message)}catch{}sendResponse({error:e.message})});return true;
 });
 chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='publisher')return;try{await requireStorage()}catch{return}if((await chrome.storage.local.get('inflight')).inflight){await reconcile();return}await run()});
 chrome.runtime.onStartup.addListener(()=>{reconcile().catch(()=>{})});
