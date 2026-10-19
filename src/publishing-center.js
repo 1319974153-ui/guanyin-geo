@@ -1,24 +1,8 @@
 import {canBrand,reject} from './access.js';
 import {wordpressAccount,wordpressProvider} from './publishing-accounts.js';
 
-// A directory entry is a roadmap item, not evidence of an installed connector.
-const groups = {
- self_hosted: [['wordpress','WordPress'],['typecho','Typecho'],['metaweblog','MetaWeblog API']],
- knowledge: [['zhihu','知乎'],['juejin','掘金'],['csdn','CSDN'],['cnblogs','博客园'],['yuque','语雀'],['51cto','51CTO'],['oschina','开源中国'],['segmentfault','思否'],['imooc','慕课手记'],['woshipm','人人都是产品经理']],
- general: [['toutiao','头条'],['sohu','搜狐号'],['netease','网易号'],['dayu','大鱼号'],['baijiahao','百家号'],['yidian','一点号'],['jianshu','简书']],
- social: [['weibo','微博'],['xiaohongshu','小红书'],['douyin','抖音图文'],['x','X（Twitter）'],['douban','豆瓣'],['wechat','微信公众号']],
- video: [['bilibili','哔哩哔哩']],
- vertical: [['xueqiu','雪球'],['eastmoney','东方财富'],['smzdm','什么值得买'],['sohufocus','搜狐焦点']]
-};
-
-export function publishingCatalog(){
- return Object.entries(groups).flatMap(([group,entries])=>entries.map(([id,name])=>({
-  id,name,group,implementation:id==='wordpress'?'adapter_available':'planned',
-  contentTypes:id==='wordpress'?['article']:[],
-  connectionMethod:id==='wordpress'?'application_password':null,
-  note:id==='wordpress'?'已有网站发布适配器，须验证用户自己的账号及权限':'待接入，当前不能自动发布'
- })));
-}
+export {publishingCatalog} from './publishing-catalog.js';
+import {publishingCatalog} from './publishing-catalog.js';
 
 export async function publishingCenterApi(req,env,ctx,h){
  const url=new URL(req.url);

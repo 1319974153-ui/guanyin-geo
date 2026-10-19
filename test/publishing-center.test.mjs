@@ -28,7 +28,11 @@ test('publishing directory never represents planned connectors or exports as aut
  assert.equal(r.data.batchPublishingAvailable,false);assert.equal(r.data.accounts.length,0);
  assert.deepEqual(r.data.platforms.filter(p=>p.implementation==='adapter_available').map(p=>p.id),['wordpress']);
  assert.equal(new Set(r.data.platforms.map(p=>p.id)).size,r.data.platforms.length);
- for(const p of r.data.platforms.filter(p=>p.id!=='wordpress')){assert.equal(p.implementation,'planned');assert.deepEqual(p.contentTypes,[]);assert.equal(p.connectionMethod,null);}
+ for(const p of r.data.platforms.filter(p=>p.implementation==='planned')){assert.deepEqual(p.contentTypes,[]);assert.equal(p.connectionMethod,null);assert.equal(p.acceptance,'not_implemented');}
+ assert.deepEqual(r.data.platforms.filter(p=>p.implementation==='browser_adapter_acceptance').map(p=>p.id).sort(),['csdn','douyin','toutiao','xiaohongshu','zhihu']);
+ assert.deepEqual(r.data.platforms.filter(p=>p.referenceIncluded).map(p=>p.id).sort(),['wechat','weibo','zhihu','juejin','baijiahao','cnblogs','douyin_article','douyin','xiaohongshu_article','xiaohongshu','toutiao','51cto','jianshu','segmentfault','oschina','bilibili','tencentcloud','aliyun'].sort());
+ for(const id of ['tencentcloud','aliyun','douyin_article','xiaohongshu_article'])assert.equal(r.data.platforms.find(p=>p.id===id).implementation,'planned');
+ assert.ok(r.data.platforms.every(p=>p.accountRequired&&!p.capabilities));
  assert.ok(r.data.exports.every(p=>p.kind==='local_export'));
 });
 test('account view scopes owner and brand, omits credentials, and does not contact platforms',async t=>{
