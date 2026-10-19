@@ -5,6 +5,8 @@ import {execFileSync} from 'node:child_process';
 fs.rmSync('public/assistant/guanyin-geo.zip',{force:true});
 execFileSync('zip',['-q','-r','-X','guanyin-geo.zip','guanyin-geo'],{cwd:'public/assistant'});
 import {build} from 'esbuild';
+await build({entryPoints:['src/article-format.js'],outfile:'public/article-format.js',bundle:true,format:'iife',globalName:'GEO_ARTICLE_FORMAT',target:'es2022',platform:'browser',minify:true});
+await build({entryPoints:['src/article-editor-core.js'],outfile:'public/article-editor-core.js',bundle:true,format:'iife',globalName:'GEO_ARTICLE_EDITOR',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/publication-core.js'],outfile:'public/publication-core.js',bundle:true,format:'iife',globalName:'GEO_PUBLICATION',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/citation-import-core.js'],outfile:'public/citation-import-core.js',bundle:true,format:'iife',globalName:'GEO_CITATION_IMPORT',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/semantic-core.js'],outfile:'public/semantic-core.js',bundle:true,format:'iife',globalName:'GEO_SEMANTIC',target:'es2022',platform:'browser',minify:true});

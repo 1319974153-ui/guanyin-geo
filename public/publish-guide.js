@@ -1,6 +1,6 @@
 function publicationHandoff(c){
  if(c?.status!=='已审核')throw new Error('请先完成稿件审核');
- openDrawer('选择发布方式',`<form data-publish-handoff data-content="${esc(c.id)}"><p>将固定这次审核稿，后续改稿不会覆盖交付副本。</p><h3>${esc(c.title)}</h3><label class="field">发布渠道<select name="channel">${['官网',...Object.keys(CHANNEL_ENTRIES)].map(k=>`<option ${k==='今日头条'?'selected':''}>${esc(k)}</option>`).join('')}</select></label><p>头条等渠道：下载审核稿，在平台自行发布，再回填真实回执与公开链接。自有 WordPress 可在网站连接中授权后直接执行。</p><p class="form-error" role="alert"></p><button type="submit" class="button primary">准备交付副本</button></form>`,'审核稿 → 平台 → 回执 → 链接 → 复测');
+ openDrawer('选择发布方式',`<form data-publish-handoff data-content="${esc(c.id)}"><p>将固定这次审核稿，后续改稿不会覆盖交付副本。</p><h3>${esc(c.title)}</h3><label class="field">发布渠道<select name="channel">${['官网',...Object.keys(CHANNEL_ENTRIES)].map(k=>`<option ${k==='CSDN'?'selected':''}>${esc(k)}</option>`).join('')}</select></label><p>CSDN、头条等渠道：准备固定稿件，打开平台编辑器，补充平台要求的封面和标签后提交，再保存回执。当前不会自动代发。自有 WordPress 可通过已连接账号直接执行。</p><p class="form-error" role="alert"></p><button type="submit" class="button primary">准备交付副本</button></form>`,'审核稿 → 平台 → 回执 → 链接 → 复测');
 }
 function publicationJourney(p){
  if(state.viewMode==='simple'){simplePublicationJourney(p);return;}
