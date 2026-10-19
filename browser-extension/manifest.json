@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "观引发布连接器（验收版）",
+  "version": "0.1.0",
+  "description": "连接本机观引与用户自己的 CSDN 编辑器。自动提交尚待真实账号验收。",
+  "permissions": ["storage", "scripting", "alarms"],
+  "optional_host_permissions": ["http://127.0.0.1/*", "https://mp.csdn.net/*"],
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_popup": "popup.html"}
+}

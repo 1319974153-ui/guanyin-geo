@@ -15,7 +15,7 @@ if(fs.existsSync(stage))throw new Error('输出目录已存在，请使用新的
 execFileSync(process.execPath,['build.mjs'],{stdio:'inherit'});
 fs.mkdirSync(path.join(stage,'app'),{recursive:true});fs.mkdirSync(path.join(stage,'runtime'));
 await build({entryPoints:['dev-server.mjs'],outfile:path.join(stage,'app','server.mjs'),bundle:true,platform:'node',format:'esm',target:'node24',banner:{js:'import {createRequire as __createRequire} from "node:module"; const require=__createRequire(import.meta.url);'}});
-fs.cpSync('drizzle',path.join(stage,'app','drizzle'),{recursive:true});fs.copyFileSync('local/launcher.mjs',path.join(stage,'launcher.mjs'));
+fs.cpSync('drizzle',path.join(stage,'app','drizzle'),{recursive:true});fs.cpSync('browser-extension',path.join(stage,'browser-extension'),{recursive:true});fs.copyFileSync('local/launcher.mjs',path.join(stage,'launcher.mjs'));
 const win=target==='win32-x64',exe=win?'node.exe':'node';fs.copyFileSync(path.join(runtimeRoot,win?'node.exe':'bin/node'),path.join(stage,'runtime',exe));fs.chmodSync(path.join(stage,'runtime',exe),0o755);
 const license=['LICENSE','LICENSE.txt'].find(f=>fs.existsSync(path.join(runtimeRoot,f)));if(!license)throw new Error('Node license missing');fs.copyFileSync(path.join(runtimeRoot,license),path.join(stage,'runtime','LICENSE.txt'));
 fs.copyFileSync('LICENSE',path.join(stage,'LICENSE'));fs.copyFileSync('THIRD_PARTY_NOTICES.md',path.join(stage,'THIRD_PARTY_NOTICES.md'));fs.cpSync('public/vendor',path.join(stage,'licenses-and-browser-assets'),{recursive:true,filter:p=>fs.statSync(p).isDirectory()||/LICENSE|README|package\.json/i.test(p)});

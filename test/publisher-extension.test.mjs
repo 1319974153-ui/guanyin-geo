@@ -1,0 +1,43 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
+async function fixture(t,options={}){
+ const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
+ let handler,alarm,clicks=0;const actions=[],requests=[],stored={connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
+ globalThis.chrome={storage:{local:{async setAccessLevel(){},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
+  const action=args[0].action;actions.push(action);
+  if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='submit')clicks++;
+  if(action==='receipt')return[{result:options.receipt||null}];
+  if(action==='preflight'&&options.preflightError)throw new Error('表单不匹配');
+  return[{result:{ready:true,prepared:true,attempted:true}}];
+ }}};
+ globalThis.fetch=async(url,init)=>{
+  const action=new URL(url).pathname.split('/').pop();requests.push(action);const body=JSON.parse(init.body);
+  assert.equal(init.credentials,'omit');assert.equal(init.redirect,'error');assert.equal(body.instance,'instance');
+  if(action==='commit'&&options.lostCommit)throw new Error('提交许可响应丢失');
+  const result=action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
+  return new Response(JSON.stringify(result));
+ };
+ await import('../browser-extension/background.js?fixture='+Math.random());
+ t.after(()=>{globalThis.chrome=originalChrome;globalThis.fetch=originalFetch});
+ const send=action=>new Promise(resolve=>handler({action},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));
+ return{send,actions,requests,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler};
+}
+test('extension prepares, checks, commits once, then reports only actual success-page evidence',async t=>{
+ const f=await fixture(t,{receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}});await f.send('run');
+ assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflight,undefined);
+});
+test('lost commit response is not retried; restart/alarm reconciles without opening a new editor',async t=>{
+ const f=await fixture(t,{lostCommit:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(f.stored.inflight);await f.alarm();await f.send('run');assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.requests.filter(a=>a==='commit').length,1);assert.equal(f.clicks,0);
+});
+test('preparation mode never commits or clicks publish',async t=>{
+ const f=await fixture(t,{mode:'prepare'});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(!f.actions.includes('preflight'));assert.equal(f.stored.inflight,undefined);
+});
+test('preflight failure reports need for user action without a write fallback',async t=>{
+ const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.equal(f.stored.inflight,undefined);assert.match(f.stored.status,/表单不匹配/);
+});
+test('runtime commands accept only own popup and cannot replace connection during unresolved work',async t=>{
+ const f=await fixture(t,{inflight:true});let called=false;assert.equal(f.handler({action:'run'},{id:'extension',url:'https://evil.test'},()=>called=true),undefined);assert.equal(called,false);
+ const r=await new Promise(resolve=>f.handler({action:'pair',pairing:'{}'},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));assert.match(r.error,/先核对/);assert.equal(f.requests.length,0);
+});
