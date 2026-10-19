@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {socialPage} from '../browser-extension/social-page.js';
+import {PLATFORMS,editorEvidence,receiptEvidence} from '../browser-extension/platforms.js';
+function fixture(platform){
+ let clicks=0,account='author',captcha=false,title='测试文章',body='测试正文';
+ const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,...extra});
+ const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
+ const bodyEl=element('');Object.defineProperty(bodyEl,'innerText',{get:()=>body});
+ const button=element(platform==='toutiao'?'预览并发布':'发布',{click:()=>clicks++});
+ const doc={querySelectorAll(s){
+  if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
+  if(s==='a[href]')return [element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':'https://www.zhihu.com/people/'+account,closest:()=>null})];
+  if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
+  if(s==='button,[role="button"]')return[button];
+  if(s.startsWith('.image-item img'))return[element('图片')];
+  if(s.includes('placeholder')&&s.includes('标题'))return[titleEl];
+  if(s.includes('contenteditable'))return[bodyEl];
+  return[];
+ }};
+ const u=new URL(PLATFORMS[platform].editor);
+ const context=vm.createContext({document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
+ const run=(action,patch={})=>vm.runInContext('('+socialPage.toString()+')',context)({platform,action,media:[{name:'fixture.png'}],article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:false},accountId:platform==='toutiao'?'123':'author',...patch});
+ if(platform==='toutiao')account='123';
+ return {run,context,get clicks(){return clicks},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
+}
+test('new adapters fail closed on identity changes, edited body, AI disclosure and CAPTCHA before submit',async()=>{
+ for(const platform of ['toutiao','zhihu','douyin','xiaohongshu']){
+  for(const change of [f=>f.setAccount('other'),f=>f.setCaptcha(true),f=>f.setBody('被改动的正文')]){const f=fixture(platform);change(f);assert.ok((await f.run('submit')).connectorError,platform);assert.equal(f.clicks,0)}
+  const ai=fixture(platform);assert.match((await ai.run('submit',{article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:true}})).connectorError,/AI/);assert.equal(ai.clicks,0);
+ }
+});
+test('an existing article or restored draft is never overwritten',async()=>{
+ for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);assert.match((await f.run('fill')).connectorError,/已有内容/);assert.equal(f.clicks,0)}
+});
+test('editor and receipt evidence cannot cross origins, platform types or dashboard URLs',()=>{
+ for(const p of Object.keys(PLATFORMS)){assert.ok(editorEvidence(p,PLATFORMS[p].editor));assert.equal(editorEvidence(p,'https://evil.example/'),false);assert.ok(!receiptEvidence(p,PLATFORMS[p].editor,'123'));}
+ assert.ok(receiptEvidence('toutiao','https://www.toutiao.com/article/123/','123'));
+ assert.ok(!receiptEvidence('toutiao','https://www.toutiao.com.evil.test/article/123/','123'));
+ assert.ok(!receiptEvidence('zhihu','https://zhuanlan.zhihu.com/p/123','124'));
+ assert.ok(receiptEvidence('douyin','https://www.douyin.com/note/123','123'));
+ assert.ok(receiptEvidence('xiaohongshu','https://www.xiaohongshu.com/explore/0123456789abcdef01234567','0123456789abcdef01234567'));
+});
+test('success text or dashboard navigation alone never produces a fabricated article receipt',async()=>{
+ for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
+});
+
+test('exact reviewed identity/body permits one submit attempt and never a second click',async()=>{
+ for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);assert.equal((await f.run('identity')).editorReady,true);assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);assert.equal((await f.run('submit')).attempted,true);assert.equal(f.clicks,1);assert.match((await f.run('submit')).connectorError,/不会再点击/);assert.equal(f.clicks,1)}
+});
+
+test('paragraph and list boundaries match visible editor newlines',async()=>{
+ const f=fixture('toutiao');f.setBody('第一段\n第二段\n第三段');const r=await f.run('preflight',{article:{title:'测试文章',text:'第一段\n第二段\n第三段',html:'<p>第一段</p><p>第二段<br>第三段</p>',ai:false}});assert.equal(r.ready,true);assert.equal(f.clicks,0);
+});

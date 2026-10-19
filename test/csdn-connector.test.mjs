@@ -37,7 +37,7 @@ test('CSDN success is parsed from actual page and does not fabricate a public UR
  const f=fixture();assert.equal(await f.run('receipt'),null);f.context.location.pathname='/mp_blog/creation/success/123456';const receipt=await f.run('receipt');assert.equal(receipt.articleId,'123456');assert.equal(receipt.url,'https://mp.csdn.net/mp_blog/creation/success/123456');assert.equal(receipt.state,'submitted');
 });
 test('extension permissions stay opt-in and do not request cookies, all-sites, or history',()=>{
- const m=JSON.parse(fs.readFileSync(new URL('../browser-extension/manifest.json',import.meta.url)));assert.deepEqual(m.optional_host_permissions,['http://127.0.0.1/*','https://mp.csdn.net/*']);assert.deepEqual(m.permissions,['storage','scripting','alarms']);assert.equal(m.content_scripts,undefined);assert.equal(m.externally_connectable,undefined);assert.equal(m.host_permissions,undefined);
+ const m=JSON.parse(fs.readFileSync(new URL('../browser-extension/manifest.json',import.meta.url)));assert.deepEqual(m.optional_host_permissions,['http://127.0.0.1/*','https://mp.csdn.net/*','https://mp.toutiao.com/*','https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*','https://creator.douyin.com/*','https://creator.xiaohongshu.com/*']);assert.deepEqual(m.permissions,['storage','scripting','alarms']);assert.equal(m.content_scripts,undefined);assert.equal(m.externally_connectable,undefined);assert.equal(m.host_permissions,undefined);
 });
 
 test('avatar-only toolbar identity falls back to title or verified account ID after trimming',async()=>{

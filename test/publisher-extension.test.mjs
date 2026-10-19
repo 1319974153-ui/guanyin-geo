@@ -4,7 +4,7 @@ const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourc
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
  let handler,alarm,clicks=0;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
- globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
@@ -22,7 +22,7 @@ async function fixture(t,options={}){
  };
  await import('../browser-extension/background.js?fixture='+Math.random());
  t.after(()=>{globalThis.chrome=originalChrome;globalThis.fetch=originalFetch});
- const send=action=>new Promise(resolve=>handler({action},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));
+ const send=(action,platform='csdn')=>new Promise(resolve=>handler({action,platform},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));
  return{send,actions,requests,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler};
 }
 test('extension prepares, checks, commits once, then reports only actual success-page evidence',async t=>{
@@ -65,4 +65,9 @@ test('verification preserves an existing owned tab',async t=>{
 });
 test('popup command errors remain visible after closing and reopening it',async t=>{
  const f=await fixture(t);const result=await f.send('unknown');assert.match(result.error,/不支持/);assert.equal(f.stored.status,result.error);
+});
+
+// A legacy CSDN connection must never authorize a newly selected platform.
+test('unpaired platform verification cannot reuse legacy CSDN connection',async t=>{
+ const f=await fixture(t);const result=await f.send('verify','toutiao');assert.match(result.error,/先为 今日头条 配对|先为 头条 配对/);assert.deepEqual(f.requests,[]);assert.deepEqual(f.actions,[]);
 });

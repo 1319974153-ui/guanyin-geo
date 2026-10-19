@@ -1,18 +1,19 @@
+import {PLATFORMS} from '../browser-extension/platforms.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
 const ORIGIN='http://127.0.0.1:58729',EXT='chrome-extension://'+'a'.repeat(32);
-function setup(t,experimentalPublish=true){
+function setup(t,experimentalPublish=true,publishPlatforms=[]){
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=1000000;
  const state={brands:[{id:'b',name:'隔离测试'},{id:'other',name:'乙'}],contents:[{id:'c',brandId:'b',title:'测试文章',text:'可验证的技术正文',status:'已审核'}],facts:[]};
- const options={db,readState:()=>state,origin:ORIGIN,clock:()=>time,experimentalPublish};let bridge=publisherBridge(options);
+ const options={db,readState:()=>state,origin:ORIGIN,clock:()=>time,experimentalPublish,publishPlatforms};let bridge=publisherBridge(options);
  const request=async(path,body,headers={},method='POST',host=ORIGIN)=>{const r=await bridge.handle(new Request(host+path,{method,headers:{'content-type':'application/json',...headers},...(method==='POST'?{body:JSON.stringify(body||{})}:{})}));return {status:r.status,data:await r.json()}};
  const app=(action,b,headers={})=>request('/api/local-publisher/'+action,b,{'x-geo-request':'1',origin:ORIGIN,...headers});
  let connection;
  const ext=(action,b={},overrides={})=>request('/bridge/publisher/'+action,{instance:connection?.instance,...b},{origin:EXT,...(connection?{authorization:'Bearer '+connection.token}:{}),...overrides});
- async function pair(){const p=await app('pairing',{brandId:'b'});const r=await ext('pair',{code:p.data.code,instance:p.data.instance});assert.equal(r.status,200);connection=r.data;return p.data}
- const account=(accountId='author')=>ext('account',{accountId,name:'测试作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'});
+ async function pair(platform='csdn'){const p=await app('pairing',{brandId:'b',platform});const r=await ext('pair',{code:p.data.code,instance:p.data.instance});assert.equal(r.status,200);connection=r.data;return p.data}
+ const account=(accountId='author')=>ext('account',{accountId,name:'测试作者',editorReady:true,evidenceUrl:PLATFORMS[connection?.platform||'csdn'].editor});
  const enqueue=(patch={})=>app('enqueue',{sessionId:connection.sessionId,brandId:'b',contentId:'c',mode:'publish',tags:['软件测试'],...patch});
  const ready=async()=>{await pair();await account();const j=await enqueue();assert.equal(j.status,200);return (await ext('claim')).data.job};
  return {db,state,request,app,ext,pair,account,enqueue,ready,get connection(){return connection},restart(){bridge=publisherBridge(options)},advance(ms){time+=ms},invalidate(){bridge.invalidate('恢复备份')}};
@@ -102,4 +103,33 @@ test('invalid account evidence identifies fields without echoing supplied values
 
 test('queued tags survive claim and cannot silently change during duplicate enqueue',async t=>{
  const e=setup(t);await e.pair();await e.account();await e.enqueue({tags:['软件测试','人工智能']});await e.enqueue({tags:['另一个标签']});const j=(await e.ext('claim')).data.job;assert.deepEqual(j.tags,['软件测试','人工智能']);
+});
+
+const png={dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jfeYAAAAASUVORK5CYII='};
+test('four new platforms bind pairing, identity, queue and claims to immutable platform',async t=>{
+ for(const platform of ['toutiao','zhihu','douyin','xiaohongshu']){
+  const e=setup(t,false);await e.pair(platform);assert.equal(e.connection.platform,platform);await e.account();
+  const wrong=await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.csdn.editor});assert.equal(wrong.status,409);
+  const media=PLATFORMS[platform].images?[png]:[];assert.equal((await e.enqueue({media})).status,409);
+  const queued=await e.enqueue({mode:'prepare',media});assert.equal(queued.status,200);assert.equal(queued.data.job.platform,platform);
+  const claim=await e.ext('claim');assert.equal(claim.data.job.platform,platform);assert.equal(claim.data.job.media.length,media.length);
+  assert.equal((await e.ext('commit',{id:claim.data.job.id,lease:claim.data.job.lease,accountId:'author',sourceHash:claim.data.job.sourceHash})).status,409);
+ }
+});
+test('platform release gates do not accidentally enable other platforms; cross-platform receipts rejected',async t=>{
+ const e=setup(t,false,['toutiao']);await e.pair('toutiao');await e.account();const q=await e.enqueue();assert.equal(q.status,200);const j=(await e.ext('claim')).data.job;
+ assert.equal((await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash})).status,200);
+ assert.equal((await e.ext('report',{id:j.id,lease:j.lease,state:'submitted',articleId:'123',url:'https://zhuanlan.zhihu.com/p/123'})).status,400);
+ const r=await e.ext('report',{id:j.id,lease:j.lease,state:'submitted',articleId:'123',url:'https://www.toutiao.com/article/123/'});assert.equal(r.status,200);assert.equal(r.data.job.receipt.publicVerified,false);
+ await e.pair('zhihu');await e.account();assert.equal((await e.enqueue()).status,409);
+});
+test('image platforms reject no media, mismatched image signatures, excessive captions without truncation',async t=>{
+ const e=setup(t,false);await e.pair('xiaohongshu');await e.account();assert.equal((await e.enqueue({mode:'prepare'})).status,400);
+ assert.equal((await e.enqueue({mode:'prepare',media:[{dataUrl:'data:image/png;base64,SGVsbG8='}]})).status,400);
+ e.state.contents[0].title='一'.repeat(21);assert.equal((await e.enqueue({mode:'prepare',media:[png]})).status,400);assert.equal(e.state.contents[0].title.length,21);
+ e.state.contents[0].title='测试文章';e.state.contents[0].text='文'.repeat(1001);assert.equal((await e.enqueue({mode:'prepare',media:[png]})).status,400);
+});
+test('identical author IDs on different platforms cannot deduplicate into each other',async t=>{
+ const e=setup(t,false);await e.pair('toutiao');await e.account();const a=await e.enqueue({mode:'prepare'});await e.pair('zhihu');await e.account();const b=await e.enqueue({mode:'prepare'});assert.notEqual(a.data.job.id,b.data.job.id);
+ const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.data.accounts.length,2);assert.ok(!JSON.stringify(status).includes('data:image'));
 });

@@ -39,3 +39,8 @@ test('CSDN preparation preserves tags and reads actual queued/fill states withou
 test('separate tabs or cleared browser journals use the same server idempotency ID',async()=>{
  const a=await dispatchId({...article,title:'正文标题',text:'正文'},wp());const b=await dispatchId({...article,title:'正文标题',text:'正文'},wp());assert.equal(a,b);assert.match(a,/^gy-[a-f0-9]{64}$/);assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'改稿'},wp()));assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'正文'},wp('other')));
 });
+
+test('upgrade keeps legacy no-media idempotency keys while image revisions get distinct keys',async()=>{
+ const {createHash}=await import('node:crypto');const target=wp();const old='gy-'+createHash('sha256').update(JSON.stringify([article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId])).digest('hex');assert.equal(await dispatchId(article,target),old);
+ const x={platform:'xiaohongshu',accountId:'x'};assert.notEqual(await dispatchId({...article,media:[{sha256:'a'}]},x),await dispatchId({...article,media:[{sha256:'b'}]},x));assert.equal(await dispatchId({...article,media:[{sha256:'a'}]},target),old);
+});

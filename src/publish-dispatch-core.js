@@ -5,7 +5,7 @@ export function availableActions(targets) {
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
 }
 export async function dispatchId(article,target){
- const source=JSON.stringify([article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId]);
+ const fields=[article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId];if(['douyin','xiaohongshu'].includes(target.platform)&&article.media?.length)fields.push(article.media.map(m=>m.sha256||m.dataUrl));const source=JSON.stringify(fields);
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
  return 'gy-'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
 }
@@ -31,9 +31,9 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
      assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
      const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
     }
-   }else if(target.platform==='csdn'){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(target.platform)){
     row.state='sending';row.stage='prepare';await persist(journal);changed();assertScope();wrote=true;
-    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,tags:article.tags,mode:'prepare'});
+    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,tags:article.tags,media:['douyin','xiaohongshu'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
    }else throw new Error('平台尚未接入');
   }catch(e){row.state=wrote?'uncertain':'needs_attention';row.error=e.message;}
@@ -52,7 +52,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
-   }else if(row.platform==='csdn'){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     const job=browserStatus.jobs.find(j=>j.id===row.jobId);
     if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null}

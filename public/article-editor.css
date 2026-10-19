@@ -48,3 +48,5 @@
 .distribution-more summary{cursor:pointer;padding:8px 0}
 [data-distribution-results]:not(:empty){margin-top:28px}
 @media(max-width:760px){.distribution-heading{align-items:flex-start}.distribution-heading h3{font-size:16px}.distribution-account{flex-wrap:wrap;gap:10px}.distribution-capability{flex-basis:100%;text-align:left;margin-left:28px}.distribution-actions{display:grid;grid-template-columns:1fr}.distribution-receipts li>div{flex-direction:column;gap:4px}.article-source textarea{font-family:inherit}.distribution-confirm{font-size:14px}}
+
+.distribution-media[hidden]{display:none}.distribution-media{margin:20px 0;max-width:560px}
