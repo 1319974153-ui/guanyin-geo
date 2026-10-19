@@ -1,9 +1,12 @@
 import {platformConfig} from './platforms.js';
-const status=document.querySelector('#status');
+const status=document.querySelector('#status'),platformSelect=document.querySelector('#platform');
+const popupReady=chrome.storage.local.get('selectedPlatform').then(v=>{if(v.selectedPlatform){try{platformConfig(v.selectedPlatform);platformSelect.value=v.selectedPlatform}catch{}}});
+platformSelect.addEventListener('change',()=>chrome.storage.local.set({selectedPlatform:platformSelect.value}));
 async function refresh(){const value=await chrome.storage.local.get('status');status.textContent=value.status||'尚未连接'}
-for(const action of ['pair','open','verify','run','reconcile'])document.getElementById(action).addEventListener('click',async()=>{
+for(const action of ['pair','open','verify','inspect','run','reconcile'])document.getElementById(action).addEventListener('click',async()=>{
  const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);status.textContent='正在处理…';
  try{
+  await popupReady;await chrome.storage.local.set({selectedPlatform:platformSelect.value});
   if(['pair','open'].includes(action)){
    const origins=action==='pair'?['http://127.0.0.1/*']:platformConfig(document.querySelector('#platform').value).hosts;
    if(!await chrome.permissions.request({origins}))throw new Error('未授权访问，已保留当前状态');

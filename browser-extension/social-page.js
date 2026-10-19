@@ -6,7 +6,7 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const fail=m=>{throw Error(m)},wait=ms=>new Promise(r=>setTimeout(r,ms));
  const cfg={
   toutiao:{origin:'https://mp.toutiao.com',paths:[/^\/profile_v4\/graphic\/publish$/],title:'.publish-editor-title textarea, textarea[placeholder*="文章标题"]',body:'.ProseMirror[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?toutiao.com\/c\/user\/(\d+)\//,publish:['预览并发布','发布文章'],confirm:['确认发布'],images:false},
-  zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"]',profile:/^https:\/\/www.zhihu.com\/people\/([\w-]+)\/?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
+  zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
   douyin:{origin:'https://creator.douyin.com',paths:[/^\/creator-micro\/content\/(?:upload|post\/image)$/],title:'input[placeholder*="标题"]',body:'.zone-container [contenteditable="true"], [contenteditable="true"][data-placeholder*="描述"]',publish:['发布'],confirm:[],images:true,switchText:'发布图文',id:/抖音号\s*[:：]\s*([\w-]+)/},
   xiaohongshu:{origin:'https://creator.xiaohongshu.com',paths:[/^\/publish\/publish$/],title:'input[placeholder*="标题"]',body:'.tiptap[contenteditable="true"], .ql-editor[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'上传图文',id:/小红书号\s*[:：]\s*([\w-]+)/}
  }[platform];if(!cfg)fail('平台适配器不存在');
@@ -14,6 +14,17 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const many=s=>[...document.querySelectorAll(s)].filter(visible);
  const unique=(s,label)=>{const list=many(s);if(list.length!==1)fail(label+'结构未通过适配检查');return list[0]};
  const text=e=>(e?.value??e?.innerText??e?.textContent??'').replace(/\s+/g,' ').trim();
+ // Toutiao renders a non-editable placeholder widget INSIDE the document.
+ // Strip only that observed decoration from a detached clone; never treat plain
+ // text equal to the prompt as empty, and never mutate the live document here.
+ const bodyContent=e=>{
+  if(platform!=='toutiao'||!e.querySelector('span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'))return text(e);
+  const clone=e.cloneNode(true);
+  for(const widget of clone.querySelectorAll('span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]')){
+   if(text(widget)==='请输入正文')widget.remove();
+  }
+  return (clone.textContent||'').replace(/\s+/g,' ').trim();
+ };
  const buttons=names=>many('button,[role="button"]').filter(e=>names.includes(text(e))&&!e.disabled&&e.getAttribute('aria-disabled')!=='true');
  const verifyChallenge=()=>{if(many('iframe[src*="captcha"],.geetest_panel,.yidun_modal,[class*="captcha"]').length||many('input[placeholder*="验证码"]').length)fail('平台要求本人验证，请处理后核对状态；不会自动发送验证码')};
  if(location.origin!==cfg.origin)fail('页面已跳转，请先完成本人登录');
@@ -25,6 +36,14 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
   return {state:'submitted',articleId:ids[0],url:matches[0].url};
  }
  if(!cfg.paths.some(p=>p.test(location.pathname)))fail('当前不是支持的创作页，未继续');verifyChallenge();
+ if(platform==='douyin'&&action!=='inspect'&&many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会放弃、覆盖或上传测试图片');
+ if(action==='inspect'){
+  const ts=many(cfg.title),bs=many(cfg.body);return {platform,titleMatches:ts.length,bodyMatches:bs.length,bodyVisibleChars:bs.map(e=>text(e).length),bodyContentChars:bs.map(e=>bodyContent(e).length),bodyTextChars:bs.map(e=>(e.textContent||'').trim().length),bodyIsPlaceholder:bs.map(e=>text(e)==='请输入正文'),editableStructure:many('[contenteditable="true"]').map(e=>({tag:e.tagName,classes:String(e.className||'').slice(0,180)})),imageInputs:[...document.querySelectorAll('input[type="file"]')].map(e=>e.accept||'')};
+ }
+ if(platform==='zhihu'&&!many('a[href]').some(a=>cfg.profile.test(a.href))){
+  const avatars=many('button img[alt], [role="button"] img[alt]').filter(e=>/^点击打开.+的主页$/.test(e.alt));
+  if(avatars.length===1){avatars[0].closest('button,[role="button"]').click();await wait(150)}
+ }
  // Never infer identity from an article author, a display name, or a login cookie.
  const identities=[];
  if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
@@ -45,7 +64,9 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&text(editor)===expected;
  if(action==='fill'){
-  if(text(title)||text(editor)||editor.querySelector('img,video,iframe'))fail('编辑器已有内容，未覆盖已有稿件');
+  // Focus can dismiss a visual empty-state prompt; genuine existing text remains protected.
+  editor.focus();await wait(100);
+  if(text(title)||bodyContent(editor)||editor.querySelector('img,video,iframe'))fail('编辑器已有内容，未覆盖已有稿件（标题 '+text(title).length+' 字，正文 '+bodyContent(editor).length+' 字）');
   const proto=title.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto,'value').set.call(title,article.title);title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true}));
   editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);

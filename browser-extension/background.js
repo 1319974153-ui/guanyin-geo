@@ -67,6 +67,11 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
    await chrome.alarms.create('publisher',{periodInMinutes:1});return {ok:true};
   }
   if(message.action==='open'){await freshEditor(platform);return {ok:true}}
+  if(message.action==='inspect'){
+   if(platform==='csdn')throw new Error('CSDN 请使用账号核验');
+   const saved=await chrome.storage.local.get('editorTab:'+platform),tabId=saved['editorTab:'+platform];if(!tabId)throw new Error('请先打开该平台编辑器');
+   const result=await page(tabId,'inspect',undefined,undefined,platform);await setStatus(JSON.stringify(result));return {ok:true};
+  }
   if(message.action==='verify'){
    const connection=await settings(platform);if(!connection)throw new Error('请先为 '+platformConfig(platform).name+' 配对，再核验账号');
    let editorTab=(await chrome.storage.local.get('editorTab:'+platform))['editorTab:'+platform];if(!editorTab&&platform==='csdn')editorTab=(await chrome.storage.local.get('editorTab')).editorTab;
