@@ -15,8 +15,9 @@ function fixture(options={}){
  }};
  class Parser{parseFromString(value){return{body:{textContent:value.replace(/<[^>]*>/g,''),querySelectorAll:()=>[]},querySelectorAll:()=>[]}}}
  const context=vm.createContext({URL,document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{},setTimeout,clearTimeout});
- const run=(action,patch={})=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:false},...patch});
- return {run,context,get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
+ const raw=(action,patch={})=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:false},...patch});
+ const run=async(action,patch={})=>{const result=await raw(action,patch);if(result?.connectorError)throw new Error(result.connectorError);return result};
+ return {raw,run,context,get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
 }
 test('CSDN publisher clicks once only after exact identity, body and tags match',async()=>{
  const f=fixture();assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);await f.run('submit');assert.equal(f.clicks,1);await assert.rejects(f.run('submit'),/已尝试/);assert.equal(f.clicks,1);
@@ -41,4 +42,8 @@ test('avatar-only toolbar identity falls back to title or verified account ID af
  for(const [options,expected] of [[{identityText:' \n ',identityTitle:' 温舒 '},'温舒'],[{identityText:' \n ',identityTitle:' '},'author'],[{identityText:'',identityTitle:''},'author']]){
   const f=fixture(options);const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,expected);assert.equal(me.editorReady,true);assert.equal(f.clicks,0);
  }
+});
+
+test('page exceptions cross the Chrome injection boundary as explicit errors',async()=>{
+ const f=fixture();f.setAccount('other');const result=await f.raw('identity');assert.match(result.connectorError,/账号已切换/);assert.equal(result.accountId,undefined);assert.equal(f.clicks,0);
 });

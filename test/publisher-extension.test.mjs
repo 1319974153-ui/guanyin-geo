@@ -6,6 +6,7 @@ async function fixture(t,options={}){
  let handler,alarm,clicks=0;const actions=[],requests=[],stored={connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
  globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
+  if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='submit')clicks++;
   if(action==='receipt')return[{result:options.receipt||null}];
@@ -50,4 +51,8 @@ test('extension service-worker import graph must compile without top-level await
  // Node allows TLA in modules; Chromium ServiceWorker explicitly forbids it.
  await assert.rejects(build({stdin:{contents:'await Promise.resolve()',sourcefile:'bad-worker.js'},write:false,logLevel:'silent',format:'esm',supported:{'top-level-await':false}}),/Top-level await/);
  const result=await build({entryPoints:[new URL('../browser-extension/background.js',import.meta.url).pathname],bundle:true,write:false,format:'esm',platform:'browser',supported:{'top-level-await':false},logLevel:'silent'});assert.ok(result.outputFiles[0].text.length>0);
+});
+
+test('null or failed page responses cannot reach account registration or claim a task',async t=>{
+ const f=await fixture(t,{identityResult:null});const r=await f.send('run');assert.equal(f.requests.filter(x=>x==='account').length,0);assert.equal(f.requests.filter(x=>x==='claim').length,0);assert.match(f.stored.status,/编辑器操作结果/);assert.equal(f.clicks,0);
 });

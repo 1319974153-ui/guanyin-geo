@@ -119,7 +119,12 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!session||b.instance!==instance)fail(403,'连接凭据或本机实例不匹配');
    brand(session.brandId);session.lastSeen=clock();save('publisher_sessions',session);
    if(action==='account'){
-    if(!safeId(b.accountId)||typeof b.name!=='string'||!b.name.trim()||b.name.length>100||b.editorReady!==true||b.evidenceUrl!=='https://mp.csdn.net/mp_blog/creation/editor')fail(409,'没有取得完整的登录身份和编辑器证据');
+    const invalid=[];
+    if(!safeId(b.accountId))invalid.push('账号 ID');
+    if(typeof b.name!=='string'||!b.name.trim()||b.name.length>100)invalid.push('显示名称');
+    if(b.editorReady!==true)invalid.push('编辑器就绪状态');
+    if(b.evidenceUrl!=='https://mp.csdn.net/mp_blog/creation/editor')invalid.push('编辑器网址');
+    if(invalid.length)fail(409,'没有取得完整的登录身份和编辑器证据：'+invalid.join('、'));
     const previous=session.account;
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});

@@ -13,7 +13,12 @@ async function api(action,data={},connection){
 }
 async function page(tabId,action,article,accountId){
  const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:csdnPage,args:[{action,article,accountId}]});
- if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');if(!result.length||result[0].result===undefined)throw new Error('未取得编辑器操作结果');return result[0].result;
+ if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
+ const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
+ if(action==='receipt'&&value===null)return null;
+ if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('未取得编辑器操作结果，请重新核验');
+ if(action==='identity'&&(!value.accountId||!value.name||value.editorReady!==true||value.evidenceUrl!==EDITOR))throw new Error('编辑器未返回完整账号信息，未继续提交');
+ return value;
 }
 async function freshEditor(){const tab=await chrome.tabs.create({url:EDITOR,active:true});await chrome.storage.local.set({editorTab:tab.id});return tab.id}
 async function identity(tabId){let last;for(let i=0;i<12;i++){try{return await page(tabId,'identity')}catch(e){last=e;await delay(1000)}}throw last}

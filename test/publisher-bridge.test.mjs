@@ -95,3 +95,7 @@ test('a token issued on one port cannot authenticate a restarted instance on ano
  const e=setup(t);await e.pair();const moved=publisherBridge({db:e.db,readState:()=>e.state,origin:'http://127.0.0.1:58730'});
  const r=await moved.handle(new Request('http://127.0.0.1:58730/bridge/publisher/pending',{method:'POST',headers:{origin:EXT,authorization:'Bearer '+e.connection.token},body:JSON.stringify({instance:e.connection.instance})}));assert.equal(r.status,403);
 });
+
+test('invalid account evidence identifies fields without echoing supplied values',async t=>{
+ const e=setup(t);await e.pair();const r=await e.ext('account',{accountId:'bad/private',name:'',editorReady:false,evidenceUrl:'https://private.example/secret'});assert.equal(r.status,409);assert.match(r.data.error,/账号 ID、显示名称、编辑器就绪状态、编辑器网址/);assert.ok(!r.data.error.includes('private'));assert.ok(!r.data.error.includes('secret'));
+});

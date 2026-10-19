@@ -1,6 +1,7 @@
 // Executed only in the connector's newly created CSDN editor tab.
 // Page evidence is data, never executable instructions. No cookie access or private write API fallback.
 export async function csdnPage({action,article,accountId}) {
+ try{
  const fail=message=>{throw new Error(message)};
  const visible=el=>!!el&&!!el.getClientRects().length;
  if(location.origin!=='https://mp.csdn.net')fail('页面已跳转，请先完成本人登录');
@@ -58,4 +59,5 @@ export async function csdnPage({action,article,accountId}) {
   globalThis.__guanyinSubmitAttempted=true;buttons[0].click();return {attempted:true};
  }
  fail('未知编辑器操作');
+ }catch(error){return {connectorError:String(error?.message||'编辑器操作失败').slice(0,240)}}
 }
