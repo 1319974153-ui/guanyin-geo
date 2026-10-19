@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {dispatchArticle,availableActions,reconcileDispatch,dispatchId} from '../src/publish-dispatch-core.js';
+const article={id:'c',brandId:'b',status:'已审核',tags:['软件测试']};
+const wp=(key='one')=>({key,platform:'wordpress',accountId:key,name:key,modes:['draft','publish']});
+const csdn={key:'csdn',platform:'csdn',sessionId:'s',name:'author',modes:['prepare']};
+function fixture(options={}){
+ const calls=[],journal={},saved=[];let posts=0;
+ const request=async(path,init)=>{calls.push([path,init?.body&&JSON.parse(init.body)]);if(path.includes('/preview?'))return{previewHash:'hash'};
+  if(options.failAccount&&init&&JSON.parse(init.body).accountId===options.failAccount)throw new Error('network lost');
+  if(path.endsWith('/draft')){posts++;return{record:{state:'draft',remote:{url:'https://example.org/?p=1',postId:1}}}}
+  if(path.endsWith('/publish'))return{record:{state:'published',remote:{url:'https://example.org/post',postId:1}}};
+  if(path.includes('/detail?'))return{record:{state:'draft'}};
+  if(path.endsWith('/enqueue'))return{job:{id:'job-1',state:'queued'}};
+  if(path.includes('/status?'))return{jobs:[{id:'job-1',state:'prepared'}]};throw Error('unexpected '+path);
+ };
+ return{calls,journal,saved,get posts(){return posts},request,run:patch=>dispatchArticle({article,targets:[wp()],mode:'draft',journal,request,persist:async j=>{if(options.storageFailure)throw Error('storage full');saved.push(JSON.stringify(j))},assertScope:options.assertScope||(()=>{}),...patch})};
+}
+test('all selected accounts must support the requested action before any side effect',async()=>{
+ const f=fixture();assert.equal(availableActions([wp(),csdn]).publish,false);await assert.rejects(f.run({targets:[wp(),csdn],mode:'publish'}),/所选账号/);assert.equal(f.calls.length,0);
+ await assert.rejects(f.run({article:{...article,status:'草稿'}}),/确认稿件/);
+});
+test('draft then publish reuses the same remote article without creating a duplicate',async()=>{
+ const f=fixture();await f.run();const id=f.journal.one.id;await f.run();assert.equal(f.posts,1);await f.run({mode:'publish'});assert.equal(f.posts,1);assert.equal(f.journal.one.id,id);assert.equal(f.journal.one.state,'published');await f.run({mode:'publish'});assert.equal(f.calls.filter(c=>c[0].endsWith('/publish')).length,1);
+ assert.equal(JSON.parse(f.saved[0]).one.state,'sending');
+});
+test('one failed account does not prevent the next, and uncertain requests are never repeated',async()=>{
+ const f=fixture({failAccount:'one'});await f.run({targets:[wp('one'),wp('two')]});assert.equal(f.journal.one.state,'uncertain');assert.equal(f.journal.two.state,'draft');const count=f.calls.length;await f.run({targets:[wp('one'),wp('two')]});assert.equal(f.calls.length,count);
+});
+test('journal failure and workspace changes stop before external writes',async()=>{
+ const f=fixture({storageFailure:true});await assert.rejects(f.run(),/storage full/);assert.equal(f.posts,0);
+ const changed=fixture({assertScope:()=>{throw Error('scope changed')}});await assert.rejects(changed.run(),/scope changed/);assert.equal(changed.calls.length,0);
+});
+test('CSDN preparation preserves tags and reads actual queued/fill states without claiming publication',async()=>{
+ const f=fixture();await f.run({targets:[csdn],mode:'prepare'});assert.deepEqual(f.calls[0][1].tags,['软件测试']);assert.equal(f.journal.csdn.state,'queued');
+ const count=f.calls.length;await reconcileDispatch({article,journal:f.journal,request:f.request,persist:async()=>{},assertScope:()=>{}});assert.equal(f.journal.csdn.state,'prepared');assert.ok(f.calls.slice(count).every(c=>!c[1]));
+});
+
+test('separate tabs or cleared browser journals use the same server idempotency ID',async()=>{
+ const a=await dispatchId({...article,title:'正文标题',text:'正文'},wp());const b=await dispatchId({...article,title:'正文标题',text:'正文'},wp());assert.equal(a,b);assert.match(a,/^gy-[a-f0-9]{64}$/);assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'改稿'},wp()));assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'正文'},wp('other')));
+});

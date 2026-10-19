@@ -1,0 +1,64 @@
+// UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
+// Journal before writes; uncertain work is reconciled, never silently replayed.
+export function availableActions(targets) {
+ const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
+ return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
+}
+export async function dispatchId(article,target){
+ const source=JSON.stringify([article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId]);
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
+ return 'gy-'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
+}
+export async function dispatchArticle({article,targets,mode,journal,request,persist,assertScope,changed=()=>{}}) {
+ if(!availableActions(targets)[mode])throw new Error('所选账号不都支持此操作，请调整选择');
+ if(article.status!=='已审核'||article.demo)throw new Error('请先确认稿件内容');
+ const post=(path,data)=>request(path,{method:'POST',body:JSON.stringify(data)});
+ for(const target of targets){
+  assertScope();let row=journal[target.key];
+  if(row&&['sending','uncertain','needs_attention','queued','preparing','submitting','submitted','prepared','published'].includes(row.state))continue;
+  if(row?.state==='draft'&&mode==='draft')continue;
+  row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,name:target.name,state:'ready'};
+  let wrote=false;
+  try{
+   if(target.platform==='wordpress'){
+    if(row.state!=='draft'){
+     const preview=await request('/api/wordpress/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
+     row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
+     const d=await post('/api/wordpress/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
+     row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';await persist(journal);changed();
+    }
+    if(mode==='publish'&&row.state==='draft'){
+     assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
+     const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
+    }
+   }else if(target.platform==='csdn'){
+    row.state='sending';row.stage='prepare';await persist(journal);changed();assertScope();wrote=true;
+    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,tags:article.tags,mode:'prepare'});
+    row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
+   }else throw new Error('平台尚未接入');
+  }catch(e){row.state=wrote?'uncertain':'needs_attention';row.error=e.message;}
+  // A failed journal write stops the batch before any further target is touched.
+  await persist(journal);changed();
+ }
+ return journal;
+}
+
+export async function reconcileDispatch({article,journal,request,persist,assertScope}){
+ let browserStatus;
+ for(const row of Object.values(journal)){
+  assertScope();
+  try{
+   if(row.platform==='wordpress'){
+    const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
+    row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
+    // Unknown remote outcomes require the existing dedicated reconciliation flow.
+   }else if(row.platform==='csdn'){
+    browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
+    const job=browserStatus.jobs.find(j=>j.id===row.jobId);
+    if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null}
+    else row.error='没有找到唯一任务回执，请在发布账号页核对；不会重新发送';
+   }
+  }catch(e){row.error=e.message;}
+ }
+ assertScope();await persist(journal);return journal;
+}

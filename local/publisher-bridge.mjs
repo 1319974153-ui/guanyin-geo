@@ -98,7 +98,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
       return respond({job:publicJob(existing),existing:true});
      }
      if(jobs().length>=1000)fail(409,'任务记录已达上限，请先导出回执');
-     const j={id:randomUUID(),sessionId:s.id,brandId:s.brandId,accountId:s.account.accountId,accountRevision:s.account.revision,snapshot:snap,sourceHash,mode:b.mode,state:'queued',created:clock(),expires:clock()+600000,attempted:false};checkCurrent(j,s);
+     const j={id:randomUUID(),sessionId:s.id,brandId:s.brandId,accountId:s.account.accountId,accountRevision:s.account.revision,snapshot:snap,sourceHash,tags,mode:b.mode,state:'queued',created:clock(),expires:clock()+600000,attempted:false};checkCurrent(j,s);
      db.prepare('INSERT INTO publisher_jobs VALUES(?,?,?)').run(j.id,fingerprint,JSON.stringify(j));return respond({job:publicJob(j)});
     }
     if(['retry','cancel'].includes(action)){

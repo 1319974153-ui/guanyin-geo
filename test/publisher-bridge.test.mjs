@@ -99,3 +99,7 @@ test('a token issued on one port cannot authenticate a restarted instance on ano
 test('invalid account evidence identifies fields without echoing supplied values',async t=>{
  const e=setup(t);await e.pair();const r=await e.ext('account',{accountId:'bad/private',name:'',editorReady:false,evidenceUrl:'https://private.example/secret'});assert.equal(r.status,409);assert.match(r.data.error,/账号 ID、显示名称、编辑器就绪状态、编辑器网址/);assert.ok(!r.data.error.includes('private'));assert.ok(!r.data.error.includes('secret'));
 });
+
+test('queued tags survive claim and cannot silently change during duplicate enqueue',async t=>{
+ const e=setup(t);await e.pair();await e.account();await e.enqueue({tags:['软件测试','人工智能']});await e.enqueue({tags:['另一个标签']});const j=(await e.ext('claim')).data.job;assert.deepEqual(j.tags,['软件测试','人工智能']);
+});
