@@ -11,6 +11,8 @@ const sourceRef=process.env.GEO_RELEASE_COMMIT||execFileSync('git',['rev-parse',
 if(!/^[a-f0-9]{40}$/.test(sourceRef))throw new Error('GEO_RELEASE_COMMIT must be a full verified source commit SHA');
 const version=JSON.parse(fs.readFileSync('package.json','utf8')).version,name=`GuanyinGEO-${version}-${target}`,out=path.resolve(outRoot),stage=path.join(out,name);
 if(fs.existsSync(stage))throw new Error('输出目录已存在，请使用新的干净目录');
+// Chromium rejects async module graphs for ServiceWorker, even though Node accepts them.
+await build({entryPoints:['browser-extension/background.js'],bundle:true,write:false,platform:'browser',format:'esm',supported:{'top-level-await':false}});
 // Rebuild embedded assets so packaging cannot silently ship a stale UI.
 execFileSync(process.execPath,['build.mjs'],{stdio:'inherit'});
 fs.mkdirSync(path.join(stage,'app'),{recursive:true});fs.mkdirSync(path.join(stage,'runtime'));

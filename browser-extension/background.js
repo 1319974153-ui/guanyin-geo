@@ -2,8 +2,10 @@ import {csdnPage} from './csdn.js';
 const EDITOR='https://mp.csdn.net/mp_blog/creation/editor';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 let running=false;
-await chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'});
-async function settings(){return (await chrome.storage.local.get('connection')).connection}
+// Service workers reject top-level await. Register listeners synchronously; await storage only inside handlers.
+const storageReady=Promise.resolve().then(()=>chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'})).then(()=>({ok:true}),()=>({ok:false}));
+async function requireStorage(){if(!(await storageReady).ok)throw new Error('浏览器存储保护初始化失败，请重新加载扩展');}
+async function settings(){await requireStorage();return (await chrome.storage.local.get('connection')).connection}
 async function api(action,data={},connection){
  const c=connection||await settings();if(!c)throw new Error('请先与本机观引配对');
  const r=await fetch(c.origin+'/bridge/publisher/'+action,{method:'POST',credentials:'omit',redirect:'error',headers:{'content-type':'application/json',...(c.token?{authorization:'Bearer '+c.token}:{})},body:JSON.stringify({...data,instance:c.instance}),signal:AbortSignal.timeout(12000)});
@@ -38,12 +40,13 @@ async function run(){
  }finally{running=false}
 }
 async function reconcile(){
- const {inflight}=await chrome.storage.local.get('inflight');if(!inflight)return;
+ await requireStorage();const {inflight}=await chrome.storage.local.get('inflight');if(!inflight)return;
  try{const receipt=await page(inflight.tabId,'receipt');if(receipt){await api('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await chrome.storage.local.remove('inflight');await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch{await setStatus('上次任务中断，平台结果待核对；不会自动重发')}
 }
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
  if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))return;
  (async()=>{
+  await requireStorage();
   if(message.action==='pair'){
    if(running||(await chrome.storage.local.get('inflight')).inflight)throw new Error('请先核对当前任务回执，再更换连接');
    const value=JSON.parse(message.pairing);const u=new URL(value.origin);
@@ -61,5 +64,5 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   throw new Error('不支持的操作');
  })().then(sendResponse,e=>sendResponse({error:e.message}));return true;
 });
-chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='publisher')return;if((await chrome.storage.local.get('inflight')).inflight){await reconcile();return}await run()});
-chrome.runtime.onStartup.addListener(reconcile);
+chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='publisher')return;try{await requireStorage()}catch{return}if((await chrome.storage.local.get('inflight')).inflight){await reconcile();return}await run()});
+chrome.runtime.onStartup.addListener(()=>{reconcile().catch(()=>{})});

@@ -4,7 +4,7 @@ const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourc
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
  let handler,alarm,clicks=0;const actions=[],requests=[],stored={connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
- globalThis.chrome={storage:{local:{async setAccessLevel(){},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='submit')clicks++;
@@ -40,4 +40,14 @@ test('preflight failure reports need for user action without a write fallback',a
 test('runtime commands accept only own popup and cannot replace connection during unresolved work',async t=>{
  const f=await fixture(t,{inflight:true});let called=false;assert.equal(f.handler({action:'run'},{id:'extension',url:'https://evil.test'},()=>called=true),undefined);assert.equal(called,false);
  const r=await new Promise(resolve=>f.handler({action:'pair',pairing:'{}'},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));assert.match(r.error,/先核对/);assert.equal(f.requests.length,0);
+});
+
+test('storage protection failure fails closed without making platform or bridge requests',async t=>{
+ const f=await fixture(t,{storageFailure:true});const r=await f.send('run');assert.match(r.error,/存储保护/);assert.equal(f.requests.length,0);assert.equal(f.actions.length,0);
+});
+test('extension service-worker import graph must compile without top-level await',async()=>{
+ const {build}=await import('esbuild');
+ // Node allows TLA in modules; Chromium ServiceWorker explicitly forbids it.
+ await assert.rejects(build({stdin:{contents:'await Promise.resolve()',sourcefile:'bad-worker.js'},write:false,logLevel:'silent',format:'esm',supported:{'top-level-await':false}}),/Top-level await/);
+ const result=await build({entryPoints:[new URL('../browser-extension/background.js',import.meta.url).pathname],bundle:true,write:false,format:'esm',platform:'browser',supported:{'top-level-await':false},logLevel:'silent'});assert.ok(result.outputFiles[0].text.length>0);
 });
