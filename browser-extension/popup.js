@@ -3,7 +3,7 @@ const status=document.querySelector('#status'),platformSelect=document.querySele
 const popupReady=chrome.storage.local.get('selectedPlatform').then(v=>{if(v.selectedPlatform){try{platformConfig(v.selectedPlatform);platformSelect.value=v.selectedPlatform}catch{}}});
 platformSelect.addEventListener('change',()=>chrome.storage.local.set({selectedPlatform:platformSelect.value}));
 async function refresh(){const value=await chrome.storage.local.get('status');status.textContent=value.status||'尚未连接'}
-for(const action of ['pair','open','verify','inspect','run','reconcile'])document.getElementById(action).addEventListener('click',async()=>{
+for(const action of ['pair','open','verify','inspect','run','resume','reconcile'])document.getElementById(action).addEventListener('click',async()=>{
  const buttons=[...document.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);status.textContent='正在处理…';
  try{
   await popupReady;await chrome.storage.local.set({selectedPlatform:platformSelect.value});

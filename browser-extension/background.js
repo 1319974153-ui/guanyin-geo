@@ -26,8 +26,16 @@ async function page(tabId,action,article,accountId,platform='csdn',media=[]){
 async function freshEditor(platform='csdn'){const tab=await chrome.tabs.create({url:platformConfig(platform).editor,active:true});await chrome.storage.local.set({['editorTab:'+platform]:tab.id,...(platform==='csdn'?{editorTab:tab.id}:{})});return tab.id}
 async function identity(tabId,platform='csdn'){let last;for(let i=0;i<12;i++){try{return await page(tabId,'identity',undefined,undefined,platform)}catch(e){last=e;await delay(1000)}}throw last}
 async function setStatus(message){await chrome.storage.local.set({status:message})}
+async function submitPrepared(platform,job,tabId,article,call){
+ const me=await page(tabId,'identity',undefined,job.accountId,platform);
+ const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
+  if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
+  await page(tabId,'submit',article,job.accountId,platform,job.media);
+  for(let i=0;i<20;i++){await delay(1000);try{const receipt=await page(tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}catch{}}
+  throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
+}
 async function run(platform='csdn'){
- if(running)return;running=true;let job,filled=false;
+ if(running)return;running=true;let job,editorTouched=false;
  try{
   const connection=await settings(platform);if(!connection)return;
   const call=(action,data)=>api(action,data,connection);
@@ -36,16 +44,32 @@ async function run(platform='csdn'){
   job=(await call('claim')).job;if(!job)return;
   // Persist enough to reconcile after MV3 suspension; never replay a submit from this journal.
   await saveJournal(platform,{job,tabId});
-  const article={...job.snapshot,tags:job.tags};if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);filled=true;
+  const article={...job.snapshot,tags:job.tags};editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   await page(tabId,'preflight',article,job.accountId,platform,job.media);
-  const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
-  if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
-  await page(tabId,'submit',article,job.accountId,platform,job.media);
-  for(let i=0;i<20;i++){await delay(1000);try{const receipt=await page(tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}catch{}}
-  throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
+  await submitPrepared(platform,job,tabId,article,call);
  }catch(e){
-  if(job){try{const r=await api('report',{id:job.id,lease:job.lease,state:'needs_attention',error:e.message},await settings(platform));if(r.job.state!=='uncertain'&&!(job.mode==='prepare'&&filled))await saveJournal(platform,null)}catch{}}
+  if(job){try{const r=await api('report',{id:job.id,lease:job.lease,state:'needs_attention',editorRetained:editorTouched,error:e.message},await settings(platform));if(r.job.state!=='uncertain'&&!editorTouched)await saveJournal(platform,null)}catch{}}
+  await setStatus(e.message);
+ }finally{running=false}
+}
+async function resume(platform='csdn'){
+ if(running)throw new Error('正在处理任务，请稍后');
+ running=true;let inflight,call;
+ try{
+  inflight=await journal(platform);if(!inflight)throw new Error('没有待继续的原稿');
+  const j=inflight.job,connection=await settings(platform);call=(action,data)=>api(action,data,connection);
+  const state=await call('job-state',{id:j.id,lease:j.lease});
+  if(!state.canResume)throw new Error('此任务不能继续提交；请核对上次回执，不会重复发布');
+  const article={...j.snapshot,tags:j.tags};
+  const me=await page(inflight.tabId,'identity',undefined,j.accountId,platform);
+  await page(inflight.tabId,'prepared',article,j.accountId,platform,j.media||[]);
+  await call('account',me);
+  await page(inflight.tabId,'preflight',article,j.accountId,platform,j.media||[]);
+  await call('resume',{id:j.id,lease:j.lease,accountId:me.accountId,sourceHash:j.sourceHash});
+  await submitPrepared(platform,j,inflight.tabId,article,call);
+ }catch(e){
+  if(inflight&&call)try{await call('report',{id:inflight.job.id,lease:inflight.job.lease,state:'needs_attention',editorRetained:true,error:e.message})}catch{}
   await setStatus(e.message);
  }finally{running=false}
 }
@@ -57,6 +81,9 @@ async function reconcile(platform='csdn'){
    if(!preparation||preparation.accountId!==j.accountId)throw new Error('填稿身份不一致');
    await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{...preparation,sourceHash:j.sourceHash}});await saveJournal(platform,null);await setStatus('已核对原编辑页并恢复填稿记录；未重新填稿或发布');return;
   }
+  const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
+  if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
+  if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
   const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch{await setStatus('上次任务中断，平台结果待核对；不会自动重发')}
 }
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
@@ -74,8 +101,7 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   }
   if(message.action==='open'){await freshEditor(platform);return {ok:true}}
   if(message.action==='inspect'){
-   if(platform==='csdn')throw new Error('CSDN 请使用账号核验');
-   const saved=await chrome.storage.local.get('editorTab:'+platform),tabId=saved['editorTab:'+platform];if(!tabId)throw new Error('请先打开该平台编辑器');
+   const saved=await chrome.storage.local.get(['editorTab:'+platform,'editorTab']),tabId=saved['editorTab:'+platform]||(platform==='csdn'?saved.editorTab:null);if(!tabId)throw new Error('请先打开该平台编辑器');
    const result=await page(tabId,'inspect',undefined,undefined,platform);await setStatus(JSON.stringify(result));return {ok:true};
   }
   if(message.action==='verify'){
@@ -87,6 +113,7 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
    if(!editorTab)editorTab=await freshEditor(platform);
    const me=await identity(editorTab,platform);await api('account',me,connection);await setStatus('已核验账号：'+me.name+'（'+me.accountId+'）');return {ok:true};
   }
+  if(message.action==='resume'){await resume(platform);return {ok:true}}
   if(message.action==='run'){if(await journal(platform))await reconcile(platform);else await run(platform);return {ok:true}}
   if(message.action==='reconcile'){await reconcile(platform);return {ok:true}}
   throw new Error('不支持的操作');

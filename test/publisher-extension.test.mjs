@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,clicks=0,lostReport=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
+ let handler,alarm,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
   if(action==='submit')clicks++;
   if(action==='receipt')return[{result:options.receipt||null}];
   if(action==='preflight'&&options.preflightError)throw new Error('表单不匹配');
@@ -18,8 +19,9 @@ async function fixture(t,options={}){
   const action=new URL(url).pathname.split('/').pop();requests.push(action);const body=JSON.parse(init.body);
   assert.equal(init.credentials,'omit');assert.equal(init.redirect,'error');assert.equal(body.instance,'instance');
   if(action==='report'&&body.state==='prepared'&&options.lostReport&&!lostReport){lostReport=true;throw new Error('填稿回执响应丢失')}
+  if(action==='commit')committed=true;
   if(action==='commit'&&options.lostCommit)throw new Error('提交许可响应丢失');
-  const result=action==='job-state'?{journalActive:!options.cancelled}:action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
+  const result=action==='job-state'?{journalActive:!options.cancelled,canResume:!options.cancelled&&!committed&&options.canResume===true}:action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
   return new Response(JSON.stringify(result));
  };
  await import('../browser-extension/background.js?fixture='+Math.random());
@@ -29,7 +31,7 @@ async function fixture(t,options={}){
 }
 test('extension prepares, checks, commits once, then reports only actual success-page evidence',async t=>{
  const f=await fixture(t,{receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}});await f.send('run');
- assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflight,undefined);
+ assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','identity','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflight,undefined);
 });
 test('lost commit response is not retried; restart/alarm reconciles without opening a new editor',async t=>{
  const f=await fixture(t,{lostCommit:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(f.stored.inflight);await f.alarm();await f.send('run');assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.requests.filter(a=>a==='commit').length,1);assert.equal(f.clicks,0);
@@ -38,7 +40,7 @@ test('preparation mode never commits or clicks publish',async t=>{
  const f=await fixture(t,{mode:'prepare'});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(!f.actions.includes('preflight'));assert.equal(f.stored.inflight,undefined);
 });
 test('preflight failure reports need for user action without a write fallback',async t=>{
- const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.equal(f.stored.inflight,undefined);assert.match(f.stored.status,/表单不匹配/);
+ const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(f.stored.inflight);assert.match(f.stored.status,/表单不匹配/);
 });
 test('runtime commands accept only own popup and cannot replace connection during unresolved work',async t=>{
  const f=await fixture(t,{inflight:true});let called=false;assert.equal(f.handler({action:'run'},{id:'extension',url:'https://evil.test'},()=>called=true),undefined);assert.equal(called,false);
@@ -83,4 +85,30 @@ test('changed prepared content remains unresolved without a new write',async t=>
 });
 test('explicit cancellation clears a prepare journal without opening or touching an editor',async t=>{
  const f=await fixture(t,{mode:'prepare',inflight:true,cancelled:true});await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.deepEqual(f.actions,[]);assert.deepEqual(f.requests,['job-state']);
+});
+
+test('preflight wait retains one editor; alarms never submit and explicit resume uses original draft',async t=>{
+ const options={preflightError:true,canResume:true,receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}};
+ const f=await fixture(t,options);await f.send('run');assert.ok(f.stored.inflight);
+ await f.alarm();await f.send('run');assert.equal(f.clicks,0);assert.equal(f.actions.filter(a=>a==='fill').length,1);
+ options.preflightError=false;await f.send('resume');assert.equal(f.clicks,1);assert.equal(f.stored.inflight,undefined);
+ assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);
+ assert.equal(f.requests.filter(a=>a==='resume').length,1);assert.equal(f.requests.filter(a=>a==='commit').length,1);
+});
+test('resume cannot replay a lost commit, cancelled task or changed original draft',async t=>{
+ const options={canResume:true,lostCommit:true};const f=await fixture(t,options);await f.send('run');await f.send('resume');assert.equal(f.clicks,0);assert.equal(f.requests.filter(a=>a==='commit').length,1);assert.ok(f.stored.inflight);
+});
+test('resume rechecks original editor content before renewing lease',async t=>{
+ const f=await fixture(t,{inflight:true,canResume:true,preparedError:true});await f.send('resume');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('resume'));assert.ok(!f.requests.includes('commit'));assert.ok(f.stored.inflight);
+});
+test('cancelled publish journal clears without reading or refilling any editor',async t=>{
+ const f=await fixture(t,{inflight:true,cancelled:true});await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.deepEqual(f.actions,[]);
+});
+
+test('partial fill failures preserve the original journal and never silently create a duplicate draft',async t=>{
+ const f=await fixture(t,{partialFillError:true,canResume:true});await f.send('run');assert.ok(f.stored.inflight);await f.alarm();await f.send('run');assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.clicks,0);
+});
+
+test('read-only inspection supports a legacy CSDN editor binding without opening another tab',async t=>{
+ const f=await fixture(t,{editorTab:9});assert.equal((await f.send('inspect')).ok,true);assert.deepEqual(f.actions,['inspect']);assert.equal(f.clicks,0);assert.deepEqual(f.requests,[]);
 });

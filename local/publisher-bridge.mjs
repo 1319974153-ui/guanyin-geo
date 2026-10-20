@@ -119,7 +119,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(['retry','cancel'].includes(action)){
      const j=getJob(b.id);brand(j.brandId);if(j.attempted)fail(409,'已经进入提交阶段，只能核对回执，不能重发');
      if(!['queued','needs_attention'].includes(j.state))fail(409,'任务正在处理或已结束');
-     if(action==='cancel'){j.state='cancelled';j.error='用户取消'}else{const s=sessions().find(s=>s.id===j.sessionId&&!s.revoked);if(!s)fail(409,'连接已撤销');j.expires=clock()+600000;checkCurrent(j,s);j.state='queued';j.error='';delete j.lease;}
+     if(action==='cancel'){j.state='cancelled';j.error='用户取消'}else{const s=sessions().find(s=>s.id===j.sessionId&&!s.revoked);if(!s)fail(409,'连接已撤销');j.expires=clock()+600000;checkCurrent(j,s);j.state=j.editorRetained?'needs_attention':'queued';j.error=j.editorRetained?'授权已续期，请在连接器继续原稿；不会重新填一篇':'';if(!j.editorRetained)delete j.lease;}
      save('publisher_jobs',j);return respond({job:publicJob(j)});
     }
     fail(404,'接口不存在');
@@ -144,7 +144,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
    }
-   if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');return respond({job:publicJob(j),journalActive:!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state)})}
+   if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');const active=!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state);return respond({job:publicJob(j),journalActive:active,canResume:active&&!j.attempted&&j.mode==='publish'&&publishing.has(j.platform||'csdn')&&['preparing','needs_attention'].includes(j.state)})}
    if(action==='pending')return respond({platform:session.platform||'csdn',count:jobs().filter(j=>j.sessionId===session.id&&j.state==='queued').length});
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
@@ -153,8 +153,16 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     j.state='preparing';j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
     return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],lease:j.lease}});
    }
-   if(['commit','report'].includes(action)){
+   if(['resume','commit','report'].includes(action)){
     const j=getJob(b.id);if(j.sessionId!==session.id||!j.lease||b.lease!==j.lease)fail(403,'任务租约不属于此连接');
+    if(action==='resume'){
+     if(j.mode!=='publish'||!publishing.has(j.platform||'csdn')||j.attempted||!['preparing','needs_attention'].includes(j.state))fail(409,'此任务不能继续提交，请核对原回执');
+     // Only an explicit connector action can renew a pre-submit lease. Content,
+     // account revision and the original ten-minute authorization stay binding.
+     checkCurrent(j,session);
+     if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'执行账号或文章不匹配');
+     j.state='preparing';j.error='';j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({resumed:true});
+    }
     if(action==='commit'){
      if(j.mode!=='publish'||!publishing.has(j.platform||'csdn')||j.state!=='preparing'||j.attempted||j.leaseExpires<clock())fail(409,'不允许再次提交');checkCurrent(j,session);
      if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'执行账号或文章不匹配');
@@ -174,7 +182,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      let url;try{url=new URL(b.url)}catch{fail(400,'缺少实际回执网址')}
      if(!receiptEvidence(j.platform||'csdn',url.href,b.articleId))fail(400,'回执不是此平台的实际文章网址');
      j.state='submitted';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:'extension_success_page',publicVerified:false};
-    }else if(b.state==='needs_attention'||b.state==='uncertain'){j.state=j.attempted?'uncertain':'needs_attention';j.error=String(b.error||'请在平台检查当前页面').slice(0,300)}else fail(400,'不支持此回执状态');
+    }else if(b.state==='needs_attention'||b.state==='uncertain'){j.state=j.attempted?'uncertain':'needs_attention';if(b.editorRetained===true)j.editorRetained=true;j.error=String(b.error||'请在平台检查当前页面').slice(0,300)}else fail(400,'不支持此回执状态');
     save('publisher_jobs',j);return respond({job:publicJob(j)});
    }
    fail(404,'接口不存在');

@@ -147,3 +147,33 @@ test('prepare job status is session bound and cancellation invalidates only its 
  await e.ext('report',{id:j.id,lease:j.lease,state:'needs_attention'});await e.app('cancel',{id:j.id});assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).data.journalActive,false);
  await e.pair();assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).status,403);
 });
+
+test('explicit resume renews only a pre-submit lease and cannot enqueue another editor',async t=>{
+ const e=setup(t),j=await e.ready(),args={id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash};
+ await e.ext('report',{...args,state:'needs_attention',editorRetained:true,error:'缺少标签'});
+ assert.equal((await e.app('retry',{id:j.id})).data.job.state,'needs_attention');assert.equal((await e.ext('pending')).data.count,0);
+ e.advance(120001);await e.account();assert.equal((await e.ext('job-state',args)).data.canResume,true);
+ assert.equal((await e.ext('resume',args)).status,200);assert.equal((await e.ext('commit',args)).status,200);
+ assert.equal((await e.ext('resume',args)).status,409);assert.equal((await e.ext('job-state',args)).data.canResume,false);
+});
+test('resume rejects changed identity/content, expired authorization and foreign leases',async t=>{
+ const e=setup(t),j=await e.ready(),args={id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash};
+ assert.equal((await e.ext('resume',{...args,lease:'wrong'})).status,403);
+ e.state.contents[0].text='其他内容';assert.equal((await e.ext('resume',args)).status,409);e.state.contents[0].text='可验证的技术正文';
+ await e.account('other');assert.equal((await e.ext('resume',args)).status,409);
+ await e.account();e.advance(600001);assert.equal((await e.ext('resume',args)).status,409);
+});
+test('prepare-only and cancelled jobs can never be promoted via resume',async t=>{
+ const e=setup(t);await e.pair();await e.account();await e.enqueue({mode:'prepare'});const j=(await e.ext('claim')).data.job,args={id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash};
+ assert.equal((await e.ext('resume',args)).status,409);
+ await e.ext('report',{...args,state:'needs_attention'});await e.app('cancel',{id:j.id});assert.equal((await e.ext('resume',args)).status,409);
+});
+
+test('explicit reauthorization of retained editor keeps the original lease and never queues a refill',async t=>{
+ const e=setup(t),j=await e.ready(),args={id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash};
+ await e.ext('report',{...args,state:'needs_attention',editorRetained:true});e.advance(600001);await e.account();
+ assert.equal((await e.ext('resume',args)).status,409);
+ assert.equal((await e.app('retry',{id:j.id})).data.job.state,'needs_attention');
+ assert.equal((await e.ext('pending')).data.count,0);assert.equal((await e.ext('claim')).data.job,null);
+ assert.equal((await e.ext('resume',args)).status,200);
+});

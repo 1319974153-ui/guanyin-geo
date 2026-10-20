@@ -29,11 +29,47 @@ export async function csdnPage({action,article,accountId}) {
  if(accountId&&accountId!==identity.accountId)fail('浏览器账号已切换，已停止提交');
  const evidence={...identity,editorReady:true,evidenceUrl:location.origin+location.pathname};
  if(action==='identity')return evidence;
+ if(action==='inspect')return {platform:'csdn',editorReady:true,controls:[...document.querySelectorAll('button,input,[role="combobox"]')].filter(visible).filter(e=>!e.closest('[contenteditable]')).map(e=>({tag:e.tagName,id:e.id,classes:String(e.className||''),role:e.getAttribute('role'),placeholder:e.getAttribute('placeholder'),label:e.getAttribute('aria-label'),text:e.tagName==='BUTTON'?e.textContent.trim().slice(0,40):'',parents:[e.parentElement,e.parentElement?.parentElement].filter(Boolean).map(p=>String(p.className||''))})).slice(0,65),tagContainers:[...document.querySelectorAll('.mark_selection')].map(e=>({classes:String(e.className),children:[...e.children].map(c=>({tag:c.tagName,classes:String(c.className)}))}))};
  const signature=html=>{
   const doc=new DOMParser().parseFromString(html,'text/html');
   return JSON.stringify({text:doc.body.textContent.replace(/\s+/g,' ').trim(),links:[...doc.querySelectorAll('a')].map(a=>a.getAttribute('href')),images:[...doc.querySelectorAll('img')].map(a=>a.getAttribute('src')),blocks:[...doc.body.querySelectorAll('h1,h2,h3,h4,pre,li,table')].map(e=>e.tagName+':'+e.textContent.trim())});
  };
  const bodyMatches=()=>signature(editor.getData())===signature(article.html);
+ const pause=ms=>new Promise(r=>setTimeout(r,ms));
+ const aiLabel='部分内容由AI辅助生成';
+ const selectedTags=()=>[...document.querySelectorAll('.mark_selection .el_mcm-tag.is-closable, .mark_selection .tag-item')].filter(visible).map(e=>e.textContent.trim().replace(/×$/,'').trim());
+ const fieldWith=(caption,selector)=>{
+  const found=new Set();
+  for(const label of document.querySelectorAll('label,span,div')){
+   if(!visible(label)||label.textContent.trim().replace(/[：:]$/,'')!==caption)continue;
+   let parent=label.parentElement;
+   for(let depth=0;parent&&depth<4;depth++,parent=parent.parentElement){
+    const controls=[...parent.querySelectorAll(selector)];
+    if(controls.length>1)break;
+    if(controls.length===1){found.add(controls[0]);break;}
+   }
+  }
+  return found.size===1?[...found][0]:null;
+ };
+ const declarationCombo=()=>fieldWith('创作声明','[role="combobox"]');
+ const aiDeclared=()=>{
+  const combo=declarationCombo(),selection=combo?.closest('.el_mcm-select__selection');
+  return !!selection&&visible(selection)&&selection.textContent.trim()===aiLabel;
+ };
+ const sideEffectsClear=()=>{
+  const checked=[...document.querySelectorAll('input:checked')];
+  if(checked.some(e=>/GitCode/.test(e.closest('label')?.textContent||'')))fail('GitCode 备份已勾选，请先取消；连接器不会代同意注册协议');
+  for(const label of document.querySelectorAll('label,span,div')){
+   if(!visible(label)||label.textContent.trim().replace(/[：:]$/,'')!=='多平台发布')continue;
+   let parent=label.parentElement;
+   for(let depth=0;parent&&depth<4;depth++,parent=parent.parentElement){
+    const radios=[...parent.querySelectorAll('input[type="radio"]')];
+    if(radios.length>4)break;
+    if(radios.length){if(radios.some(e=>e.checked&&(e.closest('label')?.textContent||'').trim()==='是'))fail('请关闭 CSDN 多平台发布；本任务仅提交当前平台');break;}
+   }
+  }
+ };
+
  if(action==='prepared'){if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,contentVerified:true};}
  if(action==='fill'){
   if(title.value?.trim()||new DOMParser().parseFromString(editor.getData(),'text/html').body.textContent.trim()||/<img|<video|<iframe/i.test(editor.getData()))fail('编辑器已有内容或恢复了旧草稿，未覆盖；请检查后重新开空白编辑器');
@@ -41,23 +77,42 @@ export async function csdnPage({action,article,accountId}) {
   Object.getOwnPropertyDescriptor(prototype,'value').set.call(title,article.title);title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true}));
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('编辑器填充超时，请检查草稿')),8000);editor.setData(article.html,{callback:()=>{clearTimeout(timer);resolve()}})});
   if(title.value!==article.title||!bodyMatches())fail('排版结果与已审核稿件不一致，未提交');
-  // Add only requested tags. Never choose a random suggested tag to force validation through.
+  // Only configure metadata requested by this reviewed article. Do not use
+  // CSDN's separate paid multi-platform service or enable GitCode backup.
   for(const tag of article.tags||[]){
-   const selected=()=>[...document.querySelectorAll('.mark_selection .el_mcm-tag.is-closable, .mark_selection .tag-item')].some(e=>e.textContent.trim().replace(/×$/,'').trim()===tag);
-   if(selected())continue;
-   const preset=[...document.querySelectorAll('.mark_selection .el_mcm-tag:not(.is-closable)')].find(e=>e.textContent.trim()===tag);
-   if(preset){preset.click();await new Promise(r=>setTimeout(r,250));}
-   else {const input=document.querySelector('.tag__input input, input[placeholder*="文章标签"]');if(input&&visible(input)){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,tag);input.dispatchEvent(new Event('input',{bubbles:true}));await new Promise(r=>setTimeout(r,350));input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true}));await new Promise(r=>setTimeout(r,250));}}
+   if(selectedTags().includes(tag))continue;
+   let input=[...document.querySelectorAll('input')].find(e=>visible(e)&&e.placeholder==='请输入文字搜索，Enter键入可添加自定义标签');
+   if(!input){
+    const open=[...document.querySelectorAll('.tag__btn-tag')].filter(e=>visible(e)&&e.textContent.trim()==='添加文章标签');
+    if(open.length!==1)fail('正文已填入，但未找到唯一的文章标签入口；请在原稿补齐');
+    open[0].click();await pause(250);
+    input=[...document.querySelectorAll('input')].find(e=>visible(e)&&e.placeholder==='请输入文字搜索，Enter键入可添加自定义标签');
+   }
+   if(!input)fail('正文已填入，但标签输入框未就绪；请在原稿补齐');
+   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,tag);input.dispatchEvent(new Event('input',{bubbles:true}));await pause(250);
+   input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',bubbles:true}));await pause(250);
+   if(!selectedTags().includes(tag))fail('正文已填入，但平台未确认标签“'+tag+'”；请在原稿核对');
+  }
+  // The current editor uses a select, not a checkbox labelled "AI".
+  if(article.ai&&!aiDeclared()){
+   const combo=declarationCombo();if(!combo)fail('正文已填入，请在原稿选择 AI 辅助创作声明');
+   const selection=combo.closest('.el_mcm-select__selection');if(!selection)fail('创作声明结构已变化，请在原稿核对');
+   selection.click();await pause(250);
+   const options=[...document.querySelectorAll('[role="option"],li')].filter(e=>visible(e)&&e.textContent.trim()===aiLabel);
+   if(options.length!==1)fail('未找到唯一的 AI 辅助声明选项，请在原稿核对');
+   options[0].click();await pause(250);
+   if(!aiDeclared())fail('平台尚未确认 AI 辅助声明，请在原稿核对');
   }
   return {...evidence,prepared:true};
  }
  if(action==='preflight'||action==='submit'){
   if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未提交');
   if(document.querySelector('iframe[src*="captcha"], .geetest_panel, .yidun_modal'))fail('平台要求本人验证，请手动处理');
-  const selected=[...document.querySelectorAll('.mark_selection .el_mcm-tag.is-closable, .mark_selection .tag-item')].map(e=>e.textContent.trim().replace(/×$/,'').trim());
+  const selected=selectedTags();
   if(article.tags.some(t=>!selected.includes(t))||selected.some(t=>!article.tags.includes(t)))fail('文章标签尚未完全匹配，请在编辑器核对标签');
   // Declaration controls vary across editor versions. Require a visible, explicitly selected AI disclosure for AI articles.
-  if(article.ai){const disclosure=[...document.querySelectorAll('label')].find(e=>/AI辅助|人工智能辅助|AI生成/.test(e.textContent));if(!disclosure||!disclosure.querySelector('input:checked'))fail('请确认平台的 AI 辅助声明后继续');}
+  if(article.ai&&!aiDeclared())fail('请确认平台的 AI 辅助声明后继续');
+  sideEffectsClear();
   const buttons=[...document.querySelectorAll('.btn-outline-danger')].filter(b=>visible(b)&&b.textContent.trim()==='发布博客'&&!b.disabled);
   if(buttons.length!==1||document.querySelector('.el_mcm-form-item.is-error'))fail('发布按钮或必填设置未通过检查，未提交');
   if(action==='preflight')return {...evidence,ready:true};

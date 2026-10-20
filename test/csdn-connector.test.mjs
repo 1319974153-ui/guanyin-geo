@@ -5,21 +5,34 @@ import fs from 'node:fs';
 import {csdnPage} from '../browser-extension/csdn.js';
 function fixture(options={}){
  let title='测试文章',html='<p>正文</p>',clicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
- class Input{get value(){return title}set value(v){title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:100,bottom:140}}dispatchEvent(){}}
+ class Input{get value(){return this.tagInput?this.tagValue:title}set value(v){if(this.tagInput)this.tagValue=v;else title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:100,bottom:140}}dispatchEvent(){}}
  class Textarea extends Input{get value(){return title}set value(v){title=v}}
+ let tagsOpen=false,dropdownOpen=false,declaration=options.declaration||'无声明',tagWrites=0;
+ const shown={getClientRects:()=>[{}]};
+ const tagInput=new Input();tagInput.tagInput=true;tagInput.placeholder='请输入文字搜索，Enter键入可添加自定义标签';tagInput.dispatchEvent=e=>{if(e.type==='keydown'&&e.key==='Enter'){tagWrites++;if(!options.rejectTag)selected.push(tagInput.value)}};
+ const selection={...shown,get textContent(){return declaration},click(){dropdownOpen=true}};
+ const combo={closest:()=>selection};
+ const declarationLabel={...shown,textContent:'创作声明',parentElement:{querySelectorAll:()=>[combo],parentElement:null}};
+ const multiRadio={checked:true,closest:()=>({textContent:'是'})};
+ const multiLabel={...shown,textContent:'多平台发布',parentElement:{querySelectorAll:selector=>selector.includes('type="radio"')?[multiRadio]:[],parentElement:null}};
  const titleEl=new Textarea();const button={getClientRects:()=>[{}],textContent:'发布博客',click:()=>clicks++};
  const editor={status:'ready',getData:()=>html,setData:(v,opts)=>{html=v;opts.callback()}};
  const document={querySelector(selector){if(selector.startsWith('#txtTitle'))return titleEl;if(selector.startsWith('iframe[src'))return captcha?{}:null;if(selector==='.el_mcm-form-item.is-error')return dirty?{}:null;return null},querySelectorAll(selector){
   if(selector.includes('passport.csdn.net/login'))return options.visibleLogin?[{getClientRects:()=>[{}]}]:[{getClientRects:()=>[]}];
   if(selector.startsWith('#csdn-toolbar'))return options.modernHeader?[]:[{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??'',getClientRects:()=>[{}]}];
   if(selector.startsWith('a[href^='))return options.modernHeader?(options.avatars||[{}]).map(a=>({href:'https://blog.csdn.net/'+(a.account||account),textContent:'',getClientRects:()=>a.hidden?[]:[{}],closest:()=>a.insideContent?{}:null,querySelector:()=>a.noAvatar?null:{},compareDocumentPosition:()=>a.afterTitle?2:4,getBoundingClientRect:()=>({bottom:a.belowTitle?200:50})})):[];
-  if(selector==='.btn-outline-danger')return[button];if(selector.includes('.is-closable'))return selected.map(textContent=>({textContent}));return[];
+  if(selector==='label,span,div')return [...(options.modernDeclaration?[declarationLabel,...(options.ambiguousDeclaration?[{...declarationLabel,parentElement:{querySelectorAll:()=>[{closest:()=>selection}]}}]:[])]:[]),...(options.multiPlatform?[multiLabel]:[])];
+  if(selector==='input:checked')return options.gitCode?[{closest:()=>({textContent:'备份到 GitCode'})}]:[];
+  if(selector==='input')return tagsOpen?[tagInput]:[];
+  if(selector==='.tag__btn-tag')return [{...shown,textContent:'添加文章标签',click(){tagsOpen=true}}];
+  if(selector==='[role="option"],li')return dropdownOpen?[{...shown,textContent:'部分内容由AI辅助生成',click(){declaration='部分内容由AI辅助生成';dropdownOpen=false}}]:[];
+  if(selector==='.btn-outline-danger')return[button];if(selector.includes('.is-closable'))return selected.map(textContent=>({...shown,textContent}));return[];
  }};
  class Parser{parseFromString(value){return{body:{textContent:value.replace(/<[^>]*>/g,''),querySelectorAll:()=>[]},querySelectorAll:()=>[]}}}
- const context=vm.createContext({URL,Node:{DOCUMENT_POSITION_FOLLOWING:4},document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{},setTimeout,clearTimeout});
+ const context=vm.createContext({URL,Node:{DOCUMENT_POSITION_FOLLOWING:4},document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{constructor(type,values){this.type=type;Object.assign(this,values)}},KeyboardEvent:class{constructor(type,values){this.type=type;Object.assign(this,values)}},setTimeout,clearTimeout});
  const raw=(action,patch={})=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:false},...patch});
  const run=async(action,patch={})=>{const result=await raw(action,patch);if(result?.connectorError)throw new Error(result.connectorError);return result};
- return {raw,run,context,get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
+ return {raw,run,context,get tagWrites(){return tagWrites},get declaration(){return declaration},get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
 }
 test('CSDN publisher clicks once only after exact identity, body and tags match',async()=>{
  const f=fixture();assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);await f.run('submit');assert.equal(f.clicks,1);await assert.rejects(f.run('submit'),/已尝试/);assert.equal(f.clicks,1);
@@ -57,4 +70,23 @@ test('identity rejects content links, hidden avatars, ambiguous accounts and vis
  for(const options of [{avatars:[{insideContent:true}]},{avatars:[{hidden:true}]},{avatars:[{noAvatar:true}]},{avatars:[{afterTitle:true}]},{avatars:[{belowTitle:true}]},{avatars:[{}, {account:'other'}]},{visibleLogin:true}]){
   const f=fixture({modernHeader:true,...options});await assert.rejects(f.run('identity'),/唯一的已登录账号/);assert.equal(f.clicks,0);
  }
+});
+
+const aiArticle={title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:true};
+test('CSDN current tag popup and declaration select configure only requested metadata without submitting',async()=>{
+ const f=fixture({modernDeclaration:true});f.setTitle('');f.setHtml('');f.setTags([]);
+ assert.equal((await f.run('fill',{article:aiArticle})).prepared,true);assert.equal(f.tagWrites,1);assert.equal(f.declaration,'部分内容由AI辅助生成');assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight',{article:aiArticle})).ready,true);assert.equal(f.clicks,0);
+});
+test('CSDN declaration checks selected text, not an unselected dropdown option or an ambiguous field',async()=>{
+ for(const options of [{modernDeclaration:true},{modernDeclaration:true,ambiguousDeclaration:true,declaration:'部分内容由AI辅助生成'}]){
+  const f=fixture(options);await assert.rejects(f.run('submit',{article:aiArticle}),/AI/);assert.equal(f.clicks,0);
+ }
+ const selected=fixture({modernDeclaration:true,declaration:'部分内容由AI辅助生成'});assert.equal((await selected.run('preflight',{article:aiArticle})).ready,true);
+});
+test('CSDN does not report metadata ready when the platform rejects a tag, and preserves the body',async()=>{
+ const f=fixture({rejectTag:true});f.setTitle('');f.setHtml('');f.setTags([]);await assert.rejects(f.run('fill'),/平台未确认标签/);assert.equal(f.tagWrites,1);assert.equal(f.clicks,0);assert.equal((await f.run('prepared')).contentVerified,true);
+});
+test('CSDN publish cannot enable GitCode signup or its separate multi-platform service',async()=>{
+ for(const [options,error] of [[{gitCode:true},/GitCode/],[{multiPlatform:true},/CSDN 多平台发布/]]){const f=fixture(options);await assert.rejects(f.run('submit'),error);assert.equal(f.clicks,0)}
 });
