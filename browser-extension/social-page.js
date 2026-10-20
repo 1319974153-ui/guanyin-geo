@@ -63,6 +63,7 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const plain=html=>new DOMParser().parseFromString(html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html').body.textContent.replace(/\s+/g,' ').trim();
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&text(editor)===expected;
+ if(action==='prepared'){if(!matches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,evidenceUrl:location.origin+location.pathname,contentVerified:true};}
  if(action==='fill'){
   // Focus can dismiss a visual empty-state prompt; genuine existing text remains protected.
   editor.focus();await wait(100);

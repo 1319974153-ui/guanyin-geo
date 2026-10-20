@@ -33,7 +33,7 @@ async function distributionKey(c,scope){
 }
 function distributionResults(f){
  const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');
- box.innerHTML=rows.length?`<div class="distribution-heading"><h3>本稿发送结果</h3><button class="button small" type="button" data-distribution-reconcile>核对结果</button></div><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}</li>`).join('')}</ul><p class="helper">核对只读取记录，不重新投稿。结果待核对时，请在账号管理中查看远端回执。</p>`:'';
+ box.innerHTML=rows.length?`<div class="distribution-heading"><h3>本稿发送结果</h3><button class="button small" type="button" data-distribution-reconcile>核对结果</button></div><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}${r.preparation?.editorUrl&&/^https:\/\//.test(r.preparation.editorUrl)?`<p><a href="${esc(r.preparation.editorUrl)}" target="_blank" rel="noopener noreferrer">打开平台编辑页</a> · 填稿已核对，保存与公开状态待确认</p>`:''}</li>`).join('')}</ul><p class="helper">核对只读取记录，不重新投稿。结果待核对时，请在账号管理中查看远端回执。</p>`:'';
 }
 async function distributionRestore(f){
  const record=distributionArticle(f);if(!record||articleEditorDirty())return;const c={...record,media:f.distributionMedia||[]};

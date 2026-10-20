@@ -55,7 +55,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     const job=browserStatus.jobs.find(j=>j.id===row.jobId);
-    if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null}
+    if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null}
     else row.error='没有找到唯一任务回执，请在发布账号页核对；不会重新发送';
    }
   }catch(e){row.error=e.message;}

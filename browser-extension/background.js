@@ -1,6 +1,6 @@
 import {csdnPage} from './csdn.js';
 import {socialPage} from './social-page.js';
-import {PLATFORMS,platformConfig,editorEvidence} from './platforms.js';
+import {PLATFORMS,platformConfig,editorEvidence,preparationEvidence} from './platforms.js';
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 let running=false;
 // Service workers reject top-level await. Register listeners synchronously; await storage only inside handlers.
@@ -27,7 +27,7 @@ async function freshEditor(platform='csdn'){const tab=await chrome.tabs.create({
 async function identity(tabId,platform='csdn'){let last;for(let i=0;i<12;i++){try{return await page(tabId,'identity',undefined,undefined,platform)}catch(e){last=e;await delay(1000)}}throw last}
 async function setStatus(message){await chrome.storage.local.set({status:message})}
 async function run(platform='csdn'){
- if(running)return;running=true;let job;
+ if(running)return;running=true;let job,filled=false;
  try{
   const connection=await settings(platform);if(!connection)return;
   const call=(action,data)=>api(action,data,connection);
@@ -36,8 +36,8 @@ async function run(platform='csdn'){
   job=(await call('claim')).job;if(!job)return;
   // Persist enough to reconcile after MV3 suspension; never replay a submit from this journal.
   await saveJournal(platform,{job,tabId});
-  const article={...job.snapshot,tags:job.tags};if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
-  if(job.mode==='prepare'){await call('report',{id:job.id,lease:job.lease,state:'prepared'});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
+  const article={...job.snapshot,tags:job.tags};if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);filled=true;
+  if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   await page(tabId,'preflight',article,job.accountId,platform,job.media);
   const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
   if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
@@ -45,13 +45,19 @@ async function run(platform='csdn'){
   for(let i=0;i<20;i++){await delay(1000);try{const receipt=await page(tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}catch{}}
   throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
  }catch(e){
-  if(job){try{const r=await api('report',{id:job.id,lease:job.lease,state:'needs_attention',error:e.message},await settings(platform));if(r.job.state!=='uncertain')await saveJournal(platform,null)}catch{}}
+  if(job){try{const r=await api('report',{id:job.id,lease:job.lease,state:'needs_attention',error:e.message},await settings(platform));if(r.job.state!=='uncertain'&&!(job.mode==='prepare'&&filled))await saveJournal(platform,null)}catch{}}
   await setStatus(e.message);
  }finally{running=false}
 }
 async function reconcile(platform='csdn'){
  await requireStorage();const inflight=await journal(platform);if(!inflight)return;const call=(action,data)=>api(action,data,settingsConnection);const settingsConnection=await settings(platform);
- try{const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch{await setStatus('上次任务中断，平台结果待核对；不会自动重发')}
+ try{
+  if(inflight.job.mode==='prepare'){
+   const j=inflight.job,status=await call('job-state',{id:j.id,lease:j.lease});if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧填稿记录已关闭');return}const evidence=await page(inflight.tabId,'prepared',{...j.snapshot,tags:j.tags},j.accountId,platform,j.media||[]),preparation=preparationEvidence(platform,evidence);
+   if(!preparation||preparation.accountId!==j.accountId)throw new Error('填稿身份不一致');
+   await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{...preparation,sourceHash:j.sourceHash}});await saveJournal(platform,null);await setStatus('已核对原编辑页并恢复填稿记录；未重新填稿或发布');return;
+  }
+  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch{await setStatus('上次任务中断，平台结果待核对；不会自动重发')}
 }
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
  if(sender.id!==chrome.runtime.id||sender.url!==chrome.runtime.getURL('popup.html'))return;

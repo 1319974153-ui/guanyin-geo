@@ -34,6 +34,7 @@ export async function csdnPage({action,article,accountId}) {
   return JSON.stringify({text:doc.body.textContent.replace(/\s+/g,' ').trim(),links:[...doc.querySelectorAll('a')].map(a=>a.getAttribute('href')),images:[...doc.querySelectorAll('img')].map(a=>a.getAttribute('src')),blocks:[...doc.body.querySelectorAll('h1,h2,h3,h4,pre,li,table')].map(e=>e.tagName+':'+e.textContent.trim())});
  };
  const bodyMatches=()=>signature(editor.getData())===signature(article.html);
+ if(action==='prepared'){if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,contentVerified:true};}
  if(action==='fill'){
   if(title.value?.trim()||new DOMParser().parseFromString(editor.getData(),'text/html').body.textContent.trim()||/<img|<video|<iframe/i.test(editor.getData()))fail('编辑器已有内容或恢复了旧草稿，未覆盖；请检查后重新开空白编辑器');
   const prototype=title instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;

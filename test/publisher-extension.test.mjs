@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,clicks=0;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:fixtureJob,tabId:1}}:{})};
+ let handler,alarm,clicks=0,lostReport=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='submit')clicks++;
   if(action==='receipt')return[{result:options.receipt||null}];
   if(action==='preflight'&&options.preflightError)throw new Error('表单不匹配');
@@ -16,8 +17,9 @@ async function fixture(t,options={}){
  globalThis.fetch=async(url,init)=>{
   const action=new URL(url).pathname.split('/').pop();requests.push(action);const body=JSON.parse(init.body);
   assert.equal(init.credentials,'omit');assert.equal(init.redirect,'error');assert.equal(body.instance,'instance');
+  if(action==='report'&&body.state==='prepared'&&options.lostReport&&!lostReport){lostReport=true;throw new Error('填稿回执响应丢失')}
   if(action==='commit'&&options.lostCommit)throw new Error('提交许可响应丢失');
-  const result=action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
+  const result=action==='job-state'?{journalActive:!options.cancelled}:action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
   return new Response(JSON.stringify(result));
  };
  await import('../browser-extension/background.js?fixture='+Math.random());
@@ -70,4 +72,15 @@ test('popup command errors remain visible after closing and reopening it',async 
 // A legacy CSDN connection must never authorize a newly selected platform.
 test('unpaired platform verification cannot reuse legacy CSDN connection',async t=>{
  const f=await fixture(t);const result=await f.send('verify','toutiao');assert.match(result.error,/先为 今日头条 配对|先为 头条 配对/);assert.deepEqual(f.requests,[]);assert.deepEqual(f.actions,[]);
+});
+
+test('prepare response loss reconciles only the original editor without refilling or publishing',async t=>{
+ const f=await fixture(t,{mode:'prepare',lostReport:true});await f.send('run');assert.ok(f.stored.inflight);
+ await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.actions.filter(a=>a==='prepared').length,2);assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));
+});
+test('changed prepared content remains unresolved without a new write',async t=>{
+ const f=await fixture(t,{mode:'prepare',inflight:true,preparedError:true});await f.send('reconcile');assert.ok(f.stored.inflight);assert.deepEqual(f.actions,['prepared']);assert.equal(f.clicks,0);
+});
+test('explicit cancellation clears a prepare journal without opening or touching an editor',async t=>{
+ const f=await fixture(t,{mode:'prepare',inflight:true,cancelled:true});await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.deepEqual(f.actions,[]);assert.deepEqual(f.requests,['job-state']);
 });

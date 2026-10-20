@@ -133,3 +133,17 @@ test('identical author IDs on different platforms cannot deduplicate into each o
  const e=setup(t,false);await e.pair('toutiao');await e.account();const a=await e.enqueue({mode:'prepare'});await e.pair('zhihu');await e.account();const b=await e.enqueue({mode:'prepare'});assert.notEqual(a.data.job.id,b.data.job.id);
  const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.data.accounts.length,2);assert.ok(!JSON.stringify(status).includes('data:image'));
 });
+
+test('prepared checkpoints persist separately from publication and reject cross-platform or credential URLs',async t=>{
+ const e=setup(t,false);await e.pair('zhihu');await e.account();await e.enqueue({mode:'prepare'});const j=(await e.ext('claim')).data.job;
+ const preparation={editorUrl:'https://zhuanlan.zhihu.com/p/123/edit',accountId:j.accountId,sourceHash:j.sourceHash};const base={id:j.id,lease:j.lease,state:'prepared'};
+ for(const patch of [{editorUrl:'https://evil.example/'},{editorUrl:'https://user:pass@zhuanlan.zhihu.com/p/123/edit'},{editorUrl:'https://zhuanlan.zhihu.com/p/123/edit?token=secret'},{accountId:'other'},{sourceHash:'wrong'}])assert.equal((await e.ext('report',{...base,preparation:{...preparation,...patch}})).status,400);
+ const r=await e.ext('report',{...base,preparation});assert.equal(r.status,200);assert.equal(r.data.job.state,'prepared');assert.equal(r.data.job.receipt,null);assert.equal(r.data.job.preparation.savedVerified,false);assert.equal(r.data.job.preparation.editorUrl,preparation.editorUrl);
+ e.restart();const again=await e.ext('report',{...base,preparation});assert.equal(again.status,200);assert.equal(again.data.existing,true);assert.equal(again.data.job.preparation.observedAt,r.data.job.preparation.observedAt);
+});
+test('prepare job status is session bound and cancellation invalidates only its journal',async t=>{
+ const e=setup(t,false);await e.pair();await e.account();await e.enqueue({mode:'prepare'});const j=(await e.ext('claim')).data.job;
+ assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).data.journalActive,true);
+ await e.ext('report',{id:j.id,lease:j.lease,state:'needs_attention'});await e.app('cancel',{id:j.id});assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).data.journalActive,false);
+ await e.pair();assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).status,403);
+});

@@ -26,3 +26,11 @@ export function receiptEvidence(platform,url,articleId){
  return platform==='xiaohongshu'&&u.origin==='https://www.xiaohongshu.com'&&(m=u.pathname.match(/^\/explore\/([a-fA-F0-9]{24})\/?$/))&&m[1]===String(articleId);
  }catch{return false}
 }
+
+// A preparation checkpoint is an editor location, never proof of platform storage/publication.
+export function preparationEvidence(platform,value){
+ try{if(!value||value.contentVerified!==true||!editorEvidence(platform,value.evidenceUrl))return null;
+ const u=new URL(value.evidenceUrl);if(u.username||u.password)return null;
+ return {editorUrl:u.origin+u.pathname,accountId:value.accountId};
+ }catch{return null}
+}

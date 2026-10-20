@@ -20,7 +20,7 @@ English: Guanyin GEO is an open-source local workbench for generative engine opt
 
 ## 当前分支的产品简化改进
 
-本分支尚未进入下方 0.48.2 下载包。首次使用可选择品牌、产品或个人，填写名称、介绍和一个目标问题；后续只围绕工作台、内容与确认、AI 引用与推荐推进。未配置模型也能先用已确认资料建立本地模板草稿。验收范围见 [产品完善记录](docs/产品完善-2026-10-15.md)。
+本分支改动不在旧 0.48.2 下载包中；新版测试包见下方。首次使用可选择品牌、产品或个人，填写名称、介绍和一个目标问题；后续只围绕工作台、内容与确认、AI 引用与推荐推进。未配置模型也能先用已确认资料建立本地模板草稿。验收范围见 [产品完善记录](docs/产品完善-2026-10-15.md)。
 
 ### 多平台发布进度（2026-10-20）
 
@@ -28,11 +28,15 @@ English: Guanyin GEO is an open-source local workbench for generative engine opt
 
 客户在自己的 Chrome 登录平台，登录状态由该浏览器和平台管理。观引连接器在扩展本地保存配对信息，本机数据库保存账号核验、任务及回执；不会读取或导出平台 Cookie。登录可能过期，执行前仍须核对账号；更换本机端口或实例需要重新配对。保存连接不等于永久登录，也不自动发布稿件。
 
-每位客户应使用自己的安装实例、数据目录和浏览器资料；共享同一个本地实例会共享工作区。源码和安装包不包含作者或其他客户的账号、密钥、正文与发布记录。本分支仍是开发验收版，当前正式下载包没有这些新增功能。
+每位客户应使用自己的安装实例、数据目录和浏览器资料；共享同一个本地实例会共享工作区。源码和安装包不包含作者或其他客户的账号、密钥、正文与发布记录。本分支仍是开发验收版，旧 0.48.2 下载包没有这些新增功能。
 
-## 下载与新版界面
+## 新版预发布测试包
 
-当前公开版：**0.48.2**。查看 [版本说明和下载](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.48.2)。
+[0.49.0-beta.1 测试包与说明](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.1) 包含本分支的简化流程、35 项平台目录和自研连接器 0.2.3。Mac 与 Windows 分别提供 ZIP；Windows 本版真机验收待完成，社交平台最终自动提交仍默认关闭。完整限制见 [本版说明](docs/releases/0.49.0-beta.1.md)。这是预发布测试包，不表示所有渠道已经实现自动公开发布。
+
+## 原版下载与界面
+
+原有下载版：**0.48.2**（GitHub 标为预发布）。查看 [版本说明和下载](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.48.2)。
 
 - [Windows x64 独立包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.48.2/GuanyinGEO-0.48.2-win32-x64.zip)
 - [Apple Silicon Mac 独立包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.48.2/GuanyinGEO-0.48.2-darwin-arm64.zip)

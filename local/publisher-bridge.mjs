@@ -9,7 +9,7 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status})};
 const EXT=/^chrome-extension:\/\/[a-p]{32}$/;
 const csrf=req=>req.headers.get('x-geo-request')==='1';
 const safeId=v=>typeof v==='string'&&/^[\w-]{1,100}$/.test(v);
-const publicJob=j=>({platform:j.platform||'csdn',id:j.id,brandId:j.brandId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,created:j.created,expires:j.expires,error:j.error||'',receipt:j.receipt||null});
+const publicJob=j=>({platform:j.platform||'csdn',id:j.id,brandId:j.brandId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,created:j.created,expires:j.expires,error:j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
 
 
 function validateMedia(input,limits){
@@ -144,6 +144,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
    }
+   if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');return respond({job:publicJob(j),journalActive:!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state)})}
    if(action==='pending')return respond({platform:session.platform||'csdn',count:jobs().filter(j=>j.sessionId===session.id&&j.state==='queued').length});
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
@@ -159,9 +160,16 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'执行账号或文章不匹配');
      j.state='submitting';j.attempted=true;j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({permit:true,validUntil:clock()+10000});
     }
+    let preparation;
+    if(b.state==='prepared'&&b.preparation!==undefined){
+     const p=b.preparation;let u;try{u=new URL(p?.editorUrl)}catch{fail(400,'缺少有效编辑页网址')}
+     if(u.username||u.password||u.search||u.hash||!editorEvidence(j.platform||'csdn',u.href)||p.accountId!==j.accountId||p.sourceHash!==j.sourceHash)fail(400,'填稿回执的平台、账号或稿件不匹配');
+     preparation={editorUrl:u.href,accountId:j.accountId,observedAt:clock(),verification:'editor_content_match',savedVerified:false};
+    }
+    if(j.state==='prepared'&&b.state==='prepared'&&!j.attempted&&j.mode==='prepare')return respond({job:publicJob(j),existing:true});
     if(j.receipt)return respond({job:publicJob(j),existing:true});
     if(!['preparing','submitting','uncertain','needs_attention'].includes(j.state))fail(409,'任务已结束');
-    if(b.state==='prepared'&&!j.attempted&&j.mode==='prepare'){j.state='prepared'}
+    if(b.state==='prepared'&&!j.attempted&&j.mode==='prepare'){j.state='prepared';j.error='';if(preparation)j.preparation=preparation}
     else if(b.state==='submitted'&&j.attempted){
      let url;try{url=new URL(b.url)}catch{fail(400,'缺少实际回执网址')}
      if(!receiptEvidence(j.platform||'csdn',url.href,b.articleId))fail(400,'回执不是此平台的实际文章网址');

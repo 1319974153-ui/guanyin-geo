@@ -82,3 +82,7 @@ test('Zhihu title wrapper does not make a ready editor ambiguous',async()=>{
 test('Douyin restored draft notice blocks identity, media and fill without discarding it',async()=>{
  for(const action of ['identity','media','fill','submit']){const f=fixture('douyin',{restoredDraft:true});assert.match((await f.run(action)).connectorError,/上次未发布/);assert.equal(f.clicks,0)}
 });
+
+test('read-only prepared checkpoints require matching identity and content, never clicks',async()=>{
+ for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);const r=await f.run('prepared');assert.equal(r.contentVerified,true);assert.equal(f.clicks,0);f.setBody('变更后的正文');assert.match((await f.run('prepared')).connectorError,/正文已变化/);assert.equal(f.clicks,0)}
+});
