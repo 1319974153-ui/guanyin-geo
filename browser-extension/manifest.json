@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "观引发布连接器（验收版）",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "观引自有多平台发布连接器：CSDN、头条、知乎、抖音图文、小红书图文。逐平台验收，按需授权。",
   "permissions": [
     "storage",

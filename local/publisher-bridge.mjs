@@ -95,6 +95,14 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const s=sessions().find(s=>s.id===b.sessionId);if(!s)fail(404,'找不到连接');s.revoked=true;save('publisher_sessions',s);
      for(const j of jobs().filter(j=>j.sessionId===s.id&&['queued','preparing','submitting'].includes(j.state))){j.state=j.state==='submitting'?'uncertain':'cancelled';j.error='浏览器连接已撤销';save('publisher_jobs',j)}return respond({revoked:true});
     }
+    if(action==='lookup'){
+     brand(b.brandId);const s=sessions().find(s=>s.id===b.sessionId&&s.brandId===b.brandId&&!s.revoked);
+     if(!s?.account||s.account.accountId!==b.accountId)fail(409,'账号已变化，请先核对连接');
+     const sourceHash=hash(snapshot(b.brandId,b.contentId,s.platform||'csdn'));
+     const matches=jobs().filter(j=>j.brandId===b.brandId&&j.accountId===b.accountId&&(j.platform||'csdn')===(s.platform||'csdn')&&j.sourceHash===sourceHash);
+     if(matches.length>1)fail(409,'找到多个操作记录，请在账号页逐条核对');
+     return respond(matches.length?{job:publicJob(matches[0])}:{notEnqueued:true});
+    }
     if(action==='enqueue'){
      const s=sessions().find(s=>s.id===b.sessionId&&!s.revoked&&s.brandId===b.brandId);if(!s?.account)fail(409,'请先核验真实发布账号');
      if(!['prepare','publish'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');

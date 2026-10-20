@@ -25,7 +25,8 @@ test('editor cannot approve, reviewer cannot rewrite, viewer cannot save, conten
  for(const v of [{...input,title:' '},{...input,title:'字'.repeat(161)},{...input,text:''},{...input,text:'字'.repeat(100001)}])assert.throws(()=>articleRevision(null,v,'save','owner'));
 });
 test('reviewer transition fits server role boundary without mutating text or evidence',()=>{
- const old={id:'c',brandId:'b',...input,status:'待审核',factSnapshots:[]},next=articleRevision(old,input,'approve','reviewer');
+ const old={id:'c',brandId:'b',...input,status:'待审核',factSnapshots:[]},next=articleRevision(old,{...input,ai:false},'approve','reviewer');
+ assert.equal(Object.hasOwn(next,'ai'),false);
  const state={version:1,brands:[{id:'b',name:'品牌'}],contents:[old]};
  const merged=mergeVisibleState(state,{...state,contents:[next]},{role:'reviewer',brands:['b']});assert.equal(merged.contents[0].status,'已审核');
 });
@@ -37,4 +38,14 @@ test('format toolbar preserves surrounding text and handles selected and empty i
 test('article preview uses safe shared renderer: scripts and unsafe links do not become executable HTML',()=>{
  const result=formatArticle('<script>alert(1)</script>\n\n[x](javascript:alert(1))\n\n## 内容\n\n**重点**');
  assert.ok(!result.html.includes('<script>'));assert.ok(!result.html.includes('href="javascript:'));assert.ok(result.html.includes('<h2>内容</h2>'));assert.ok(result.html.includes('<strong>重点</strong>'));
+});
+
+test('pasted AI drafts retain explicit disclosure and changing disclosure invalidates approval',()=>{
+ const fresh=articleRevision(null,{...input,ai:true},'save','owner');assert.equal(fresh.ai,true);
+ const approved={...fresh,status:'已审核',reviewedAt:'before'};
+ assert.equal(articleRevision(approved,{...input,ai:true},'save','owner').status,'已审核');
+ const changed=articleRevision(approved,{...input,ai:false},'save','owner');assert.equal(changed.status,'草稿');assert.equal(changed.reviewedAt,undefined);assert.equal(changed.ai,false);
+ assert.throws(()=>articleRevision(approved,{...input,ai:false},'approve','reviewer'),/不能修改/);
+ assert.throws(()=>articleRevision(null,{...input,ai:'true'},'save','owner'),/声明格式/);
+ assert.equal(articleRevision(fresh,input,'save','owner').ai,true);
 });

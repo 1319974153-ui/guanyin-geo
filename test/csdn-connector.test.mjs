@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {csdnPage} from '../browser-extension/csdn.js';
 function fixture(options={}){
  let title='测试文章',html='<p>正文</p>',clicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
- class Input{get value(){return this.tagInput?this.tagValue:title}set value(v){if(this.tagInput)this.tagValue=v;else title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:100,bottom:140}}dispatchEvent(){}}
+ class Input{get value(){return this.tagInput?this.tagValue:title}set value(v){if(this.tagInput)this.tagValue=v;else title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:options.scrolled?-500:100,bottom:options.scrolled?-460:140}}dispatchEvent(){}}
  class Textarea extends Input{get value(){return title}set value(v){title=v}}
  let tagsOpen=false,dropdownOpen=false,declaration=options.declaration||'无声明',tagWrites=0;
  const shown={getClientRects:()=>[{}]};
@@ -20,7 +20,7 @@ function fixture(options={}){
  const document={querySelector(selector){if(selector.startsWith('#txtTitle'))return titleEl;if(selector.startsWith('iframe[src'))return captcha?{}:null;if(selector==='.el_mcm-form-item.is-error')return dirty?{}:null;return null},querySelectorAll(selector){
   if(selector.includes('passport.csdn.net/login'))return options.visibleLogin?[{getClientRects:()=>[{}]}]:[{getClientRects:()=>[]}];
   if(selector.startsWith('#csdn-toolbar'))return options.modernHeader?[]:[{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??'',getClientRects:()=>[{}]}];
-  if(selector.startsWith('a[href^='))return options.modernHeader?(options.avatars||[{}]).map(a=>({href:'https://blog.csdn.net/'+(a.account||account),textContent:'',getClientRects:()=>a.hidden?[]:[{}],closest:()=>a.insideContent?{}:null,querySelector:()=>a.noAvatar?null:{},compareDocumentPosition:()=>a.afterTitle?2:4,getBoundingClientRect:()=>({bottom:a.belowTitle?200:50})})):[];
+  if(selector.startsWith('a[href^='))return options.modernHeader?(options.avatars||[{}]).map(a=>({href:'https://blog.csdn.net/'+(a.account||account),textContent:'',getClientRects:()=>a.hidden?[]:[{}],closest:()=>a.insideContent?{}:null,querySelector:()=>a.noAvatar?null:{},compareDocumentPosition:()=>a.afterTitle?2:4,getBoundingClientRect:()=>({top:20,bottom:a.belowTitle?250:50})})):[];
   if(selector==='label,span,div')return [...(options.modernDeclaration?[declarationLabel,...(options.ambiguousDeclaration?[{...declarationLabel,parentElement:{querySelectorAll:()=>[{closest:()=>selection}]}}]:[])]:[]),...(options.multiPlatform?[multiLabel]:[])];
   if(selector==='input:checked')return options.gitCode?[{closest:()=>({textContent:'备份到 GitCode'})}]:[];
   if(selector==='input')return tagsOpen?[tagInput]:[];
@@ -89,4 +89,9 @@ test('CSDN does not report metadata ready when the platform rejects a tag, and p
 });
 test('CSDN publish cannot enable GitCode signup or its separate multi-platform service',async()=>{
  for(const [options,error] of [[{gitCode:true},/GitCode/],[{multiPlatform:true},/CSDN 多平台发布/]]){const f=fixture(options);await assert.rejects(f.run('submit'),error);assert.equal(f.clicks,0)}
+});
+
+test('CSDN fixed header identity survives metadata scrolling without accepting article or lower-page avatars',async()=>{
+ const f=fixture({modernHeader:true,scrolled:true});assert.equal((await f.run('prepared')).accountId,'author');assert.equal(f.clicks,0);
+ for(const avatars of [[{insideContent:true}],[{afterTitle:true}],[{belowTitle:true}]]){const invalid=fixture({modernHeader:true,scrolled:true,avatars});await assert.rejects(invalid.run('identity'),/唯一/)}
 });

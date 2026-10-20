@@ -16,9 +16,15 @@ export async function csdnPage({action,article,accountId}) {
  const editor=editors[0];
  // Current creator pages can render the avatar outside the legacy toolbar.
  // Only accept visible avatar links above and before the title, never article/sidebar links.
+ const headerPosition=a=>{
+  const avatar=a.getBoundingClientRect(),heading=title.getBoundingClientRect();
+  // CSDN keeps its account bar fixed while metadata controls scroll the title
+  // above the viewport. Document order/content exclusion still apply below.
+  return avatar.bottom<=heading.top||(heading.top<0&&avatar.top>=0&&avatar.bottom<=200);
+ };
  const inHeader=a=>visible(a)&&!a.closest('[contenteditable], article, main, aside')&&
   !!a.querySelector('img')&&!!(a.compareDocumentPosition(title)&Node.DOCUMENT_POSITION_FOLLOWING)&&
-  a.getBoundingClientRect().bottom<=title.getBoundingClientRect().top;
+  headerPosition(a);
  const legacy=[...document.querySelectorAll('#csdn-toolbar .toolbar-btn-loginfun a[href], #csdn-toolbar .toolbar-btn-user a[href]')].filter(visible);
  const avatars=[...document.querySelectorAll('a[href^="https://blog.csdn.net/"]')].filter(inHeader);
  const links=[...new Set([...legacy,...avatars])];

@@ -54,7 +54,14 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
-    const job=browserStatus.jobs.find(j=>j.id===row.jobId);
+    let job=browserStatus.jobs.find(j=>j.id===row.jobId);
+    if(!job&&!row.jobId){
+     if(await dispatchId(article,row)!==row.id)throw new Error('稿件版本已变化，请核对原发送记录');
+     const lookup=await request('/api/local-publisher/lookup',{method:'POST',body:JSON.stringify({brandId:article.brandId,contentId:article.id,sessionId:row.sessionId,accountId:row.accountId})});
+     job=lookup.job;
+     if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error='已确认未入队；重新核验账号后可再次点击填入或发布';continue;}
+     if(job)row.jobId=job.id;
+    }
     if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null}
     else row.error='没有找到唯一任务回执，请在发布账号页核对；不会重新发送';
    }

@@ -177,3 +177,15 @@ test('explicit reauthorization of retained editor keeps the original lease and n
  assert.equal((await e.ext('pending')).data.count,0);assert.equal((await e.ext('claim')).data.job,null);
  assert.equal((await e.ext('resume',args)).status,200);
 });
+
+test('read-only lookup proves an expired-account enqueue was rejected and recovers a lost enqueue response',async t=>{
+ const e=setup(t,false);await e.pair();await e.account();e.advance(300001);
+ assert.equal((await e.enqueue({mode:'prepare'})).status,409);
+ const input={brandId:'b',contentId:'c',sessionId:e.connection.sessionId,accountId:'author'};
+ assert.equal((await e.app('lookup',input)).data.notEnqueued,true);
+ await e.account();const queued=await e.enqueue({mode:'prepare'});
+ assert.equal((await e.app('lookup',input)).data.job.id,queued.data.job.id);
+ assert.equal((await e.app('lookup',{...input,accountId:'other'})).status,409);
+ assert.equal((await e.app('lookup',{...input,brandId:'other'})).status,409);
+ assert.equal(e.db.prepare('select count(*) n from publisher_jobs').get().n,1);
+});

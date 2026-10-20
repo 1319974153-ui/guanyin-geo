@@ -44,3 +44,15 @@ test('upgrade keeps legacy no-media idempotency keys while image revisions get d
  const {createHash}=await import('node:crypto');const target=wp();const old='gy-'+createHash('sha256').update(JSON.stringify([article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId])).digest('hex');assert.equal(await dispatchId(article,target),old);
  const x={platform:'xiaohongshu',accountId:'x'};assert.notEqual(await dispatchId({...article,media:[{sha256:'a'}]},x),await dispatchId({...article,media:[{sha256:'b'}]},x));assert.equal(await dispatchId({...article,media:[{sha256:'a'}]},target),old);
 });
+
+test('missing enqueue response is resolved with authoritative lookup before any retry',async()=>{
+ const target={...csdn,accountId:'author'},id=await dispatchId(article,target);
+ for(const result of [{notEnqueued:true},{job:{id:'original',state:'preparing'}}]){
+  const journal={csdn:{...target,id,state:'uncertain'}},calls=[];
+  await reconcileDispatch({article,journal,request:async(path)=>{calls.push(path);return path.includes('/status?')?{jobs:[]}:result},persist:async()=>{},assertScope:()=>{}});
+  assert.equal(journal.csdn.state,result.job?'preparing':'not_queued');assert.ok(calls.every(p=>!p.endsWith('/enqueue')));
+ }
+ const journal={csdn:{...target,id,state:'uncertain'}};
+ await reconcileDispatch({article,journal,request:async(path)=>{if(path.includes('/status?'))return{jobs:[]};throw Error('offline')},persist:async()=>{},assertScope:()=>{}});
+ assert.equal(journal.csdn.state,'uncertain');
+});

@@ -3,7 +3,9 @@ export function articleRevision(previous, input, intent, role) {
   const title = String(input.title || '').trim(), text = String(input.text || '').trim();
   if (!title || title.length > 160) throw new Error('请填写 1 至 160 字的标题');
   if (!text || text.length > 100000) throw new Error('请填写 1 至 100000 字的正文');
-  const changed = !previous || previous.title !== title || previous.text !== text;
+  if (Object.hasOwn(input, 'ai') && typeof input.ai !== 'boolean') throw new Error('AI 辅助声明格式无效');
+  const ai = Object.hasOwn(input, 'ai') ? input.ai : !!previous?.ai;
+  const changed = !previous || previous.title !== title || previous.text !== text || !!previous.ai !== ai;
   const writer = ['owner', 'admin', 'editor'].includes(role);
   const reviewer = ['owner', 'admin', 'reviewer'].includes(role);
   if (changed && !writer) throw new Error('当前角色不能修改稿件');
@@ -13,7 +15,8 @@ export function articleRevision(previous, input, intent, role) {
   if (intent === 'approve' && (changed || previous?.status !== '待审核')) throw new Error('请先保存修改并提交审核，再审核通过');
   if (intent === 'reject' && changed) throw new Error('请先保存修改');
   const status = intent === 'submit' ? '待审核' : intent === 'approve' ? '已审核' : intent === 'reject' || changed ? '草稿' : previous.status;
-  const result = { ...previous, title, text, status };
+  // Review-only transitions must preserve legacy records that omit the flag.
+  const result = { ...previous, title, text, status, ...(writer && (Object.hasOwn(input, 'ai') || previous?.ai !== undefined) ? {ai} : {}) };
   if (changed) { delete result.reviewedAt; delete result.reviewNote; }
   if (intent === 'approve') result.reviewedAt = new Date().toISOString();
   return result;
