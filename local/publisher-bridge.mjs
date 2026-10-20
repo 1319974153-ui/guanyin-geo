@@ -1,4 +1,4 @@
-import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence} from '../browser-extension/platforms.js';
+import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable} from '../src/knowledge-core.js';
@@ -88,7 +88,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!extension){
     if(action==='status'){
      const brandId=u.searchParams.get('brandId');brand(brandId);
-     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:publishing.has(s.platform||'csdn')?['prepare','publish']:['prepare'],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(publicJob)});
+     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(s.platform==='zhihu'&&s.draftProtocol===1?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(publicJob)});
     }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform])fail(400,'不支持的发布平台');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}
     if(action==='revoke'){
@@ -105,7 +105,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     }
     if(action==='enqueue'){
      const s=sessions().find(s=>s.id===b.sessionId&&!s.revoked&&s.brandId===b.brandId);if(!s?.account)fail(409,'请先核验真实发布账号');
-     if(!['prepare','publish'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');
+     if(!['prepare','publish','draft'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');
+     if(b.mode==='draft'&&(s.platform!=='zhihu'||s.draftProtocol!==1))fail(409,'请重载支持草稿的连接器并重新核验知乎账号');
      const tags=Array.isArray(b.tags)?b.tags.map(t=>String(t).trim()):[];
      const platform=s.platform||'csdn',limits=platformConfig(platform);
      if((limits.tagsRequired&&!tags.length)||tags.length>5||tags.some(t=>!t||t.length>20)||new Set(tags).size!==tags.length)fail(400,'请填写 1 至 5 个不同的文章标签');
@@ -114,12 +115,14 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const old=db.prepare('SELECT body FROM publisher_jobs WHERE fingerprint=?').get(fingerprint);
      if(old){
       const existing=JSON.parse(old.body);
+      if(existing.state==='cancelled'&&existing.editorRetained&&existing.mode==='draft')fail(409,'原编辑页可能已有草稿，请先核对，不会重新创建');
       if(existing.state==='cancelled'&&!existing.attempted){
        Object.assign(existing,{sessionId:s.id,accountRevision:s.account.revision,expires:clock()+600000,state:'queued',error:'',tags});delete existing.lease;
        checkCurrent(existing,s);save('publisher_jobs',existing);
       }
       return respond({job:publicJob(existing),existing:true});
      }
+     if(jobs().some(j=>j.brandId===b.brandId&&j.platform===platform&&j.accountId===s.account.accountId&&j.sourceHash===sourceHash&&j.mode!==b.mode&&(j.state!=='cancelled'||j.editorRetained)))fail(409,'此稿已有其他发送方式的记录，请先核对原稿，不能重复创建');
      if(jobs().length>=1000)fail(409,'任务记录已达上限，请先导出回执');
      const j={platform,media,mediaHash,id:randomUUID(),sessionId:s.id,brandId:s.brandId,accountId:s.account.accountId,accountRevision:s.account.revision,snapshot:snap,sourceHash,tags,mode:b.mode,state:'queued',created:clock(),expires:clock()+600000,attempted:false};checkCurrent(j,s);
      db.prepare('INSERT INTO publisher_jobs VALUES(?,?,?)').run(j.id,fingerprint,JSON.stringify(j));return respond({job:publicJob(j)});
@@ -148,6 +151,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(b.editorReady!==true)invalid.push('编辑器就绪状态');
     if(!editorEvidence(session.platform||'csdn',b.evidenceUrl))invalid.push('编辑器网址');
     if(invalid.length)fail(409,'没有取得完整的登录身份和编辑器证据：'+invalid.join('、'));
+    session.draftProtocol=session.platform==='zhihu'&&b.draftProtocol===1?1:0;
     const previous=session.account;
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
@@ -157,8 +161,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
     const j=jobs().find(j=>j.sessionId===session.id&&j.state==='queued');if(!j)return respond({job:null});
-    try{checkCurrent(j,session)}catch(e){j.state='needs_attention';j.error=e.message;save('publisher_jobs',j);return respond({job:null})}
-    j.state='preparing';j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
+    try{if(j.mode==='draft'&&session.draftProtocol!==1)fail(409,'当前连接器不支持草稿，请重载后核对');checkCurrent(j,session)}catch(e){j.state='needs_attention';j.error=e.message;save('publisher_jobs',j);return respond({job:null})}
+    j.state='preparing';if(j.mode==='draft')j.editorRetained=true;j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
     return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],lease:j.lease}});
    }
    if(['resume','commit','report'].includes(action)){
@@ -175,6 +179,17 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      if(j.mode!=='publish'||!publishing.has(j.platform||'csdn')||j.state!=='preparing'||j.attempted||j.leaseExpires<clock())fail(409,'不允许再次提交');checkCurrent(j,session);
      if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'执行账号或文章不匹配');
      j.state='submitting';j.attempted=true;j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({permit:true,validUntil:clock()+10000});
+    }
+    if(b.state==='draft'){
+     if(j.mode!=='draft'||j.attempted||!['preparing','needs_attention','draft'].includes(j.state))fail(409,'此任务不能登记草稿回执');
+     const draft=draftEvidence(j.platform,b.draft);
+     if(!draft||draft.accountId!==j.accountId||b.draft.sourceHash!==j.sourceHash)fail(400,'草稿回执的平台、账号或稿件不匹配');
+     // Recovery may occur after task expiry; it records the original snapshot,
+     // never grants new writing authority. The current login must still match.
+     if(session.account?.accountId!==j.accountId)fail(409,'当前账号已变化，未登记草稿');
+     if(j.receipt){if(j.receipt.articleId!==draft.articleId)fail(409,'草稿编号与已有回执不同');return respond({job:publicJob(j),existing:true})}
+     j.state='draft';j.error='';j.receipt={url:draft.url,articleId:draft.articleId,observedAt:clock(),verification:'editor_saved_status_and_content',savedVerified:true,publicVerified:false};
+     save('publisher_jobs',j);return respond({job:publicJob(j)});
     }
     let preparation;
     if(b.state==='prepared'&&b.preparation!==undefined){

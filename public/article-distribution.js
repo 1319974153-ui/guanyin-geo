@@ -16,7 +16,7 @@ function distributionUpdate(f){
  action.disabled=runtimeBusy||f.distributionMediaLoading||!confirmed||!allowed[mode.value]||(!canReview&&!reviewed);
  f.querySelector('[data-distribution-count]').textContent='已选 '+selected.length+' 个';
  f.querySelector('.distribution-tags').hidden=!selected.some(t=>t.platform==='csdn');f.querySelector('.distribution-media').hidden=!selected.some(t=>['douyin','xiaohongshu'].includes(t.platform));
- f.querySelector('[data-distribution-hint]').textContent=!selected.length?'先选择账号，再选择发送方式。':!canReview&&!reviewed?'稿件尚未审核，请先保存并提交审核。':!Object.values(allowed).some(Boolean)?'所选账号没有共同的发送方式，请按支持的操作分批选择。':mode.value==='prepare'?'这些账号当前支持自动填稿，仍需在平台提交。直接发布和平台草稿尚未开放。':mode.value==='draft'?'保存到所选平台的草稿箱，不公开文章。':'将在所选平台公开文章；每个账号分别显示实际结果。';
+ f.querySelector('[data-distribution-hint]').textContent=!selected.length?'先选择账号，再选择发送方式。':!canReview&&!reviewed?'稿件尚未审核，请先保存并提交审核。':!Object.values(allowed).some(Boolean)?'所选账号没有共同的发送方式，请按支持的操作分批选择。':mode.value==='prepare'?'当前选择只填入编辑器，仍需在平台提交；不会登记为已发布或已保存平台草稿。':mode.value==='draft'?'保存到所选平台的草稿箱，不公开文章。':'将在所选平台公开文章；每个账号分别显示实际结果。';
 }
 async function distributionLoad(f){
  if(!f?.isConnected)return;const scope=distributionScope(),box=f.querySelector('[data-distribution-accounts]');f.distributionScope=scope;
@@ -27,7 +27,7 @@ async function distributionLoad(f){
  results.forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
   for(const a of r.value.accounts||[]){
    if(i===0&&a.platform==='wordpress')targets.push({key:'wp:'+a.accountId,platform:'wordpress',accountId:a.accountId,name:a.username,detail:a.site,modes:a.status==='verified'?['draft','publish']:a.status==='permission_limited'?['draft']:[],status:publishingAccountStates[a.status]||a.status});
-   if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':'可填入 · 平台验收中'):'请在连接器核验身份'});
+   if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):'请在连接器核验身份'});
   }
  });f.distributionTargets=targets;
  box.innerHTML=(targets.length?targets.map(t=>`<label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" ${selected.has(t.key)?'checked':''} ${t.modes.length?'':'disabled'}><span><strong>${esc(t.platform==='wordpress'?'WordPress':browserPlatformNames[t.platform]||t.platform)}</strong><span class="sub">${esc(t.name)}</span>${t.platform==='wordpress'?'<span class="sub">'+esc(t.detail)+'</span>':''}</span><span class="distribution-capability">${esc(t.status)}</span></label>`).join(''):'<div class="distribution-empty"><strong>连接你的第一个发布账号</strong><p>WordPress 支持草稿与发布；浏览器连接器按平台核验账号、填稿与提交。</p><button type="button" class="button" data-distribution-manage>连接发布账号</button></div>')+errors.map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');

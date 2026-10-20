@@ -56,3 +56,11 @@ test('missing enqueue response is resolved with authoritative lookup before any 
  await reconcileDispatch({article,journal,request:async(path)=>{if(path.includes('/status?'))return{jobs:[]};throw Error('offline')},persist:async()=>{},assertScope:()=>{}});
  assert.equal(journal.csdn.state,'uncertain');
 });
+
+test('browser draft dispatch uses draft mode and never silently promotes existing preparation',async()=>{
+ const f=fixture(),target={key:'zhihu',platform:'zhihu',accountId:'author',sessionId:'s',modes:['prepare','draft','publish']};
+ await f.run({targets:[target],mode:'draft'});assert.equal(f.calls[0][1].mode,'draft');assert.equal(f.journal.zhihu.stage,'draft');
+ for(const [state,mode] of [['prepared','draft'],['draft','publish']]){
+  f.journal.zhihu.state=state;const count=f.calls.length;await f.run({targets:[target],mode});assert.equal(f.calls.length,count);assert.match(f.journal.zhihu.error,/原稿/);
+ }
+});

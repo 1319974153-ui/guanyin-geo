@@ -1,6 +1,6 @@
 const browserPlatformNames={csdn:'CSDN',toutiao:'头条',zhihu:'知乎',douyin:'抖音图文',xiaohongshu:'小红书图文'};
 let browserPublisherData=null,browserPublisherScope='',browserPublisherLoading=false,browserPublisherError='';
-const browserPublisherStates={queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
+const browserPublisherStates={draft:'平台草稿已保存 · 未公开',queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
 function browserPublisherAvailable(){return isLocalRuntime()&&isManager()&&!sessionStorage.getItem('geo.workspace')&&location.hostname==='127.0.0.1'}
 async function refreshBrowserPublisher(){
  if(!browserPublisherAvailable()||!brand()?.id||browserPublisherLoading)return;

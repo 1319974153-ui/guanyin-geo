@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
-import {PLATFORMS,editorEvidence,receiptEvidence} from '../browser-extension/platforms.js';
+import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
  let clicks=0,account='author',captcha=false,title='测试文章',body='测试正文';
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,focus(){},...extra});
@@ -13,6 +13,7 @@ function fixture(platform,options={}){
  const button=element(platform==='toutiao'?'预览并发布':'发布',{click:()=>clicks++});
  const doc={querySelectorAll(s){
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
+  if(s==='.DraftStatusTip')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='a[href]')return [element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
@@ -85,4 +86,22 @@ test('Douyin restored draft notice blocks identity, media and fill without disca
 
 test('read-only prepared checkpoints require matching identity and content, never clicks',async()=>{
  for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);const r=await f.run('prepared');assert.equal(r.contentVerified,true);assert.equal(f.clicks,0);f.setBody('变更后的正文');assert.match((await f.run('prepared')).connectorError,/正文已变化/);assert.equal(f.clicks,0)}
+});
+
+const savedDraft={url:'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',contentVerified:true,savedVerified:true};
+test('draft receipt requires saved status, exact draft ID, current account and content without publishing',async()=>{
+ const f=fixture('zhihu',{savedStatus:['刚刚 · 草稿']});Object.assign(f.context.location,{pathname:'/p/123/edit',href:savedDraft.url});
+ const r=await f.run('draft-receipt');assert.equal(r.savedVerified,true);assert.equal(r.articleId,'123');assert.equal(f.clicks,0);
+ f.setBody('其他正文');assert.match((await f.run('draft-receipt')).connectorError,/不同/);f.setBody('测试正文');f.setAccount('other');assert.ok((await f.run('draft-receipt')).connectorError);assert.equal(f.clicks,0);
+});
+test('draft receipt rejects pending saves, ambiguous indicators and body spoofing',async()=>{
+ for(const o of [{savedStatus:['草稿保存中']},{savedStatus:['保存失败']},{savedStatus:['刚刚 · 草稿','1 分钟前 · 草稿']},{savedStatus:['刚刚 · 草稿'],statusInBody:true},{}]){
+  const f=fixture('zhihu',o);f.context.location.pathname='/p/123/edit';assert.equal(await f.run('draft-receipt'),null);assert.equal(f.clicks,0);
+ }
+ const blank=fixture('zhihu',{savedStatus:['刚刚 · 草稿']});assert.equal(await blank.run('draft-receipt'),null);
+});
+test('draft URL validation rejects public pages, mismatched IDs and cross-origin URLs',()=>{
+ assert.ok(draftEvidence('zhihu',savedDraft));
+ for(const patch of [{url:'https://zhuanlan.zhihu.com/p/123'},{url:savedDraft.url+'?a=1'},{url:'https://evil.test/p/123/edit'},{articleId:'124'},{savedVerified:false},{contentVerified:false}])assert.equal(draftEvidence('zhihu',{...savedDraft,...patch}),null);
+ assert.equal(draftEvidence('csdn',savedDraft),null);
 });

@@ -34,3 +34,13 @@ export function preparationEvidence(platform,value){
  return {editorUrl:u.origin+u.pathname,accountId:value.accountId};
  }catch{return null}
 }
+
+// Draft destinations are editor URLs, never public article receipts.
+export function draftEvidence(platform,value){
+ try{
+  if(platform!=='zhihu'||!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  const u=new URL(value.url),m=u.pathname.match(/^\/p\/(\d+)\/edit$/);
+  if(u.origin!=='https://zhuanlan.zhihu.com'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
+  return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};
+ }catch{return null}
+}

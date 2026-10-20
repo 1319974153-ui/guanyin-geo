@@ -189,3 +189,30 @@ test('read-only lookup proves an expired-account enqueue was rejected and recove
  assert.equal((await e.app('lookup',{...input,brandId:'other'})).status,409);
  assert.equal(e.db.prepare('select count(*) n from publisher_jobs').get().n,1);
 });
+
+async function draftReady(t){const e=setup(t,false);await e.pair('zhihu');await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.zhihu.editor,draftProtocol:1});assert.equal((await e.enqueue({mode:'draft'})).status,200);return{e,j:(await e.ext('claim')).data.job}}
+function draftReport(j,patch={}){return{id:j.id,lease:j.lease,state:'draft',draft:{url:'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true,...patch}}}
+test('only a compatible Zhihu connection advertises and accepts draft mode',async t=>{
+ const e=setup(t,false);await e.pair('zhihu');await e.account();assert.equal((await e.enqueue({mode:'draft'})).status,409);
+ await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.zhihu.editor,draftProtocol:1});
+ let s=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.ok(s.data.accounts[0].modes.includes('draft'));assert.ok(!s.data.accounts[0].modes.includes('publish'));
+ assert.equal((await e.enqueue({mode:'draft'})).status,200);await e.account();assert.equal((await e.ext('claim')).data.job,null);
+ s=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.ok(!s.data.accounts[0].modes.includes('draft'));
+});
+test('draft receipts are bound to saved ID, account, frozen text and never count as public',async t=>{
+ const {e,j}=await draftReady(t);assert.equal((await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash})).status,409);
+ for(const patch of [{accountId:'other'},{sourceHash:'wrong'},{savedVerified:false},{url:'https://zhuanlan.zhihu.com/p/123'}])assert.equal((await e.ext('report',draftReport(j,patch))).status,400);
+ const r=await e.ext('report',draftReport(j));assert.equal(r.status,200);assert.equal(r.data.job.state,'draft');assert.equal(r.data.job.receipt.publicVerified,false);
+ assert.equal((await e.ext('report',draftReport(j))).data.existing,true);
+ assert.equal((await e.ext('report',draftReport(j,{articleId:'124',url:'https://zhuanlan.zhihu.com/p/124/edit'}))).status,409);
+ assert.equal((await e.enqueue({mode:'prepare'})).status,409);
+});
+test('draft restart or cancellation cannot create another editor; original receipt may recover after expiry',async t=>{
+ const {e,j}=await draftReady(t);e.restart();e.advance(700000);await e.account();
+ assert.equal((await e.app('retry',{id:j.id})).data.job.state,'needs_attention');assert.equal((await e.ext('claim')).data.job,null);
+ assert.equal((await e.ext('report',draftReport(j))).status,200);
+});
+test('cancelled retained draft remains blocked against re-enqueue',async t=>{
+ const {e,j}=await draftReady(t);await e.ext('report',{id:j.id,lease:j.lease,state:'needs_attention'});
+ assert.equal((await e.app('cancel',{id:j.id})).status,200);assert.equal((await e.enqueue({mode:'draft'})).status,409);assert.equal((await e.ext('report',draftReport(j))).status,409);
+});

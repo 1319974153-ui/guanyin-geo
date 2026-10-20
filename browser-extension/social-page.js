@@ -64,6 +64,14 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&text(editor)===expected;
  if(action==='prepared'){if(!matches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,evidenceUrl:location.origin+location.pathname,contentVerified:true};}
+ if(action==='draft-receipt'){
+  if(platform!=='zhihu')fail('此平台尚未支持草稿回执');
+  if(!matches())fail('草稿正文或标题与已确认版本不同');
+  const id=location.pathname.match(/^\/p\/(\d+)\/edit$/)?.[1];
+  const status=many('.DraftStatusTip').filter(e=>!e.closest('[contenteditable],article,aside'));
+  if(!id||status.length!==1||!/^(?:刚刚|\d+\s*(?:秒|分钟|小时|天)前)\s*·\s*草稿$/.test(text(status[0])))return null;
+  return {...evidence,url:location.origin+location.pathname,articleId:id,contentVerified:true,savedVerified:true};
+ }
  if(action==='fill'){
   // Focus can dismiss a visual empty-state prompt; genuine existing text remains protected.
   editor.focus();await wait(100);
