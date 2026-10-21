@@ -241,3 +241,17 @@ test('Toutiao checkpoint keeps only a validated original draft link across resta
  e.restart();const again=await e.ext('report',report);assert.equal(again.data.existing,true);
  assert.equal(again.data.job.preparation.editorUrl,preparation.editorUrl);
 });
+
+
+test('Toutiao draft capability requires protocol 2 and preserves independent non-public receipt',async t=>{
+ const e=setup(t,false);await e.pair('toutiao');
+ for(const draftProtocol of [undefined,1,3]){await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.toutiao.editor,draftProtocol});assert.equal((await e.enqueue({mode:'draft'})).status,409);}
+ await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.toutiao.editor,draftProtocol:2});
+ const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.ok(status.data.accounts[0].modes.includes('draft'));assert.ok(!status.data.accounts[0].modes.includes('publish'));
+ assert.equal((await e.enqueue({mode:'draft'})).status,200);const j=(await e.ext('claim')).data.job;
+ assert.equal((await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash})).status,409);
+ const report=draftReport(j,{url:PLATFORMS.toutiao.editor+'?pgc_id=123'});
+ for(const patch of [{accountId:'wrong'},{sourceHash:'wrong'},{url:'https://www.toutiao.com/article/123/'},{url:PLATFORMS.toutiao.editor+'?pgc_id=123&token=secret'}])assert.equal((await e.ext('report',{...report,draft:{...report.draft,...patch}})).status,400);
+ const r=await e.ext('report',report);assert.equal(r.status,200);assert.equal(r.data.job.state,'draft');assert.equal(r.data.job.receipt.publicVerified,false);
+ assert.equal((await e.ext('report',report)).data.existing,true);e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
+});

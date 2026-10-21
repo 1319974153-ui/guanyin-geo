@@ -65,8 +65,14 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const matches=()=>text(title)===article.title.trim()&&text(editor)===expected;
  if(action==='prepared'){if(!matches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,contentVerified:true};}
  if(action==='draft-receipt'){
-  if(platform!=='zhihu')fail('此平台尚未支持草稿回执');
+  if(!['zhihu','toutiao'].includes(platform))fail('此平台尚未支持草稿回执');
   if(!matches())fail('草稿正文或标题与已确认版本不同');
+  if(platform==='toutiao'){
+   const url=new URL(location.href),ids=url.searchParams.getAll('pgc_id');
+   const status=many('.footer-draft-save .footer-tip-save').filter(e=>!e.closest('[contenteditable],article,aside'));
+   if(url.hash||url.username||url.password||ids.length!==1||!/^[1-9]\d{0,29}$/.test(ids[0])||status.length!==1||text(status[0])!=='草稿已保存')return null;
+   return {...evidence,url:url.origin+url.pathname+'?pgc_id='+ids[0],articleId:ids[0],contentVerified:true,savedVerified:true};
+  }
   const id=location.pathname.match(/^\/p\/(\d+)\/edit$/)?.[1];
   const status=many('.DraftStatusTip').filter(e=>!e.closest('[contenteditable],article,aside'));
   if(!id||status.length!==1||!/^(?:刚刚|\d+\s*(?:秒|分钟|小时|天)前)\s*·\s*草稿$/.test(text(status[0])))return null;

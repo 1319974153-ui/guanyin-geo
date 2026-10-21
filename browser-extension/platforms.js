@@ -1,8 +1,8 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
  csdn:{name:'CSDN',editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
- toutiao:{name:'头条',editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
- zhihu:{name:'知乎',editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
+ toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
+ zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:30,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
@@ -45,10 +45,18 @@ export function preparationEvidence(platform,value){
  }catch{return null}
 }
 
+export function supportsDraftProtocol(platform,version){return Number.isInteger(version)&&version>0&&PLATFORMS[platform]?.draftProtocol===version;}
+
 // Draft destinations are editor URLs, never public article receipts.
 export function draftEvidence(platform,value){
  try{
-  if(platform!=='zhihu'||!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  if(platform==='toutiao'){
+   const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
+   const id=new URL(url).searchParams.get('pgc_id');if(!id||id!==String(value.articleId))return null;
+   return {url,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true};
+  }
+  if(platform!=='zhihu')return null;
   const u=new URL(value.url),m=u.pathname.match(/^\/p\/(\d+)\/edit$/);
   if(u.origin!=='https://zhuanlan.zhihu.com'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};

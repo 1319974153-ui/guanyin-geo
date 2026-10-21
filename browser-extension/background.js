@@ -24,7 +24,7 @@ async function page(tabId,action,article,accountId,platform='csdn',media=[]){
  return value;
 }
 async function freshEditor(platform='csdn'){const tab=await chrome.tabs.create({url:platformConfig(platform).editor,active:true});await chrome.storage.local.set({['editorTab:'+platform]:tab.id,...(platform==='csdn'?{editorTab:tab.id}:{})});return tab.id}
-const accountEvidence=(me,platform)=>({...me,draftProtocol:platform==='zhihu'?1:0});
+const accountEvidence=(me,platform)=>({...me,draftProtocol:platformConfig(platform).draftProtocol||0});
 async function identity(tabId,platform='csdn'){let last;for(let i=0;i<12;i++){try{return await page(tabId,'identity',undefined,undefined,platform)}catch(e){last=e;await delay(1000)}}throw last}
 async function setStatus(message){await chrome.storage.local.set({status:message})}
 async function submitPrepared(platform,job,tabId,article,call){

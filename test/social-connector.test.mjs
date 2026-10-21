@@ -13,7 +13,7 @@ function fixture(platform,options={}){
  const button=element(platform==='toutiao'?'预览并发布':'发布',{click:()=>clicks++});
  const doc={querySelectorAll(s){
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
-  if(s==='.DraftStatusTip')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
+  if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='a[href]')return [element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
@@ -24,7 +24,7 @@ function fixture(platform,options={}){
   return[];
  }};
  const u=new URL(PLATFORMS[platform].editor);
- const context=vm.createContext({document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
+ const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
  const run=(action,patch={})=>vm.runInContext('('+socialPage.toString()+')',context)({platform,action,media:[{name:'fixture.png'}],article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:false},accountId:platform==='toutiao'?'123':'author',...patch});
  if(platform==='toutiao')account='123';
  return {run,context,setTitle:v=>title=v,get clicks(){return clicks},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
@@ -118,4 +118,24 @@ test('Toutiao preparation retains the observed draft ID without claiming platfor
  }
  assert.equal(preparationEvidence('toutiao',{...raw,evidenceUrl:base}).editorUrl,base);
  f.setBody('changed');assert.match((await f.run('prepared')).connectorError,/正文已变化/);
+});
+
+
+test('Toutiao saved draft requires the observed footer status, ID, identity and exact content',async()=>{
+ const f=fixture('toutiao',{savedStatus:['草稿已保存']});f.context.location.href=PLATFORMS.toutiao.editor+'?pgc_id=7698291175233323555';
+ const r=await f.run('draft-receipt');assert.equal(r.savedVerified,true);assert.equal(r.articleId,'7698291175233323555');assert.equal(f.clicks,0);assert.ok(draftEvidence('toutiao',r));
+ f.setBody('正文被改');assert.match((await f.run('draft-receipt')).connectorError,/不同/);f.setBody('测试正文');f.setAccount('999');assert.ok((await f.run('draft-receipt')).connectorError);assert.equal(f.clicks,0);
+});
+test('Toutiao draft status cannot come from body, saving-in-progress, duplicate labels or ambiguous ID',async()=>{
+ for(const options of [{},{savedStatus:['草稿保存中...']},{savedStatus:['保存失败']},{savedStatus:['草稿已保存','草稿已保存']},{savedStatus:['草稿已保存'],statusInBody:true}]){
+  const f=fixture('toutiao',options);f.context.location.href=PLATFORMS.toutiao.editor+'?pgc_id=123';assert.equal(await f.run('draft-receipt'),null);assert.equal(f.clicks,0);
+ }
+ for(const suffix of ['', '?pgc_id=1&pgc_id=2','?pgc_id=0','?pgc_id=abc','?pgc_id=1#other']){
+  const f=fixture('toutiao',{savedStatus:['草稿已保存']});f.context.location.href=PLATFORMS.toutiao.editor+suffix;assert.equal(await f.run('draft-receipt'),null);
+ }
+});
+test('Toutiao bridge receipt accepts only canonical editor URLs with the same durable ID',()=>{
+ const r={...savedDraft,url:PLATFORMS.toutiao.editor+'?pgc_id=123'};assert.ok(draftEvidence('toutiao',r));
+ for(const patch of [{url:PLATFORMS.toutiao.editor},{url:r.url+'&token=secret'},{url:r.url+'&pgc_id=123'},{url:r.url+'#x'},{url:'https://www.toutiao.com/article/123/'},{url:'https://evil.test/?pgc_id=123'},{articleId:'124'},{savedVerified:false},{contentVerified:false}])assert.equal(draftEvidence('toutiao',{...r,...patch}),null);
+ assert.equal(draftEvidence('zhihu',r),null);
 });

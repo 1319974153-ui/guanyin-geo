@@ -9,7 +9,7 @@ async function fixture(t,options={}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
-  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
+  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
   if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
   if(action==='submit')clicks++;
@@ -126,4 +126,14 @@ test('lost draft report reconciles the same editor without creating or filling a
 });
 test('changed draft remains unresolved and never triggers publish or another editor',async t=>{
  const f=await fixture(t,{platform:'zhihu',mode:'draft',identityResult:zhihuIdentity,inflight:true,draftError:true});await f.send('reconcile','zhihu');assert.ok(f.stored.inflightByPlatform.zhihu);assert.deepEqual(f.actions,['draft-receipt']);assert.equal(f.clicks,0);
+});
+
+
+test('Toutiao draft connector observes stable saved ID twice and never invokes public submit',async t=>{
+ const f=await fixture(t,{platform:'toutiao',mode:'draft',identityResult:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.toutiao.com/profile_v4/graphic/publish'}});
+ await f.send('run','toutiao');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(!f.actions.includes('preflight'));assert.equal(f.actions.filter(a=>a==='draft-receipt').length,2);assert.equal(f.stored.inflightByPlatform.toutiao,undefined);assert.match(f.stored.status,/草稿已保存/);
+});
+test('Toutiao lost draft report reconciles original tab without refilling or republishing',async t=>{
+ const f=await fixture(t,{platform:'toutiao',mode:'draft',lostReport:true,identityResult:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.toutiao.com/profile_v4/graphic/publish'}});await f.send('run','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);
+ await f.send('reconcile','toutiao');assert.equal(f.stored.inflightByPlatform.toutiao,undefined);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.clicks,0);
 });
