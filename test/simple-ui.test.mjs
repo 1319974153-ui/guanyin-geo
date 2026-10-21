@@ -10,6 +10,7 @@ function ui(){
   accessInfo:{current:{owner:'owner',role:'owner'}},sessionStorage:{getItem:()=>''},runtimeContext:{background:{enabled:false}},
   serverConnections:[{provider:'deepseek',model:'test-model'}],uid:()=> 'request-id',isLocalRuntime:()=>true,isOwner:()=>true,
   esc:s=>String(s??''),btn:(text,action)=>`<button data-action="${action}">${text}</button>`,
+  runtimeFlush:async()=>{},apiRequest:async(path,opts)=>{seen.request={path,body:JSON.parse(opts.body)};return {plan:{question:{text:current.goalQuery},facts:[{key:'介绍',value:'确认过的资料',source:'手册'}],outline:['直接回答'],model:'test-model',previewHash:'a'.repeat(64)}}},
   openDrawer:(title,html)=>Object.assign(seen,{title,html}),action:async(name,el)=>Object.assign(seen,{name,el}),taskStates:{}});
  vm.runInContext(fs.readFileSync(new URL('../public/simple.js',import.meta.url),'utf8'),ctx);
  return {ctx,seen};
@@ -17,16 +18,17 @@ function ui(){
 test('paid preparation follows edited goal and always exposes a local no-model alternative',async()=>{
  const {ctx,seen}=ui();await vm.runInContext("simpleAction('simple-prepare',{})",ctx);
  assert.match(seen.html,/<option value="target" selected>/);assert.doesNotMatch(seen.html,/<option value="old" selected>/);
- assert.match(seen.html,/simple-local-draft/);assert.match(seen.html,/通常 2 次模型请求/);
+ assert.match(seen.html,/simple-local-draft/);assert.match(seen.html,/最多 2 次模型请求/);
+ assert.equal(seen.request.path,'/api/simple/prepare-preview');assert.equal(seen.request.body.questionId,'target');assert.match(seen.html,/name="confirmCost" required/);assert.doesNotMatch(seen.html,/name="confirmCost"[^>]*checked/);assert.doesNotMatch(seen.html,/name="enableBackground"/);
  await vm.runInContext("simpleAction('simple-local-draft',{closest:()=>({elements:{questionId:{value:'old'}}})})",ctx);
  assert.equal(seen.name,'new-content');assert.equal(seen.el.dataset.id,'old');
 });
 test('manual queue progress has an immediate execution action, paused and failed flows have recovery',()=>{
  const {ctx}=ui();vm.runInContext("simpleFlowScope=simpleScope();simpleFlows=[{id:'flow',questionId:'target',stage:'writing',paused:false}]",ctx);
- let html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/执行下一步/);assert.doesNotMatch(html,/正在准备草稿/);
- vm.runInContext('simpleFlows[0].paused=true',ctx);html=vm.runInContext('simpleFlowCards()',ctx);assert.doesNotMatch(html,/执行下一步/);assert.match(html,/继续流程/);
+ let html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/继续本批生成/);assert.doesNotMatch(html,/正在准备草稿/);
+ vm.runInContext('simpleFlows[0].paused=true',ctx);html=vm.runInContext('simpleFlowCards()',ctx);assert.doesNotMatch(html,/继续本批生成/);assert.match(html,/继续流程/);
  vm.runInContext("simpleFlows[0].paused=false;simpleFlows[0].stage='needs_attention'",ctx);html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/继续流程/);assert.doesNotMatch(html,/暂停流程/);
- vm.runInContext("simpleFlows[0].stage='writing';runtimeContext.background.enabled=true",ctx);assert.doesNotMatch(vm.runInContext('simpleFlowCards()',ctx),/执行下一步/);
+ vm.runInContext("simpleFlows[0].stage='writing';runtimeContext.background.enabled=true",ctx);assert.doesNotMatch(vm.runInContext('simpleFlowCards()',ctx),/继续本批生成/);
 });
 
 test('restored setup draft retains source URL and user edits with escaped HTML',()=>{
@@ -70,3 +72,5 @@ test('failed content progress retains independent receipt results and offers rec
  await vm.runInContext('refreshSimple()',ctx);
  assert.equal(vm.runInContext('simplePublishing.jobs[0].id',ctx),'existing');assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-refresh');
 });
+
+ test('failed batch is shown as stopped rather than offering an automatic retry',()=>{const {ctx}=ui();ctx.GEO_KNOWLEDGE={factUsable:()=>true};vm.runInContext("simpleFlowScope=simpleScope();simpleFlows=[{id:'failed',stage:'writing',issues:[{status:'failed',error:'限流'}]}]",ctx);const html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/本批已停止/);assert.doesNotMatch(html,/simple-tick/);assert.match(vm.runInContext('simpleNextWork().text',ctx),/不会自动重试/);});

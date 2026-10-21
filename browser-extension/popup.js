@@ -1,4 +1,5 @@
 import {platformConfig} from './platforms.js';
+document.querySelector('#connector-version').textContent=chrome.runtime.getManifest().version+' 验收版 · 独立多平台连接';
 const status=document.querySelector('#status'),platformSelect=document.querySelector('#platform');
 const popupReady=chrome.storage.local.get('selectedPlatform').then(v=>{if(v.selectedPlatform){try{platformConfig(v.selectedPlatform);platformSelect.value=v.selectedPlatform}catch{}}});
 platformSelect.addEventListener('change',()=>chrome.storage.local.set({selectedPlatform:platformSelect.value}));

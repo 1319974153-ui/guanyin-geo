@@ -35,9 +35,9 @@ function renderSimpleSetup(){
 function simpleFlowCards(){
  if(simpleFlowScope!==simpleScope())return '<p class="simple-help">正在读取工作进度…</p>';
  return simpleFlows.slice(0,4).map(f=>{
- const runnable=!f.paused&&['writing','checking'].includes(f.stage)&&!runtimeContext.background?.enabled;
+ const failed=!!f.issues?.length,runnable=!failed&&!f.paused&&['writing','checking'].includes(f.stage)&&!runtimeContext.background?.enabled;
  const labels={writing:'草稿准备任务',checking:'草稿检查任务',review:'草稿已准备好，等你确认',needs_attention:'需要处理后继续'};
- return simpleCard(f.paused?'流程已暂停':labels[f.stage]||'正在处理',`<p>${esc(own('questions').find(q=>q.id===f.questionId)?.text||'历史问题')}</p>${f.error?`<p class="simple-issue">${esc(f.error)}</p>`:''}${f.issues?.length?`<p class="simple-issue">${esc(f.issues[0].error||taskStates[f.issues[0].status])}</p><a href="#tasks">查看失败原因与恢复操作 →</a>`:''}`,f.stage==='review'?'<a class="button primary" href="#inbox">查看稿件</a>':simpleWrite()?(runnable?btn('执行下一步','simple-tick','primary'):'')+btn(f.paused||f.stage==='needs_attention'?'继续流程':'暂停流程','simple-flow-action','small',`data-id="${esc(f.id)}" data-mode="${f.paused||f.stage==='needs_attention'?'resume':'pause'}"`):'');
+ return simpleCard(f.paused?'流程已暂停':failed?'本批已停止，等待处理':labels[f.stage]||'正在处理',`<p>${esc(own('questions').find(q=>q.id===f.questionId)?.text||'历史问题')}</p>${f.error?`<p class="simple-issue">${esc(f.error)}</p>`:''}${f.issues?.length?`<p class="simple-issue">${esc(f.issues[0].error||taskStates[f.issues[0].status])}</p><a href="#tasks">查看失败原因与恢复操作 →</a>`:''}`,f.stage==='review'?'<a class="button primary" href="#inbox">查看稿件</a>':simpleWrite()?(runnable?btn(simpleAutoFlow===f.id?'正在生成与检查…':'继续本批生成','simple-tick','primary',`data-id="${esc(f.id)}" ${simpleAutoFlow?'disabled':''}`):'')+btn(f.paused||f.stage==='needs_attention'?'继续流程':'暂停流程','simple-flow-action','small',`data-id="${esc(f.id)}" data-mode="${f.paused||f.stage==='needs_attention'?'resume':'pause'}"`):'');
  }).join('');
 }
 // Choose one next action from actual work, never gate writing on a manual AI sample.
@@ -49,7 +49,7 @@ function simpleNextWork(){
  const job=pub?.jobs?.filter(j=>j.state!=='cancelled'&&j.currentRevision===true&&j.contentId===approved?.id).sort((a,b)=>b.created-a.created)[0];
  if(!simpleWrite()&&!simpleReview())return {title:'查看已记录的结果',text:'可以查看内容和证据；编辑与发送由有权限的成员完成。',label:'查看效果',href:'#results'};
  if(simpleFlowScope===simpleScope()&&simpleError.includes('内容进度暂时无法读取'))return {title:'先恢复内容进度',text:'没有重新创建任务。刷新后可继续原稿，避免重复生成与费用。',label:'重新读取进度',action:'simple-refresh'};
- if(flow)return {title:flow.paused?'内容任务已暂停':flow.stage==='needs_attention'?'这项任务需要处理':'内容正在准备中',text:flow.paused?'原任务和稿件已保留，可以从中断处继续。':runtimeContext.background?.enabled?'后台会继续处理，完成后在这里核对稿件。':'查看任务进度并执行下一步，无需重新创建任务。',label:'查看任务进度',action:'simple-work-progress'};
+ if(flow)return {title:flow.paused?'内容任务已暂停':flow.stage==='needs_attention'||flow.issues?.length?'这项任务需要处理':'内容正在准备中',text:flow.paused?'原任务和稿件已保留，可以从中断处继续。':flow.issues?.length?'本批已经停止，不会自动重试或隔日继续扣费；先查看原因，再决定是否重新授权。':runtimeContext.background?.enabled?'后台会继续处理，完成后在这里核对稿件。':'在本页自动完成已确认的批次；中断后可继续，失败需重新确认重试。',label:'查看任务进度',action:'simple-work-progress'};
  if(review)return {title:'有一篇内容等你确认',text:review.title||'先核对这份稿件，再选择自己的发布账号。',label:simpleWrite()?'查看并编辑':'查看待审核稿',action:'edit-content',id:review.id};
  if(approved&&simpleWrite()){
   const same=job?.contentId===approved.id;
@@ -66,7 +66,7 @@ function renderSimpleToday(){
  const pending=facts.filter(f=>f.status==='待确认').length,active=simpleFlowScope===simpleScope()&&simpleFlows.length;
  const main=next.href?'<a class="button primary" href="'+esc(next.href)+'">'+esc(next.label)+'</a>':btn(next.label,next.action,'primary',next.id?'data-id="'+esc(next.id)+'"':'');
  return title(esc(b.name),'从业务资料到内容发布，一步一步完成。',isOwner()?btn('编辑资料','catalog-profile','ghost small',`data-id="${esc(b.id)}"`):'')+simpleBrandPicker()+`
- <div class="focus-workspace"><section class="focus-goal" aria-labelledby="focus-goal-title"><div class="goal-heading"><h2 id="focus-goal-title">${esc(next.title)}</h2></div><p>${esc(next.text)}</p><div class="today-actions">${main}${contents.length&&simpleWrite()?btn('写新文章','write-article','ghost'):''}<a class="button ghost" href="#integrations">发布账号${connected?' · '+connected:''}</a></div>
+ <div class="focus-workspace"><section class="focus-goal" aria-labelledby="focus-goal-title"><div class="goal-heading"><h2 id="focus-goal-title">${esc(next.title)}</h2></div><p>${esc(next.text)}</p><div class="today-actions">${main}${contents.length&&simpleWrite()?btn('写新文章','write-article','ghost')+(serverConnections.length&&!simpleFlows.some(f=>['writing','checking','needs_attention'].includes(f.stage))?btn('AI 准备新稿','simple-prepare','ghost'):''):''}<a class="button ghost" href="#integrations">发布账号${connected?' · '+connected:''}</a></div>
  <ol class="work-journey" aria-label="操作流程"><li><a href="#knowledge">业务资料</a><span>${facts.some(GEO_KNOWLEDGE.factUsable)?'已有确认资料':'待补充'}</span></li><li><a href="#inbox">内容确认</a><span>${contents.length?contents.length+' 篇内容':'待准备首稿'}</span></li><li><a href="#publish">发布结果</a><span>${pub?.jobs?.length?'查看逐平台回执':'发送后查看'}</span></li></ol></section>
  ${active?`<section class="today-progress" id="work-progress" tabindex="-1"><h2>正在处理的内容</h2><div class="simple-grid">${simpleFlowCards()}</div></section>`:''}
  ${pending?`<p class="focus-notice"><a href="#inbox">${pending} 项资料待核对</a>，确认后可用于后续内容。</p>`:''}
@@ -104,6 +104,17 @@ function simpleDecorate(){
  if(route==='today'&&simpleFlowScope!==simpleScope())void refreshSimple();
  if(route==='today'&&(runtimeContext.background?.enabled&&simpleFlows.some(f=>!f.paused&&['writing','checking'].includes(f.stage))||simplePublishingScope===simpleScope()&&simplePublishing?.jobs?.some(j=>['queued','preparing','submitting'].includes(j.state))))simpleRefreshTimer=setTimeout(()=>{if(!runtimeBusy&&!pendingSnapshot&&!savingPromise&&!$('#drawer').open)void reloadWorkspace().then(refreshSimple).catch(()=>{});},12000);
 }
+let simpleAutoFlow='';
+async function runSimpleAuthorizedFlow(flowId){
+ if(!flowId||simpleAutoFlow)return;const scope=simpleScope(),brandId=brand().id;simpleAutoFlow=flowId;if(route==='today')render();
+ try{await runtimeFlush();for(let step=0;step<2;step++){
+  if(scope!==simpleScope())break;
+  const result=await apiRequest('/api/simple/tick',{method:'POST',body:JSON.stringify({brandId,flowId})});
+  if(scope!==simpleScope())break;await reloadWorkspace();await refreshSimple();
+  if(!['complete','save_pending'].includes(result.state))break;
+ }}catch(e){if(scope===simpleScope()){simpleError=e.message;toast('本批进度已保留，请查看任务记录');}}
+ finally{simpleAutoFlow='';if(scope===simpleScope()&&route==='today')render();}
+}
 function simpleCapture(qid,platform){
  const q=own('questions').find(q=>q.id===qid)||own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())||own('questions')[0];if(!q){toast('请先添加一个用户问题');go('monitor');return;}
  answerImportAction('import-answer',{dataset:{id:q.id}});const f=document.querySelector('[data-answer-import]');f.dataset.simple='capture';
@@ -136,14 +147,16 @@ async function simpleAction(name,el){
  if(name==='simple-copy-article'){const p=own('publications').find(p=>p.id===el.dataset.id);if(p?.handoffSnapshot){await navigator.clipboard.writeText(p.handoffSnapshot.text);toast('审核稿已复制，去平台粘贴即可');}return true;}
  if(name==='simple-evidence'){showAnswers(own('answers').filter(a=>!a.demo&&a.surface==='import'&&a.platform===el.dataset.platform),el.dataset.platform+' · 真实回答');return true;}
  if(name==='simple-refresh'){await reloadWorkspace();await refreshSimple();return true;}
- if(name==='simple-tick'){runtimeLock(true);try{await runtimeFlush();await apiRequest('/api/simple/tick',{method:'POST',body:JSON.stringify({brandId:brand().id})});await reloadWorkspace();await refreshSimple();}finally{runtimeLock(false)}return true;}
+ if(name==='simple-tick'){await runSimpleAuthorizedFlow(el.dataset.id);return true;}
  if(name==='simple-flow-action'){await apiRequest('/api/simple/action',{method:'POST',body:JSON.stringify({brandId:brand().id,id:el.dataset.id,action:el.dataset.mode})});await refreshSimple();return true;}
  if(name==='simple-platforms'){openDrawer('关注哪些 AI 平台',`<form data-simple="platforms"><div class="simple-platforms">${Object.keys(SIMPLE_ENTRIES).map(p=>`<label><input type="checkbox" name="platforms" value="${esc(p)}" ${simplePlatforms().includes(p)?'checked':''}>${esc(p)}</label>`).join('')}</div><p class="form-error" role="alert"></p><button class="button primary" type="submit">保存关注平台</button></form>`);return true;}
  if(name==='simple-local-draft'){await action('new-content',{dataset:{id:el.closest('form')?.elements.questionId.value||own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())?.id||''}});return true;}
- if(name==='simple-prepare'){
+ if(name==='simple-prepare'||name==='simple-preview-plan'){
   if(!own('questions').length){toast('先设定一个用户会问的问题');go('monitor');return true;}
   if(!serverConnections.length){await action('new-content',{dataset:{id:own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())?.id||''}});return true;}
-  openDrawer('自动准备一篇内容',`<form data-simple="prepare" data-id="${uid()}"><p class="simple-question" data-prepare-question>${esc((own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())||own('questions')[0]).text)}</p><details class="simple-detail"><summary>调整问题或写作模型</summary><label class="field">先回答哪个用户问题<select name="questionId">${own('questions').map(q=>`<option value="${esc(q.id)}" ${q.text.trim()===brand().goalQuery?.trim()?'selected':''}>${esc(q.text)}</option>`).join('')}</select></label><label class="field">使用我的写作模型<select name="provider">${serverConnections.map(c=>`<option value="${esc(c.provider)}">${esc(c.model)}</option>`).join('')}</select></label></details><p data-prepare-model>使用 ${esc(serverConnections[0].model)}，按你的供应商账号计费。</p><p>系统依次生成 1 篇草稿、进行 1 次内容质检，然后等你审核。通常 2 次模型请求，失败重试可能增加次数；按你的供应商账号计费并受已有预算限制。</p><p>不会自动公开发布。后台已开启时可关闭网页等待；否则在工作台的内容进度卡片上点击“执行下一步”。</p>${isLocalRuntime()&&isOwner()&&!runtimeContext.background?.enabled?'<label class="auto-option"><input type="checkbox" name="enableBackground">同时开启本机后台，自动完成后续步骤（包括已有启用任务）</label>':''}${isOwner()?btn('查看 / 设置费用预算','budget-open','small','type="button"'):''}<p class="form-error" role="alert"></p><button class="button primary" type="submit">确认用我的模型准备内容</button> ${btn('先用本地模板，不调用模型','simple-local-draft','ghost','type="button"')}</form>`);return true;
+  const form=el.closest?.('form'),questionId=form?.elements.questionId.value||(own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())||own('questions')[0]).id,provider=form?.elements.provider.value||serverConnections[0].provider;
+  await runtimeFlush();const scope=simpleScope(),result=await apiRequest('/api/simple/prepare-preview',{method:'POST',body:JSON.stringify({brandId:brand().id,questionId,provider})});if(scope!==simpleScope())return true;const plan=result.plan;
+  openDrawer('确认本次内容计划',`<form data-simple="prepare" data-id="${form?.dataset.id||uid()}" data-plan-hash="${esc(plan.previewHash)}"><p class="simple-question" data-prepare-question>${esc(plan.question.text)}</p><p>本次依据 ${plan.facts.length} 项已确认资料，自动写稿并检查，完成后等你核对。</p><ol>${plan.outline.map(x=>`<li>${esc(x)}</li>`).join('')}</ol><details class="simple-detail"><summary>查看资料依据</summary>${plan.facts.map(f=>`<p><strong>${esc(f.key)}</strong>：${esc(f.value.slice(0,240))}<br><small>出处：${esc(f.source)}</small></p>`).join('')}</details><details class="simple-detail"><summary>调整问题或写作模型</summary><label class="field">先回答哪个用户问题<select name="questionId">${own('questions').map(q=>`<option value="${esc(q.id)}" ${q.id===questionId?'selected':''}>${esc(q.text)}</option>`).join('')}</select></label><label class="field">使用我的写作模型<select name="provider">${serverConnections.map(c=>`<option value="${esc(c.provider)}" ${c.provider===provider?'selected':''}>${esc(c.model)}</option>`).join('')}</select></label>${btn('更新内容计划（免费）','simple-preview-plan','small','type="button"')}</details><p data-prepare-model>使用 ${esc(plan.model)}，按你的供应商账号计费。</p><p>本批最多 2 次模型请求：1 次写稿、1 次质检。失败不自动重试，不定时重复；恢复已经返回的结果不会再调用模型。</p><p>保持本页打开，授权后自动完成本批流程。关闭页面后保留进度；不会为此开启其他后台任务或公开发布。</p>${isOwner()?btn('查看 / 设置费用预算','budget-open','small','type="button"'):''}<label class="auto-option"><input type="checkbox" name="confirmCost" required>我确认本批最多 2 次调用，费用由我的模型账号承担</label><p class="simple-help">具体费用按实际 token 和供应商价格结算，并受现有预算限制。此计划不证明搜索热度或 AI 推荐效果。</p><p class="form-error" role="alert"></p><button class="button primary" type="submit">确认费用，自动生成</button> ${btn('先用本地模板，不调用模型','simple-local-draft','ghost','type="button"')}</form>`);return true;
  }
  if(name==='simple-weekly'){
   await refreshReportArchives();const row=reportScheduleData.find(r=>r.frequency==='weekly'&&r.surface==='import'&&!r.options?.productId);
@@ -154,7 +167,7 @@ async function simpleAction(name,el){
 let simpleParseCancel=null;
 document.addEventListener('change',async e=>{
  const f=e.target.closest('form');if(!f)return;
- if(f.dataset.simple==='prepare'){if(e.target.name==='questionId')f.querySelector('[data-prepare-question]').textContent=own('questions').find(q=>q.id===e.target.value)?.text||'请选择问题';if(e.target.name==='provider')f.querySelector('[data-prepare-model]').textContent='使用 '+(serverConnections.find(c=>c.provider===e.target.value)?.model||'所选模型')+'，按你的供应商账号计费。';}
+ if(f.dataset.simple==='prepare'){if(['questionId','provider'].includes(e.target.name)){f.dataset.planHash='';f.querySelector('[type="submit"]').disabled=true;f.elements.confirmCost.checked=false;f.querySelector('.form-error').textContent='选择已改变，请点击“更新内容计划（免费）”后再确认费用。';}if(e.target.name==='questionId')f.querySelector('[data-prepare-question]').textContent=own('questions').find(q=>q.id===e.target.value)?.text||'请选择问题';if(e.target.name==='provider')f.querySelector('[data-prepare-model]').textContent='使用 '+(serverConnections.find(c=>c.provider===e.target.value)?.model||'所选模型')+'，按你的供应商账号计费。';}
  if(f.dataset.simple==='capture'){
   if(e.target.name==='platform'){const a=f.querySelector('[data-simple-entry]');a.href=SIMPLE_ENTRIES[e.target.value];a.textContent='打开'+e.target.value;}
   if(['questionId','questionVersion'].includes(e.target.name)){const q=own('questions').find(x=>x.id===f.elements.questionId.value);f.querySelector('[data-simple-question]').textContent=answerImportVersions(q).find(v=>(v.version||'v1')===f.elements.questionVersion.value)?.text||q.text;}
@@ -193,9 +206,10 @@ document.addEventListener('submit',async e=>{
    const values=new FormData(f).getAll('platforms');if(!values.length)throw new Error('至少关注一个平台');brand().platforms=values;save();await runtimeFlush();runtimeLock(false);closeDrawer();render();
   }
   if(mode==='prepare'){
-   const payload={...v,id:f.dataset.id,brandId:brand().id};
+   const payload={...v,id:f.dataset.id,brandId:brand().id,confirmCost:!!f.elements.confirmCost?.checked,previewHash:f.dataset.planHash};
    const serialized=JSON.stringify(payload);if(f.dataset.submitted&&f.dataset.submitted!==serialized)throw new Error('上次任务可能已创建，请恢复原选择重试，或关闭后刷新进度');f.dataset.submitted=serialized;
-   await apiRequest('/api/simple/prepare',{method:'POST',body:serialized});if(f.elements.enableBackground?.checked){const r=await apiRequest('/api/local/runner',{method:'POST',body:JSON.stringify({enabled:true})});runtimeContext.background=r.background;}runtimeLock(false);closeDrawer();simpleFlowScope='';go('today');render();await refreshSimple();toast('内容准备已排队；按进度执行或开启后台');
+   await apiRequest('/api/simple/prepare',{method:'POST',body:serialized});runtimeLock(false);closeDrawer();simpleFlowScope='';go('today');render();await refreshSimple();void runSimpleAuthorizedFlow(payload.id);
+
   }
   if(mode==='weekly'){
    await apiRequest('/api/reports/schedule',{method:'POST',body:JSON.stringify({brandId:brand().id,revision:Number(f.dataset.revision),frequency:'weekly',surface:'import',enabled:f.elements.enabled.checked,options:{platform:'',mode:'',entry:'',version:'all',productId:''}})});runtimeLock(false);closeDrawer();toast('每周报告设置已保存；后台在线时自动归档');
