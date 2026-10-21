@@ -19,11 +19,11 @@ function browserPublisherWatch(){
  browserPublisherWatcher=GEO_DISPATCH.createDispatchWatcher({
   valid:()=>browserPublisherAvailable()&&browserPublisherContext()===scope&&['integrations','publish'].includes(route),
   pending:()=>browserPublisherData?.jobs.some(j=>['queued','preparing','submitting','uncertain'].includes(j.state)),
-  paused:()=>document.hidden||navigator.onLine===false||runtimeBusy,
+  paused:()=>document.hidden||navigator.onLine===false||runtimeBusy||document.querySelector('#drawer')?.open||document.activeElement?.matches('input,textarea,select,[contenteditable="true"]')||false,
   refresh:async()=>{await refreshBrowserPublisher();return !browserPublisherError;},interval:4000
  });browserPublisherWatcher.start();
 }
-window.addEventListener('hashchange',()=>{if(!['#integrations','#publish'].includes(location.hash))browserPublisherWatcher?.stop()});
+window.addEventListener('hashchange',()=>{if(!['#integrations','#publish'].includes(location.hash))browserPublisherWatcher?.stop();else queueMicrotask(()=>void refreshBrowserPublisher())});
 for(const event of ['visibilitychange','online'])window.addEventListener(event,()=>browserPublisherWatcher?.wake());
 function renderBrowserPublicationHistory(){
  if(!browserPublisherAvailable()||!brand()?.id)return '';
