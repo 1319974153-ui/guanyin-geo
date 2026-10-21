@@ -16,7 +16,7 @@ function fixture(){
 }
 test('editor automatically renders and stores saved draft without a reconcile click',async()=>{
  const x=fixture();x.g.distributionWatch(x.f);await x.tick();
- assert.match(x.box.innerHTML,/平台草稿已保存/);assert.match(x.box.innerHTML,/结果已更新/);assert.equal(JSON.parse(x.storage.get('isolated-journal')).zhihu.state,'draft');assert.equal(x.timers.size,0);assert.ok(x.calls.every(p=>p.startsWith('/api/local-publisher/status?')));
+ assert.match(x.box.innerHTML,/草稿已保存/);assert.match(x.box.innerHTML,/结果已更新/);assert.equal(JSON.parse(x.storage.get('isolated-journal')).zhihu.state,'draft');assert.equal(x.timers.size,0);assert.ok(x.calls.every(p=>p.startsWith('/api/local-publisher/status?')));
 });
 test('editing, closing or switching workspaces before a timer prevents reads',async()=>{
  for(const change of [x=>x.g.dirty=true,x=>x.f.isConnected=false,x=>x.g.scope='other/brand']){

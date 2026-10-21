@@ -1,23 +1,41 @@
 // One article, explicit targets, independent receipts. No paid synchronization service.
-const distributionStateLabels={not_queued:'未入队，可重新发送',ready:'尚未发送',sending:'正在发送',draft:'平台草稿已保存',published:'平台返回已发布',queued:'等待连接器',preparing:'正在填稿',submitting:'正在提交',prepared:'已填入，未提交',submitted:'已提交，公开待核验',uncertain:'结果待核对，不会重发',needs_attention:'需要处理',cancelled:'已取消'};
-function distributionPanel(){return `<section class="article-distribution" aria-label="发布账号与结果"><div class="distribution-heading"><div><h3>选择发布平台</h3><p>勾选账号，一篇稿件发到多个平台。</p></div></div><div class="distribution-account-tools"><button type="button" class="button small" data-distribution-manage>添加账号</button><button type="button" class="button small" data-distribution-refresh>刷新账号</button><span data-distribution-count aria-live="polite">已选 0 个</span></div><div data-distribution-accounts role="group" aria-label="发布目标"><p role="status">正在读取账号…</p></div><label class="field distribution-tags" hidden>文章标签<input name="distributionTags" placeholder="例如：软件测试，最多 5 个" maxlength="110"></label><label class="field distribution-media" hidden>图文图片<input type="file" name="distributionMedia" accept="image/png,image/jpeg,image/webp" multiple><span class="helper">选择 1–9 张图片；单张最多 2 MB，合计最多 8 MB。</span><span data-distribution-media-status role="status"></span></label><label class="field distribution-mode">发送方式<select name="distributionMode" data-distribution-mode><option value="publish">直接发布</option><option value="draft">保存平台草稿</option><option value="prepare">填入编辑器（需平台提交）</option></select></label><p data-distribution-hint class="helper" aria-live="polite">请先选择发布账号。</p><label class="distribution-confirm" data-distribution-confirmation><input type="checkbox" name="distributionConfirmed">已核对正文、来源和 AI 声明，确认发送这份稿件。</label><div class="distribution-actions"><button type="button" class="button primary" data-distribution-send="publish" disabled>发布到所选平台</button></div><p class="form-error" data-distribution-error role="alert"></p><div data-distribution-results aria-live="polite"></div><details class="distribution-more"><summary>平台接入与其他交付方式</summary><p>账号登录状态保留在自己的浏览器中。各平台按实际接入能力提供操作，登录过期后需重新核验。</p><button type="button" class="button small" data-distribution-manage>查看全部平台与账号</button><button type="button" class="button small" data-distribution-manual>下载适配稿手动发布</button></details></section>`}
+const distributionStateLabels={not_queued:'未发送',ready:'未发送',sending:'发布中',draft:'草稿已保存',published:'发布成功',queued:'等待处理',preparing:'正在准备',submitting:'正在提交',prepared:'已填稿，未发布',submitted:'已提交，待确认',uncertain:'结果待确认',needs_attention:'需要处理',cancelled:'已取消'};
+function distributionPanel(){return `<section class="article-distribution" aria-label="发布账号与结果"><div class="distribution-heading"><div><h3>发布到哪些平台</h3><p>勾选平台，发布后在这里查看结果。</p></div><button type="button" class="button small" data-distribution-refresh>刷新</button></div><div class="distribution-account-tools"><label class="distribution-mode">操作<select name="distributionMode" data-distribution-mode aria-label="发布操作"><option value="publish">发布文章</option><option value="draft">保存平台草稿</option><option value="prepare">仅填入编辑器</option></select></label><button type="button" class="button small" data-distribution-select-all>全选可用</button><span data-distribution-count aria-live="polite">已选 0 个</span></div><div class="distribution-submit-bar"><p data-distribution-hint class="helper" aria-live="polite">请选择平台。</p><input type="checkbox" name="distributionConfirmed" hidden><div class="distribution-actions"><button type="button" class="button primary" data-distribution-send="publish" disabled>发布</button></div></div><div data-distribution-accounts role="group" aria-label="全部发布平台"><p role="status">正在读取平台…</p></div><label class="field distribution-tags" hidden>文章标签<input name="distributionTags" placeholder="例如：软件测试，最多 5 个" maxlength="110"></label><label class="field distribution-media" hidden>图文图片<input type="file" name="distributionMedia" accept="image/png,image/jpeg,image/webp" multiple><span class="helper">选择 1–9 张图片；单张最多 2 MB，合计最多 8 MB。</span><span data-distribution-media-status role="status"></span></label><p class="form-error" data-distribution-error role="alert"></p><div data-distribution-results aria-live="polite"></div><details class="distribution-more"><summary>账号设置与更多操作</summary><p>账号只需首次连接；登录失效时再处理。未接入的平台暂不能勾选。</p><button type="button" class="button small" data-distribution-manage>管理账号</button><button type="button" class="button small" data-distribution-manual>下载稿件</button></details></section>`}
+function distributionResultLabel(row){return distributionStateLabels[row.state]||row.state}
+function distributionTone(row){return row?.state==='published'?'success':['needs_attention','uncertain'].includes(row?.state)?'attention':row?.state==='draft'?'saved':'neutral'}
+function distributionPlatformRows(platforms,targets){
+ const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
+ return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
+}
+function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?'未连接':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
+ const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
+ f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
+  const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
+  const status=distributionPlatformStatus(t,mode,result);
+  const connect=!planned&&(t.placeholder||!t.accountId)&&(['wordpress','csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(t.platform));
+  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
+ }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
+}
+function distributionInlineResults(f){
+ const targets=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
+ for(const row of f.querySelectorAll?.('[data-distribution-row-key]')||[]){const result=f.distributionJournal?.[row.dataset.distributionRowKey],target=targets.find(t=>t.key===row.dataset.distributionRowKey),status=row.querySelector('[data-distribution-row-status]');if(!status||!target)continue;status.textContent=distributionPlatformStatus(target,f.elements.distributionMode.value,result);status.dataset.tone=distributionTone(result);}
+}
 function distributionScope(){return wordpressBaseScope()}
 function distributionArticle(f){return own('contents').find(c=>c.id===f.dataset.id)}
 function distributionSelected(f){const keys=[...f.querySelectorAll('[data-distribution-target]:checked')].map(el=>el.value);return (f.distributionTargets||[]).filter(t=>keys.includes(t.key))}
 function distributionUpdate(f){
- const selected=distributionSelected(f),allowed=GEO_DISPATCH.availableActions(selected),confirmed=f.elements.distributionConfirmed.checked;
+ const selected=distributionSelected(f),allowed=GEO_DISPATCH.availableActions(selected);
  const canReview=['owner','admin'].includes(accessInfo.current.role),c=distributionArticle(f),reviewed=c?.status==='已审核'&&!articleEditorDirty();
  const mode=f.elements.distributionMode,action=f.querySelector('[data-distribution-send]');
- for(const option of mode.options)option.disabled=!allowed[option.value];
- if(!allowed[mode.value])mode.value=['publish','draft','prepare'].find(m=>allowed[m])||'publish';
  action.dataset.distributionSend=mode.value;
- for(const selector of ['.distribution-mode','[data-distribution-confirmation]','.distribution-actions'])f.querySelector(selector).hidden=!selected.length;
- const label={publish:'发布到所选平台',draft:'保存到平台草稿箱',prepare:'一键填入所选平台'}[mode.value];
+ const label={publish:'发布',draft:'保存草稿',prepare:'填入编辑器'}[mode.value];
  action.textContent=runtimeBusy?'正在处理…':label+(selected.length?'（'+selected.length+'）':'');
- action.disabled=runtimeBusy||f.distributionMediaLoading||!confirmed||!allowed[mode.value]||(!canReview&&!reviewed);
+ action.disabled=runtimeBusy||f.distributionMediaLoading||!allowed[mode.value]||(!canReview&&!reviewed);
+ const selectAll=f.querySelector('[data-distribution-select-all]');selectAll.disabled=runtimeBusy||!(f.distributionTargets||[]).some(t=>t.modes.includes(mode.value));
  f.querySelector('[data-distribution-count]').textContent='已选 '+selected.length+' 个';
  f.querySelector('.distribution-tags').hidden=!selected.some(t=>t.platform==='csdn');f.querySelector('.distribution-media').hidden=!selected.some(t=>['douyin','xiaohongshu'].includes(t.platform));
- f.querySelector('[data-distribution-hint]').textContent=!selected.length?'先选择账号，再选择发送方式。':!canReview&&!reviewed?'稿件尚未审核，请先保存并提交审核。':!Object.values(allowed).some(Boolean)?'所选账号没有共同的发送方式，请按支持的操作分批选择。':mode.value==='prepare'?'当前选择只填入编辑器，仍需在平台提交；不会登记为已发布或已保存平台草稿。':mode.value==='draft'?'保存到所选平台的草稿箱，不公开文章。':'将在所选平台公开文章；每个账号分别显示实际结果。';
+ f.querySelector('[data-distribution-hint]').textContent=!selected.length?'勾选可用平台后点击发布；未连接的平台可先连接账号。':!canReview&&!reviewed?'稿件尚未审核，请先保存并提交审核。':!Object.values(allowed).some(Boolean)?'所选账号没有共同的发送方式，请按支持的操作分批选择。':mode.value==='prepare'?'当前选择只填入编辑器，仍需在平台提交；不会登记为已发布或已保存平台草稿。':mode.value==='draft'?'保存到所选平台的草稿箱，不公开文章。':'点击发布即确认当前稿件、来源和 AI 声明。每个平台单独显示结果。';
 }
 async function distributionLoad(f){
  if(!f?.isConnected)return;const scope=distributionScope(),box=f.querySelector('[data-distribution-accounts]');f.distributionScope=scope;
@@ -31,7 +49,8 @@ async function distributionLoad(f){
    if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):'请在连接器核验身份'});
   }
  });f.distributionTargets=targets;f.distributionRemoteJobs=results[1].status==='fulfilled'?results[1].value.jobs||[]:[];
- box.innerHTML=(targets.length?targets.map(t=>`<label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" ${selected.has(t.key)?'checked':''} ${t.modes.length?'':'disabled'}><span><strong>${esc(t.platform==='wordpress'?'WordPress':browserPlatformNames[t.platform]||t.platform)}</strong><span class="sub">${esc(t.name)}</span>${t.platform==='wordpress'?'<span class="sub">'+esc(t.detail)+'</span>':''}</span><span class="distribution-capability">${esc(t.status)}</span></label>`).join(''):'<div class="distribution-empty"><strong>连接你的第一个发布账号</strong><p>WordPress 支持草稿与发布；浏览器连接器按平台核验账号、填稿与提交。</p><button type="button" class="button" data-distribution-manage>连接发布账号</button></div>')+errors.map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
+ f.distributionCatalog=results[0].status==='fulfilled'?results[0].value.platforms||[]:[];f.distributionLoadErrors=errors;
+ distributionRenderTargets(f,selected);
  distributionUpdate(f);await distributionRestore(f);
 }
 async function distributionKey(c,scope){
@@ -39,12 +58,13 @@ async function distributionKey(c,scope){
  const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
  return 'guanyin.distribution.v1.'+scope+'.'+hash;
 }
+function distributionSummary(rows){const counts=new Map();for(const row of rows){const label=distributionResultLabel(row);counts.set(label,(counts.get(label)||0)+1)}return [...counts].map(([label,n])=>label+' '+n+' 个').join(' · ')}
 function distributionResults(f){
- const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');
- box.innerHTML=rows.length?`<div class="distribution-heading"><h3>本稿发送结果</h3><button class="button small" type="button" data-distribution-reconcile>核对结果</button></div><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}${r.state==='prepared'&&r.preparation?.editorUrl&&/^https:\/\//.test(r.preparation.editorUrl)?`<p><a href="${esc(r.preparation.editorUrl)}" target="_blank" rel="noopener noreferrer">打开平台编辑页</a> · 填稿已核对，保存与公开状态待确认</p>`:''}</li>`).join('')}</ul><p class="helper" role="status">${esc(distributionWatchLabel(f))}</p><p class="helper">核对只读取记录，不重新投稿。结果待核对时，请在账号管理中查看远端回执。</p>`:'';
+ const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');distributionInlineResults(f);
+ box.innerHTML=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p><details class="distribution-result-details" ${rows.some(r=>['needs_attention','uncertain'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}${r.state==='prepared'&&r.preparation?.editorUrl&&/^https:\/\//.test(r.preparation.editorUrl)?`<p><a href="${esc(r.preparation.editorUrl)}" target="_blank" rel="noopener noreferrer">打开平台编辑页</a> · 填稿已核对，保存与公开状态待确认</p>`:''}</li>`).join('')}</ul></details><p class="helper" role="status">${esc(distributionWatchLabel(f))}</p><p class="helper">结果自动更新。遇到异常再展开账号设置处理，不会自动重复发布。</p>`:'';
 }
 function distributionWatchLabel(f){
- return ({checking:'正在读取最新结果…',watching:'正在自动更新发布进度。',retry_wait:'暂时无法读取新结果，稍后自动再查；不会重发。',paused:'页面在后台或网络不可用，恢复后继续核对。',timeout:'自动核对已暂停，点击“核对结果”继续；原任务不会重发。',complete:'结果已更新。'})[f.distributionWatchState]||'等待中的任务会自动更新结果。';
+ return ({checking:'正在读取最新结果…',watching:'正在自动更新发布进度。',retry_wait:'暂时无法读取新结果，稍后自动再查；不会重发。',paused:'页面在后台或网络不可用，恢复后继续核对。',timeout:'自动核对已暂停，点击“刷新结果”继续；原任务不会重发。',complete:'结果已更新。'})[f.distributionWatchState]||'等待中的任务会自动更新结果。';
 }
 function distributionStopWatch(f){f.distributionWatcher?.stop();f.distributionWatcher=null;}
 async function distributionReconcile(f){
@@ -102,9 +122,9 @@ async function distributionSend(f,mode){
   try{const fresh=await apiRequest('/api/state');state=fresh.state;serverRevision=fresh.revision;}catch{saveBlocked=true;throw new Error('发送记录已保留，但工作区刷新失败。请刷新页面后再编辑，避免覆盖回执。')}
   toast('发送流程已结束，请查看每个账号的实际结果');
  }catch(e){error.textContent=e.message}
- finally{f.distributionBusy=false;runtimeLock(false);if(f.isConnected){f.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=false);f.querySelectorAll('[data-distribution-target]').forEach(e=>e.disabled=!f.distributionTargets.find(t=>t.key===e.value)?.modes.length);distributionUpdate(f);distributionResults(f);distributionWatch(f)}}
+ finally{f.distributionBusy=false;runtimeLock(false);if(f.isConnected){f.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=false);f.querySelectorAll('[data-distribution-target]').forEach(e=>e.disabled=!f.distributionTargets.find(t=>t.key===e.value)?.modes.includes(f.elements.distributionMode.value));distributionUpdate(f);distributionResults(f);distributionWatch(f)}}
 }
-document.addEventListener('change',e=>{const f=e.target.closest('[data-article-editor]');if(f&&(e.target.matches('[data-distribution-target]')||['distributionConfirmed','distributionMode'].includes(e.target.name)))distributionUpdate(f)});
+document.addEventListener('change',e=>{const f=e.target.closest('[data-article-editor]');if(f&&e.target.name==='distributionMode')distributionRenderTargets(f);if(f&&(e.target.matches('[data-distribution-target]')||['distributionConfirmed','distributionMode'].includes(e.target.name)))distributionUpdate(f)});
 function distributionInvalidate(f){distributionStopWatch(f);f.distributionEpoch=(f.distributionEpoch||0)+1;f.distributionKey=null;f.elements.distributionConfirmed.checked=false;f.distributionJournal={};distributionResults(f);distributionUpdate(f)}
 document.addEventListener('input',e=>{const f=e.target.closest('[data-article-editor]');if(f&&['title','text','articleAi'].includes(e.target.name)){distributionInvalidate(f)}});
 document.addEventListener('click',async e=>{
@@ -113,7 +133,13 @@ document.addEventListener('click',async e=>{
  if(b.hasAttribute('data-distribution-manual')){if(articleEditorDirty()){f.querySelector('[data-distribution-error]').textContent='请先保存并审核修改，再准备交付稿。';return}const c=distributionArticle(f);if(c?.status!=='已审核'){f.querySelector('[data-distribution-error]').textContent='请先完成稿件审核。';return}manualPublicationHandoff(c)}
  if(b.hasAttribute('data-distribution-refresh'))await distributionLoad(f);
  if(b.hasAttribute('data-distribution-manage')){if(articleEditorDirty()){const saved=await articleEditorSave('save',{reopen:false});if(!saved)return;}closeDrawer();location.hash='integrations';toast('账号连接后，从内容与确认中打开原稿继续发送')}
- if(b.dataset.distributionSend)await distributionSend(f,b.dataset.distributionSend);
+ if(b.hasAttribute('data-distribution-select-all')){const boxes=[...f.querySelectorAll('[data-distribution-target]:not(:disabled)')],select=!boxes.every(x=>x.checked);for(const box of boxes)box.checked=select;distributionUpdate(f);}
+ if(b.dataset.distributionConnect){
+  const scope=distributionScope();try{b.disabled=true;if(articleEditorDirty()||f.dataset.new==='true'){const saved=await articleEditorSave('save',{reopen:false});if(!saved)return;}if(!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id)return;
+   if(b.dataset.distributionConnect==='wordpress')await publishingCenterAction('publishing-account-add',b);else await browserPublisherAction('browser-publisher-pair',{dataset:{platform:b.dataset.distributionConnect,contentId:f.dataset.id}});
+  }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}
+ }
+ if(b.dataset.distributionSend){f.elements.distributionConfirmed.checked=true;await distributionSend(f,b.dataset.distributionSend);}
  if(b.hasAttribute('data-distribution-reconcile')){
   try{b.disabled=true;await distributionReconcile(f);distributionWatch(f);}
   catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}

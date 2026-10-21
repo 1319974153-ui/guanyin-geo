@@ -52,15 +52,15 @@
 .distribution-media[hidden]{display:none}.distribution-media{margin:20px 0;max-width:560px}
 
 .article-intro{color:var(--muted);margin:0 0 24px;font-size:14px}
-.article-publishing-layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;align-items:start}
+.article-publishing-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(480px,1fr);gap:32px;align-items:start}
 .article-compose{min-width:0}
 .article-mobile-targets{display:none}
 .distribution-account-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .distribution-account-tools>span{margin-left:auto;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 [data-distribution-accounts]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 [data-distribution-accounts]>.distribution-empty,[data-distribution-accounts]>.form-error{grid-column:1/-1}
-.distribution-mode{margin-top:24px}
-.distribution-mode select{width:100%;min-height:44px}
+.distribution-mode{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.distribution-mode select{width:auto;min-height:44px;margin:0}
 .distribution-actions>.button{width:100%;min-height:44px}
 .article-compose>.distribution-confirm{margin-bottom:8px}
 .article-distribution .distribution-confirm{margin-top:20px}
@@ -70,3 +70,21 @@
 @media(max-width:380px){[data-distribution-accounts]{grid-template-columns:1fr}}
 
 .article-distribution [hidden]{display:none!important}
+
+/* All destinations stay in one directory; setup and receipt detail are secondary. */
+[data-distribution-accounts]{grid-template-columns:repeat(3,minmax(0,1fr));max-height:540px;overflow-y:auto;padding:3px;scrollbar-gutter:stable;align-content:start}
+.distribution-platform{position:relative;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-width:0}
+.distribution-platform:has(:checked){border-color:var(--accent);background:var(--pale)}
+.distribution-account{border:0;background:transparent;min-height:86px;padding:12px 10px;align-items:start}
+.distribution-account strong{font-size:13px;line-height:1.5}
+.distribution-account .sub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.distribution-platform>.button{position:absolute;right:8px;bottom:6px;margin:0;min-height:28px;padding:3px 8px}
+.distribution-capability{display:block;margin-top:4px}
+.distribution-capability[data-tone="success"]{color:var(--green)}
+.distribution-capability[data-tone="attention"]{color:var(--amber)}
+.distribution-capability[data-tone="saved"]{color:var(--accent)}
+.distribution-submit-bar{display:flex;align-items:center;gap:16px;margin:0 0 16px}.distribution-submit-bar>.helper{flex:1;font-size:12px}.distribution-submit-bar .distribution-actions{margin:0;min-width:100px}
+.distribution-result-summary{font-size:13px;line-height:1.8}
+.distribution-result-details summary{cursor:pointer;color:var(--muted);font-size:13px;padding:8px 0}
+@media(max-width:1050px){[data-distribution-accounts]{grid-template-columns:repeat(4,minmax(0,1fr));max-height:480px}}
+@media(max-width:760px){[data-distribution-accounts]{grid-template-columns:repeat(2,minmax(0,1fr));max-height:360px}.distribution-account-tools{gap:8px}.distribution-account-tools>span{margin-left:0}.distribution-account{padding:10px 8px}.distribution-account strong{font-size:14px}}

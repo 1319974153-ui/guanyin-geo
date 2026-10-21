@@ -50,9 +50,9 @@ async function browserPublisherAction(name,el){
  if(action==='copy'){const value=document.querySelector('[aria-label="一次性配对信息"]')?.value;if(!value)throw Error('配对信息已关闭，请重新连接');await navigator.clipboard.writeText(value);toast('已复制，请粘贴到观引连接器');return true;}
  if(action==='refresh'){await refreshBrowserPublisher();return true}
  if(action==='pair'){
-  await runtimeFlush();const d=await apiRequest('/api/local-publisher/pairing',{method:'POST',body:JSON.stringify({brandId:brand().id,platform:document.getElementById('browser-publisher-platform')?.value||'csdn'})});
+  await runtimeFlush();const d=await apiRequest('/api/local-publisher/pairing',{method:'POST',body:JSON.stringify({brandId:brand().id,platform:el?.dataset?.platform||document.getElementById('browser-publisher-platform')?.value||'csdn'})});
   const pairing=JSON.stringify({origin:d.origin,instance:d.instance,code:d.code,platform:d.platform});
-  openDrawer('连接 Chrome 发布扩展',`<p>1. 在 Chrome 扩展页开启开发者模式，加载交付包中的 browser-extension 文件夹。</p><p>2. 点击观引扩展，粘贴下方配对信息，点击“连接本机观引”。</p><p>3. 在扩展选择相同平台，点击“打开所选平台并登录”，登录后点“核验当前账号”，最后在这里刷新。</p><label class="field">一次性配对信息 · 5 分钟有效<textarea readonly rows="5" aria-label="一次性配对信息">${esc(pairing)}</textarea></label>${btn('复制配对信息','browser-publisher-copy','primary')}<p class="helper">配对信息相当于本次连接凭据，请勿发给其他人。只授予本机和所选平台所需权限，不要求读取 Cookie。</p>`,'绑定当前品牌 · 可随时撤销');return true;
+  openDrawer('连接 Chrome 发布扩展',`<p>1. 在 Chrome 扩展页开启开发者模式，加载交付包中的 browser-extension 文件夹。</p><p>2. 点击观引扩展，粘贴下方配对信息，点击“连接本机观引”。</p><p>3. 在扩展选择相同平台，点击“打开所选平台并登录”，登录后点“核验当前账号”，最后在这里刷新。</p><label class="field">一次性配对信息 · 5 分钟有效<textarea readonly rows="5" aria-label="一次性配对信息">${esc(pairing)}</textarea></label>${btn('复制配对信息','browser-publisher-copy','primary')}${el?.dataset?.contentId?btn('连接后返回文章','distribute-article','small',`data-id="${esc(el.dataset.contentId)}"`):''}<p class="helper">配对信息相当于本次连接凭据，请勿发给其他人。只授予本机和所选平台所需权限，不要求读取 Cookie。</p>`,'绑定当前品牌 · 可随时撤销');return true;
  }
  if(action==='compose'){
   openArticleEditor();return true;
