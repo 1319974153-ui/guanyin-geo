@@ -74,3 +74,19 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
  }
  assertScope();await persist(next);assertScope();Object.assign(journal,next);return journal;
 }
+
+// Recover durable server receipts when this browser has no local journal.
+// Only an exact current article revision is eligible; this never creates a task.
+export async function recoverDispatchJournal({article,targets,jobs,journal}){
+ const next=structuredClone(journal);
+ const latest=[...(jobs||[])].sort((a,b)=>b.created-a.created);
+ for(const job of latest){
+  if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id||!job.sessionId||job.state==='cancelled')continue;
+  if(['douyin','xiaohongshu'].includes(job.platform)&&JSON.stringify(job.mediaHashes||[])!==JSON.stringify((article.media||[]).map(m=>m.sha256)))continue;
+  const key=job.platform+':'+job.sessionId;if(next[key])continue;
+  const target=targets.find(t=>t.key===key&&t.platform===job.platform&&t.accountId===job.accountId);
+  const row={key,platform:job.platform,sessionId:job.sessionId,accountId:job.accountId,name:target?.name||job.accountId};
+  next[key]={...row,id:await dispatchId(article,row),jobId:job.id,state:job.state,stage:job.mode,error:job.error||'',remote:job.receipt||null,preparation:job.preparation||null};
+ }
+ return next;
+}

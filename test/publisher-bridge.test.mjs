@@ -216,3 +216,12 @@ test('cancelled retained draft remains blocked against re-enqueue',async t=>{
  const {e,j}=await draftReady(t);await e.ext('report',{id:j.id,lease:j.lease,state:'needs_attention'});
  assert.equal((await e.app('cancel',{id:j.id})).status,200);assert.equal((await e.enqueue({mode:'draft'})).status,409);assert.equal((await e.ext('report',draftReport(j))).status,409);
 });
+
+test('dashboard exposes content identity and distinguishes an old draft from the current revision',async t=>{
+ const e=setup(t);await e.ready();
+ const status=()=>e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1',origin:ORIGIN},'GET');
+ let r=await status();assert.equal(r.status,200);assert.equal(r.data.jobs[0].contentId,'c');assert.equal(r.data.jobs[0].currentRevision,true);
+ e.state.contents[0].text+='修改';r=await status();assert.equal(r.data.jobs[0].currentRevision,false);
+ assert.equal(r.data.jobs[0].snapshot,undefined);assert.equal(r.data.jobs[0].lease,undefined);assert.equal(r.data.jobs[0].sourceHash,undefined);
+ const other=await e.request('/api/local-publisher/status?brandId=other',null,{'x-geo-request':'1',origin:ORIGIN},'GET');assert.equal(other.data.jobs.length,0);
+});

@@ -9,7 +9,7 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status})};
 const EXT=/^chrome-extension:\/\/[a-p]{32}$/;
 const csrf=req=>req.headers.get('x-geo-request')==='1';
 const safeId=v=>typeof v==='string'&&/^[\w-]{1,100}$/.test(v);
-const publicJob=j=>({platform:j.platform||'csdn',id:j.id,brandId:j.brandId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,created:j.created,expires:j.expires,error:j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
+const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
 
 
 function validateMedia(input,limits){
@@ -87,8 +87,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    expire();
    if(!extension){
     if(action==='status'){
-     const brandId=u.searchParams.get('brandId');brand(brandId);
-     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(s.platform==='zhihu'&&s.draftProtocol===1?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(publicJob)});
+     const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;
+     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(s.platform==='zhihu'&&s.draftProtocol===1?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform])fail(400,'不支持的发布平台');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}
     if(action==='revoke'){

@@ -68,3 +68,5 @@
 @media(max-width:1050px){.article-publishing-layout{grid-template-columns:1fr;gap:24px}.article-distribution{padding:24px 0 0;border-left:0;border-top:1px solid var(--line)}.article-mobile-targets{display:inline-flex}}
 @media(max-width:760px){[data-distribution-accounts]{grid-template-columns:1fr 1fr}.distribution-account{gap:6px 8px;padding:12px 8px}.distribution-capability{margin-left:0}.article-bottom{position:static}.article-intro{margin-bottom:18px}.distribution-account-tools .button{min-height:44px}}
 @media(max-width:380px){[data-distribution-accounts]{grid-template-columns:1fr}}
+
+.article-distribution [hidden]{display:none!important}

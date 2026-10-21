@@ -38,3 +38,35 @@ test('restored setup draft retains source URL and user edits with escaped HTML',
  assert.match(html,/value="用户的选型问题"/);assert.match(html,/value="腾讯元宝" checked/);
  assert.match(html,/此前粘贴的资料正文/);assert.match(html,/data-id="saved-draft"/);
 });
+
+test('next action prioritizes existing content instead of requiring an AI sample or goal',()=>{
+ const {ctx}=ui();const data={facts:[{usable:true}],contents:[]};ctx.own=k=>data[k]||[];ctx.GEO_KNOWLEDGE={factUsable:f=>f.usable};ctx.serverConnections=[];
+ assert.equal(vm.runInContext('simpleNextWork().action',ctx),'write-article');
+ data.contents=[{id:'draft',title:'已有稿件',status:'草稿'}];assert.equal(vm.runInContext('simpleNextWork().id',ctx),'draft');
+ data.contents[0].status='已审核';assert.equal(vm.runInContext('simpleNextWork().action',ctx),'distribute-article');
+ vm.runInContext("simplePublishingScope=simpleScope();simplePublishing={jobs:[{contentId:'draft',state:'draft',currentRevision:true,created:1}]}",ctx);ctx.browserPublisherStates={draft:'平台草稿已保存'};
+ assert.equal(vm.runInContext('simpleNextWork().label',ctx),'查看原稿与回执');
+ vm.runInContext('simplePublishing.jobs[0].currentRevision=false',ctx);assert.equal(vm.runInContext('simpleNextWork().label',ctx),'选择账号并发送');
+ vm.runInContext("simplePublishingScope='other'",ctx);assert.equal(vm.runInContext('simpleNextWork().label',ctx),'选择账号并发送');
+ ctx.accessInfo.current.role='viewer';assert.equal(vm.runInContext('simpleNextWork().href',ctx),'#results');
+});
+test('active flow is continued instead of prompting to create another paid task',()=>{
+ const {ctx}=ui();ctx.GEO_KNOWLEDGE={factUsable:()=>true};vm.runInContext("simpleFlowScope=simpleScope();simpleFlows=[{id:'f',stage:'checking'}]",ctx);
+ assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-work-progress');
+ vm.runInContext('simpleFlows[0].paused=true',ctx);assert.match(vm.runInContext('simpleNextWork().title',ctx),/暂停/);
+});
+
+test('switching brands during progress loading discards the old result and loads the selected brand',async()=>{
+ const {ctx}=ui();const selected={id:'a'},requests=[],pauses=[];ctx.brand=()=>selected;ctx.route='today';ctx.browserPublisherAvailable=()=>false;ctx.render=()=>{};
+ ctx.apiRequest=path=>{requests.push(path);return new Promise(resolve=>pauses.push(resolve))};
+ const first=vm.runInContext('refreshSimple()',ctx);selected.id='b';pauses.shift()({flows:[{id:'old'}]});await first;
+ assert.equal(requests.length,2);assert.match(requests[1],/brandId=b/);assert.notEqual(vm.runInContext('simpleFlowScope',ctx),'owner||a');
+ pauses.shift()({flows:[{id:'new'}]});await new Promise(r=>setImmediate(r));
+ assert.equal(vm.runInContext('simpleFlows[0].id',ctx),'new');assert.equal(vm.runInContext('simpleFlowScope',ctx),'owner||b');
+});
+test('failed content progress retains independent receipt results and offers recovery instead of another paid job',async()=>{
+ const {ctx}=ui();ctx.route='today';ctx.render=()=>{};ctx.browserPublisherAvailable=()=>true;ctx.GEO_KNOWLEDGE={factUsable:()=>true};
+ ctx.apiRequest=async path=>{if(path.includes('/simple/flows'))throw Error('offline');return {jobs:[{id:'existing'}]}};
+ await vm.runInContext('refreshSimple()',ctx);
+ assert.equal(vm.runInContext('simplePublishing.jobs[0].id',ctx),'existing');assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-refresh');
+});

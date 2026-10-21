@@ -1,6 +1,6 @@
 /* Simple mode orchestrates existing services; it does not fabricate platform results. */
 const SIMPLE_ENTRIES={'豆包':'https://www.doubao.com/chat/','DeepSeek':'https://chat.deepseek.com/','Kimi':'https://www.kimi.com/','腾讯元宝':'https://yuanbao.tencent.com/','通义千问':'https://www.qianwen.com/','文心':'https://yiyan.baidu.com/','ChatGPT':'https://chatgpt.com/'};
-let simpleActivePlatform="",simpleDraft=null,simpleFlows=[],simpleFlowScope='',simpleLoading=false,simpleError='',simpleRefreshTimer=null,simpleReading=false;
+let simpleActivePlatform="",simpleDraft=null,simpleFlows=[],simpleFlowScope='',simpleLoading=false,simpleError='',simpleRefreshTimer=null,simpleReading=false,simplePublishing=null,simplePublishingScope='';
 function simplePlatforms(){return brand().platforms?.filter(p=>SIMPLE_ENTRIES[p])||Object.keys(SIMPLE_ENTRIES)}
 function simpleScope(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand().id].join('|')}
 function simpleWrite(){return ['owner','admin','editor'].includes(accessInfo.current.role)}
@@ -15,14 +15,14 @@ function renderSimpleNavigation(){
 }
 function simpleCard(title,body,actions=''){return `<section class="simple-card"><h3>${title}</h3>${body}${actions}</section>`}
 function renderSimpleSetup(){
- const d=simpleDraft ||= state.simpleSetupDraft||{id:uid(),entityType:'brand',platforms:['豆包']};
+ const d=simpleDraft ||= state.simpleSetupDraft||{id:uid(),entityType:'brand',platforms:['豆包','腾讯元宝','通义千问']};
  const imported=!!d.text;
- return `<div class="simple-setup">${title('让 AI 在合适的问题里找到你','可以是品牌、一款产品，也可以是你自己。')}<form class="focus-setup" data-simple="setup" data-id="${esc(d.id)}">
+ return `<div class="simple-setup">${title('先认识你的业务','填写名称和一句介绍，其他内容可以稍后补充。')}<form class="focus-setup" data-simple="setup" data-id="${esc(d.id)}">
  <fieldset class="entity-choice"><legend>你想让 AI 认识谁？</legend>${Object.entries(SIMPLE_TYPES).map(([v,t])=>`<label><input type="radio" name="entityType" value="${v}" ${v===(d.entityType||'brand')?'checked':''}><span>${t}</span></label>`).join('')}</fieldset>
  <label class="field"><span data-entity-name>名称</span><input name="name" required maxlength="160" value="${esc(d.name||'')}" placeholder="例如：温舒 / 观引 GEO" autocomplete="off"></label>
  <label class="field">一句介绍<textarea name="description" required minlength="8" maxlength="5000" rows="3" placeholder="你做什么、帮助谁，以及可以公开核实的项目。">${esc(d.description||'')}</textarea></label>
- <label class="field">希望用户怎样问 AI 时找到你？<input name="goalQuery" required maxlength="500" value="${esc(d.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>写真实需求，尽量不带自己的名字。它是目标，不是已经获得的推荐。</small></label>
- <details class="simple-detail setup-extras"><summary>补充网址、导入资料或调整平台</summary>
+ <details class="simple-detail setup-extras"><summary>导入资料、设置目标与关注平台（可选）</summary>
+ <label class="field">希望用户怎样问 AI 时找到你？<input name="goalQuery" maxlength="500" value="${esc(d.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>可以先留空，观引会准备初始问题建议。目标不代表已经获得推荐。</small></label>
  <label class="field">公开网站（可选）<input name="site" type="url" value="${esc(d.site||'')}" placeholder="https://"></label>
  <label class="field">从网页读取资料<input name="url" type="url" value="${esc(d.url||'')}" placeholder="https://"></label>
  <label class="file-picker">上传 PDF、Word、文本或图片<input type="file" name="file" data-simple-file accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg"></label>
@@ -42,23 +42,39 @@ function simpleFlowCards(){
  return simpleCard(f.paused?'流程已暂停':labels[f.stage]||'正在处理',`<p>${esc(own('questions').find(q=>q.id===f.questionId)?.text||'历史问题')}</p>${f.error?`<p class="simple-issue">${esc(f.error)}</p>`:''}${f.issues?.length?`<p class="simple-issue">${esc(f.issues[0].error||taskStates[f.issues[0].status])}</p><a href="#tasks">查看失败原因与恢复操作 →</a>`:''}`,f.stage==='review'?'<a class="button primary" href="#inbox">查看稿件</a>':simpleWrite()?(runnable?btn('执行下一步','simple-tick','primary'):'')+btn(f.paused||f.stage==='needs_attention'?'继续流程':'暂停流程','simple-flow-action','small',`data-id="${esc(f.id)}" data-mode="${f.paused||f.stage==='needs_attention'?'resume':'pause'}"`):'');
  }).join('');
 }
+// Choose one next action from actual work, never gate writing on a manual AI sample.
+function simpleNextWork(){
+ const contents=own('contents').filter(c=>!c.demo),facts=own('facts');
+ const flow=simpleFlowScope===simpleScope()?simpleFlows.find(f=>f.paused||['writing','checking','needs_attention'].includes(f.stage)):null;
+ const review=contents.find(c=>c.status!=='已审核'),approved=contents.slice().reverse().find(c=>c.status==='已审核');
+ const pub=simplePublishingScope===simpleScope()?simplePublishing:null;
+ const job=pub?.jobs?.filter(j=>j.state!=='cancelled'&&j.currentRevision===true&&j.contentId===approved?.id).sort((a,b)=>b.created-a.created)[0];
+ if(!simpleWrite()&&!simpleReview())return {title:'查看已记录的结果',text:'可以查看内容和证据；编辑与发送由有权限的成员完成。',label:'查看效果',href:'#results'};
+ if(simpleFlowScope===simpleScope()&&simpleError.includes('内容进度暂时无法读取'))return {title:'先恢复内容进度',text:'没有重新创建任务。刷新后可继续原稿，避免重复生成与费用。',label:'重新读取进度',action:'simple-refresh'};
+ if(flow)return {title:flow.paused?'内容任务已暂停':flow.stage==='needs_attention'?'这项任务需要处理':'内容正在准备中',text:flow.paused?'原任务和稿件已保留，可以从中断处继续。':runtimeContext.background?.enabled?'后台会继续处理，完成后在这里核对稿件。':'查看任务进度并执行下一步，无需重新创建任务。',label:'查看任务进度',action:'simple-work-progress'};
+ if(review)return {title:'有一篇内容等你确认',text:review.title||'先核对这份稿件，再选择自己的发布账号。',label:simpleWrite()?'查看并编辑':'查看待审核稿',action:'edit-content',id:review.id};
+ if(approved&&simpleWrite()){
+  const same=job?.contentId===approved.id;
+  return {title:same?'继续查看这篇内容的结果':'内容已就绪，选择发布账号',text:same?(browserPublisherStates[job.state]||'平台结果待核对'):'不需要重新复制正文，勾选账号后按已支持的方式发送。',label:same?'查看原稿与回执':'选择账号并发送',action:'distribute-article',id:approved.id};
+ }
+ if(!simpleWrite())return {title:'目前没有待审核稿件',text:'新稿件准备好后会出现在这里。',label:'查看内容',href:'#inbox'};
+ if(!facts.some(GEO_KNOWLEDGE.factUsable))return {title:'先补充可以公开的业务资料',text:'一份现有介绍或项目说明即可，核对后可反复使用。',label:'补充资料',href:'#knowledge'};
+ return {title:'准备你的第一篇内容',text:serverConnections.length?'根据已确认资料生成草稿，检查后交给你确认。':'可以直接写作或粘贴已有文章；需要 AI 写作时再连接模型。',label:serverConnections.length?'准备内容':'写作或粘贴文章',action:serverConnections.length?'simple-prepare':'write-article'};
+}
 function renderSimpleToday(){
- const b=brand(),qs=own('questions'),facts=own('facts'),usable=facts.some(GEO_KNOWLEDGE.factUsable);
- const answers=own('answers').filter(a=>a.surface==='import'&&!a.demo&&a.status==='ok');
- const pending=facts.filter(f=>f.status==='待确认').length,waiting=own('contents').filter(c=>c.status!=='已审核').length;
- const goal=GEO_METRICS.goalEvidence(answers,b),target=qs.find(q=>q.text.trim()===b.goalQuery?.trim())||qs[0];
- const next=!b.goalQuery?'先确定你希望被找到的问题':!usable?'补齐可以核实的介绍和项目':!goal.rows.length?'记录一次目标问题的回答，建立起点':waiting?'核对草稿，让真实项目成为内容依据':'根据实际引用，补齐下一篇内容';
- const main=!b.goalQuery?(isOwner()?btn('设定目标问题','simple-goal','primary'):'<a class="button primary" href="#results">查看已有结果</a>'):!usable?'<a class="button primary" href="#knowledge">补充项目资料</a>':waiting&&goal.rows.length?'<a class="button primary" href="#inbox">核对草稿</a>':simpleWrite()?btn(!goal.rows.length?'记录首次 AI 回答':'准备下一篇内容',!goal.rows.length?'simple-capture':'simple-prepare','primary',`data-id="${esc(target?.id||'')}"`):'<a class="button primary" href="#results">查看已有结果</a>';
- const active=simpleFlowScope===simpleScope()&&simpleFlows.length;
- return title(esc(b.name),`${SIMPLE_TYPES[b.entityType]||'品牌'} · AI 可见性工作台`,isOwner()?btn('编辑资料','catalog-profile','ghost small',`data-id="${esc(b.id)}"`):'')+simpleBrandPicker()+`
- <div class="focus-workspace"><section class="focus-goal" aria-labelledby="focus-goal-title"><div class="goal-heading"><h2 id="focus-goal-title">${esc(b.goalQuery||'你希望用户怎样问 AI 时找到你？')}</h2>${b.goalQuery&&isOwner()?btn('调整目标','simple-goal','ghost small'):''}</div><p>用户提出这个需求时，让 AI 有依据地认识、引用和推荐${b.entityType==='person'?'你':'你提供的服务或产品'}。</p>
- <ol class="goal-path" aria-label="从资料到推荐的工作路径"><li><a href="#knowledge">资料与证据</a></li><li><a href="#inbox">内容与发布</a></li><li><a href="#results">引用与推荐</a></li></ol>
- <div class="next-action"><h3>${esc(next)}</h3><div class="today-actions">${main}${simpleWrite()&&(!b.goalQuery||waiting||!goal.rows.length)?btn('准备内容','simple-prepare','ghost'):''}</div></div></section>
- <section class="focus-evidence" aria-labelledby="focus-evidence-title"><div class="section-heading"><h2 id="focus-evidence-title">距离被推荐，还有哪些证据？</h2><a href="#results">查看原始回答 →</a></div><dl class="evidence-strip"><div><dt>目标问题的回答</dt><dd>${goal.rows.length?goal.rows.length+' 条':'尚未记录'}</dd></div><div><dt>提及${b.entityType==='person'?'你':'名称'}</dt><dd>${goal.rows.length?goal.metrics.mention+' / '+goal.rows.length:'待验证'}</dd></div><div><dt>引用官网</dt><dd>${!b.site?'待补充官网':goal.metrics.citationN?goal.metrics.official+' / '+goal.metrics.citationN:'待核对引用'}</dd></div><div><dt>无点名推荐</dt><dd>${goal.prompted?'目标包含名称':goal.reviewed.length?goal.recommended.length+' / '+goal.reviewed.length:'待核对推荐'}</dd></div></dl><p class="simple-help">只统计这个目标问题的正式回答。无点名推荐还需确认联网模式与原文；上传资料、发表文章都不等于已被推荐。</p></section>
- <section class="focus-questions"><div class="section-heading"><h2>用户会问的问题</h2><a href="#monitor">管理全部 ${qs.length} 个 →</a></div><ul>${[...(target?[target]:[]),...qs.filter(q=>q.id!==target?.id)].slice(0,3).map(q=>`<li><span>${esc(q.text)}</span>${simpleWrite()?btn('记录回答','simple-capture','ghost small',`data-id="${esc(q.id)}"`):''}</li>`).join('')||'<li>还没有问题。先设定一个真实需求。</li>'}</ul></section>
- ${pending?`<p class="focus-notice"><a href="#inbox">${pending} 项资料待核对</a>，核对后才会用于内容生成。</p>`:''}
- ${active?`<section class="today-progress"><h2>内容准备进度</h2><div class="simple-grid">${simpleFlowCards()}</div></section>`:''}
- <details class="simple-detail focus-settings"><summary>平台与后台设置</summary><p class="simple-help">当前关注：${esc(simplePlatforms().join('、'))}。${runtimeContext.background?.enabled?'本机后台已开启。':'后台未开启，任务按需执行。'}</p><div class="today-actions">${isOwner()?btn('调整关注平台','simple-platforms','small'):''}${simpleWrite()&&active?btn('推进内容任务','simple-tick','small'):''}${isLocalRuntime()&&isOwner()?btn(runtimeContext.background?.enabled?'暂停本机后台':'开启本机后台','local-runner-toggle','small',`data-enabled="${!runtimeContext.background?.enabled}"`):''}${btn('刷新工作区','simple-refresh','ghost small')}</div></details><p class="simple-error" role="alert">${esc(simpleError)}</p></div>`;
+ const b=brand(),qs=own('questions'),facts=own('facts'),next=simpleNextWork(),contents=own('contents').filter(c=>!c.demo);
+ const answers=own('answers').filter(a=>a.surface==='import'&&!a.demo&&a.status==='ok'),goal=GEO_METRICS.goalEvidence(answers,b);
+ const pub=simplePublishingScope===simpleScope()?simplePublishing:null,connected=pub?.accounts?.filter(a=>a.account).length;
+ const pending=facts.filter(f=>f.status==='待确认').length,active=simpleFlowScope===simpleScope()&&simpleFlows.length;
+ const main=next.href?'<a class="button primary" href="'+esc(next.href)+'">'+esc(next.label)+'</a>':btn(next.label,next.action,'primary',next.id?'data-id="'+esc(next.id)+'"':'');
+ return title(esc(b.name),'从业务资料到内容发布，一步一步完成。',isOwner()?btn('编辑资料','catalog-profile','ghost small',`data-id="${esc(b.id)}"`):'')+simpleBrandPicker()+`
+ <div class="focus-workspace"><section class="focus-goal" aria-labelledby="focus-goal-title"><div class="goal-heading"><h2 id="focus-goal-title">${esc(next.title)}</h2></div><p>${esc(next.text)}</p><div class="today-actions">${main}${contents.length&&simpleWrite()?btn('写新文章','write-article','ghost'):''}<a class="button ghost" href="#integrations">发布账号${connected?' · '+connected:''}</a></div>
+ <ol class="work-journey" aria-label="操作流程"><li><a href="#knowledge">业务资料</a><span>${facts.some(GEO_KNOWLEDGE.factUsable)?'已有确认资料':'待补充'}</span></li><li><a href="#inbox">内容确认</a><span>${contents.length?contents.length+' 篇内容':'待准备首稿'}</span></li><li><a href="#publish">发布结果</a><span>${pub?.jobs?.length?'查看逐平台回执':'发送后查看'}</span></li></ol></section>
+ ${active?`<section class="today-progress" id="work-progress" tabindex="-1"><h2>正在处理的内容</h2><div class="simple-grid">${simpleFlowCards()}</div></section>`:''}
+ ${pending?`<p class="focus-notice"><a href="#inbox">${pending} 项资料待核对</a>，确认后可用于后续内容。</p>`:''}
+ <section class="focus-evidence" aria-labelledby="focus-evidence-title"><div class="section-heading"><h2 id="focus-evidence-title">AI 是否已经引用或推荐？</h2><a href="#results">查看效果与原文 →</a></div><p class="simple-help">${goal.rows.length?'目标问题已记录 '+goal.rows.length+' 条真实回答；具体推荐与引用见原文。':'还没有这个目标的真实回答，当前效果未知。可以先完成内容，再记录回答作比较。'}</p>${simpleWrite()?btn('记录一次 AI 回答','simple-capture','ghost small'):''}</section>
+ <details class="simple-detail focus-settings"><summary>运营目标与用户问题</summary><div class="section-heading"><p>${esc(b.goalQuery||'尚未指定目标。已有初始问题建议，可以随时调整。')}</p>${isOwner()?btn('调整目标','simple-goal','small'):''}</div><a href="#monitor">查看与调整 ${qs.length} 个问题 →</a><p class="simple-help">当前关注：${esc(simplePlatforms().join('、'))}。真实平台回答与模型 API 测试分别统计。</p>${isOwner()?btn('调整关注平台','simple-platforms','small'):''}</details>
+ <details class="simple-detail focus-settings"><summary>后台与更多设置</summary><p class="simple-help">${runtimeContext.background?.enabled?'本机后台已开启。':'后台未开启，任务按需执行。'}电脑关闭时不能执行本机任务。</p><div class="today-actions">${isLocalRuntime()&&isOwner()?btn(runtimeContext.background?.enabled?'暂停本机后台':'开启本机后台','local-runner-toggle','small',`data-enabled="${!runtimeContext.background?.enabled}"`):''}${btn('刷新工作区','simple-refresh','ghost small')}</div></details><p class="simple-error" role="alert">${esc(simpleError)}</p></div>`;
 }
 function renderSimpleInbox(){
  const facts=own('facts').filter(f=>f.status==='待确认'),contents=own('contents').slice().reverse(),pubs=own('publications').filter(p=>!p.url&&!p.demo);
@@ -70,14 +86,25 @@ function renderSimpleResults(){
 }
 async function refreshSimple(){
  if(simpleLoading||!brand().id)return;const scope=simpleScope(),id=brand().id;simpleLoading=true;
- try{const d=await apiRequest('/api/simple/flows?brandId='+encodeURIComponent(id));if(scope!==simpleScope())return;simpleFlows=d.flows;simpleFlowScope=scope;simpleError='';if(route==='today')render();}catch(e){simpleError=e.message;}finally{simpleLoading=false;}
+ try{
+  const results=await Promise.allSettled([apiRequest('/api/simple/flows?brandId='+encodeURIComponent(id)),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?brandId='+encodeURIComponent(id)):Promise.resolve(null)]);
+  if(scope!==simpleScope())return;
+  simpleFlowScope=scope;simpleFlows=results[0].status==='fulfilled'?results[0].value.flows:[];
+  simplePublishing=results[1].status==='fulfilled'?results[1].value:null;simplePublishingScope=scope;
+  simpleError=[results[0].status==='rejected'?'内容进度暂时无法读取，请刷新重试。':'',results[1].status==='rejected'?'发布状态暂时无法读取，可在发布账号页重试。':''].filter(Boolean).join(' ');
+ }catch(e){if(scope===simpleScope()){simpleError=e.message;simpleFlowScope=scope;}}
+ finally{
+  simpleLoading=false;
+  if(scope!==simpleScope()){if(route==='today')void refreshSimple();}
+  else if(route==='today')render();
+ }
 }
 function simpleDecorate(){
  window.GEO_LIGHT?.mount();
  clearTimeout(simpleRefreshTimer);
  if(state.viewMode!=='simple'||!brand().id)return;
  if(route==='today'&&simpleFlowScope!==simpleScope())void refreshSimple();
- if(route==='today'&&runtimeContext.background?.enabled&&simpleFlows.some(f=>!f.paused&&['writing','checking'].includes(f.stage)))simpleRefreshTimer=setTimeout(()=>{if(!runtimeBusy&&!pendingSnapshot&&!savingPromise&&!$('#drawer').open)void reloadWorkspace().then(refreshSimple).catch(()=>{});},12000);
+ if(route==='today'&&(runtimeContext.background?.enabled&&simpleFlows.some(f=>!f.paused&&['writing','checking'].includes(f.stage))||simplePublishingScope===simpleScope()&&simplePublishing?.jobs?.some(j=>['queued','preparing','submitting'].includes(j.state))))simpleRefreshTimer=setTimeout(()=>{if(!runtimeBusy&&!pendingSnapshot&&!savingPromise&&!$('#drawer').open)void reloadWorkspace().then(refreshSimple).catch(()=>{});},12000);
 }
 function simpleCapture(qid,platform){
  const q=own('questions').find(q=>q.id===qid)||own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())||own('questions')[0];if(!q){toast('请先添加一个用户问题');go('monitor');return;}
@@ -103,6 +130,7 @@ async function simpleAction(name,el){
   if(!v.text.trim()&&!v.url){error.textContent='粘贴资料、上传文件或填写读取网址后再试。';return true;}
   runtimeLock(true);try{await runtimeFlush();const d=await apiRequest('/api/simple/source',{method:'POST',body:JSON.stringify(v.text.trim()?{text:v.text,source:v.source}:{url:v.url})});simpleDraft={...simpleDraft,...d,name:v.name.trim()||d.name,description:v.description.trim()||d.description,entityType:v.entityType,goalQuery:v.goalQuery,site:v.site||d.site,platforms:new FormData(f).getAll('platforms')};state.simpleSetupDraft=simpleDraft;save();await runtimeFlush();runtimeLock(false);render();toast('资料已填入，请核对后保存');}catch(e){error.textContent=e.message;}finally{runtimeLock(false);}return true;
  }
+ if(name==='simple-work-progress'){document.querySelector('#work-progress')?.scrollIntoView({block:'start'});document.querySelector('#work-progress')?.focus({preventScroll:true});return true;}
  if(name==='simple-cancel-parse'){simpleParseCancel?.();return true;}
  if(name==='simple-setup-back'){simpleDraft=null;state.simpleSetupDraft=null;save();render();return true;}
  if(name==='simple-capture'){simpleCapture(el.dataset.id,el.dataset.platform);return true;}
@@ -117,7 +145,7 @@ async function simpleAction(name,el){
  if(name==='simple-prepare'){
   if(!own('questions').length){toast('先设定一个用户会问的问题');go('monitor');return true;}
   if(!serverConnections.length){await action('new-content',{dataset:{id:own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())?.id||''}});return true;}
-  openDrawer('自动准备一篇内容',`<form data-simple="prepare" data-id="${uid()}"><label class="field">先回答哪个用户问题<select name="questionId">${own('questions').map(q=>`<option value="${esc(q.id)}" ${q.text.trim()===brand().goalQuery?.trim()?'selected':''}>${esc(q.text)}</option>`).join('')}</select></label><label class="field">使用我的写作模型<select name="provider">${serverConnections.map(c=>`<option value="${esc(c.provider)}">${esc(c.model)}</option>`).join('')}</select></label><p>系统依次生成 1 篇草稿、进行 1 次内容质检，然后等你审核。通常 2 次模型请求，失败重试可能增加次数；按你的供应商账号计费并受已有预算限制。</p><p>不会自动公开发布。后台已开启时可关闭网页等待；否则在工作台的内容进度卡片上点击“执行下一步”。</p>${isLocalRuntime()&&isOwner()&&!runtimeContext.background?.enabled?'<label class="auto-option"><input type="checkbox" name="enableBackground">同时开启本机后台，自动完成后续步骤（包括已有启用任务）</label>':''}${isOwner()?btn('查看 / 设置费用预算','budget-open','small','type="button"'):''}<p class="form-error" role="alert"></p><button class="button primary" type="submit">确认用我的模型准备内容</button> ${btn('先用本地模板，不调用模型','simple-local-draft','ghost','type="button"')}</form>`);return true;
+  openDrawer('自动准备一篇内容',`<form data-simple="prepare" data-id="${uid()}"><p class="simple-question" data-prepare-question>${esc((own('questions').find(q=>q.text.trim()===brand().goalQuery?.trim())||own('questions')[0]).text)}</p><details class="simple-detail"><summary>调整问题或写作模型</summary><label class="field">先回答哪个用户问题<select name="questionId">${own('questions').map(q=>`<option value="${esc(q.id)}" ${q.text.trim()===brand().goalQuery?.trim()?'selected':''}>${esc(q.text)}</option>`).join('')}</select></label><label class="field">使用我的写作模型<select name="provider">${serverConnections.map(c=>`<option value="${esc(c.provider)}">${esc(c.model)}</option>`).join('')}</select></label></details><p data-prepare-model>使用 ${esc(serverConnections[0].model)}，按你的供应商账号计费。</p><p>系统依次生成 1 篇草稿、进行 1 次内容质检，然后等你审核。通常 2 次模型请求，失败重试可能增加次数；按你的供应商账号计费并受已有预算限制。</p><p>不会自动公开发布。后台已开启时可关闭网页等待；否则在工作台的内容进度卡片上点击“执行下一步”。</p>${isLocalRuntime()&&isOwner()&&!runtimeContext.background?.enabled?'<label class="auto-option"><input type="checkbox" name="enableBackground">同时开启本机后台，自动完成后续步骤（包括已有启用任务）</label>':''}${isOwner()?btn('查看 / 设置费用预算','budget-open','small','type="button"'):''}<p class="form-error" role="alert"></p><button class="button primary" type="submit">确认用我的模型准备内容</button> ${btn('先用本地模板，不调用模型','simple-local-draft','ghost','type="button"')}</form>`);return true;
  }
  if(name==='simple-weekly'){
   await refreshReportArchives();const row=reportScheduleData.find(r=>r.frequency==='weekly'&&r.surface==='import'&&!r.options?.productId);
@@ -128,6 +156,7 @@ async function simpleAction(name,el){
 let simpleParseCancel=null;
 document.addEventListener('change',async e=>{
  const f=e.target.closest('form');if(!f)return;
+ if(f.dataset.simple==='prepare'){if(e.target.name==='questionId')f.querySelector('[data-prepare-question]').textContent=own('questions').find(q=>q.id===e.target.value)?.text||'请选择问题';if(e.target.name==='provider')f.querySelector('[data-prepare-model]').textContent='使用 '+(serverConnections.find(c=>c.provider===e.target.value)?.model||'所选模型')+'，按你的供应商账号计费。';}
  if(f.dataset.simple==='capture'){
   if(e.target.name==='platform'){const a=f.querySelector('[data-simple-entry]');a.href=SIMPLE_ENTRIES[e.target.value];a.textContent='打开'+e.target.value;}
   if(['questionId','questionVersion'].includes(e.target.name)){const q=own('questions').find(x=>x.id===f.elements.questionId.value);f.querySelector('[data-simple-question]').textContent=answerImportVersions(q).find(v=>(v.version||'v1')===f.elements.questionVersion.value)?.text||q.text;}
@@ -190,3 +219,5 @@ function simplePublicationJourney(p){
  const snapshot=p.handoffSnapshot,c=own('contents').find(c=>c.id===p.contentId);
  openDrawer(p.url?'检查这篇文章的实际结果':'把这篇稿件发布出去',`<h3>${esc(p.title)}</h3><p>${esc(p.channel)} · ${esc(GEO_PUBLICATION.publicationStatus(p))}</p>${!p.url?`<p>审核稿已经固定，先到平台发布，再保存平台实际显示的结果。</p><div class="form-actions">${snapshot?btn('复制审核稿','simple-copy-article','primary',`data-id="${esc(p.id)}"`)+btn('下载稿件','handoff-download','',`data-id="${esc(p.id)}"`):''}${p.entryUrl?links(p.entryUrl,'打开发布平台'):''}</div>${btn('保存平台结果 / 文章链接','edit-publication','primary',`data-id="${esc(p.id)}"`)}`:`<p>${links(p.url,'查看公开文章')}</p>${GEO_PUBLICATION.canCheckPublication(p)?btn('检查文章链接','publication-check-run','primary',`data-id="${esc(p.id)}"`):''}${btn('重新检测 AI 平台','simple-capture','',`data-id="${esc(c?.questionId||'')}"`)}${btn('更新平台结果','edit-publication','small',`data-id="${esc(p.id)}"`)}`}<details class="simple-detail"><summary>更多发布方式与说明</summary><p>文章可访问、搜索收录和 AI 引用分别记录，不相互推断。后台在线时，已开启的公开链接复测按设置执行。</p><a href="#publish" data-close>自有 WordPress 网站连接与直接发布 →</a></details>`,'审核稿 → 实际平台结果');
 }
+
+document.addEventListener('invalid',e=>{if(!e.target.closest('[data-simple]'))return;for(let el=e.target.parentElement;el;el=el.parentElement)if(el.tagName==='DETAILS')el.open=true;},true);

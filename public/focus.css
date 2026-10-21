@@ -49,3 +49,10 @@ body[data-view="simple"] .button{min-height:38px}.focus-workspace .button.primar
 .model-service h3{font-size:17px;margin:0 0 8px}.model-service p{margin:0;color:var(--muted);font-size:13px;line-height:1.7;overflow-wrap:anywhere}.model-service .form-actions{flex-wrap:wrap;margin:0}
 .model-help{display:inline-block;margin:0 0 16px;text-underline-offset:4px}.model-advanced{margin:18px 0}.model-advanced .field{margin-top:18px}.model-developer{margin-top:30px;border-top:1px solid var(--line);padding-top:20px}
 @media(max-width:700px){.model-service{align-items:flex-start;flex-direction:column;padding:18px}.model-service .form-actions{width:100%}.model-service .form-actions .primary{flex:1}.model-steps{gap:10px 24px;font-size:13px}}
+
+/* The next real action leads; detailed evidence stays in the effects view. */
+.work-journey{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));list-style:none;margin:26px 0 0;padding:20px 0 0;border-top:1px solid var(--line);gap:20px}
+.work-journey li{display:flex;flex-direction:column;gap:7px;min-width:0;line-height:1.7}
+.work-journey a{font-size:14px;color:var(--ink);text-underline-offset:4px}.work-journey span{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.focus-evidence>.simple-help{max-width:70ch;margin-bottom:8px}.today-progress{scroll-margin-top:24px}.today-progress>.simple-grid{margin-top:16px}
+@media(max-width:700px){.work-journey{gap:10px;margin-top:22px}.work-journey a{font-size:13px}.work-journey span{font-size:12px}}

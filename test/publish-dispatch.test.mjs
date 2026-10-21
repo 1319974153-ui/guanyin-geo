@@ -80,3 +80,18 @@ test('journal storage failure leaves displayed receipt unchanged',async()=>{
  await assert.rejects(reconcileDispatch({article,journal,request:async()=>({jobs:[{id:'j',state:'draft'}]}),persist:async()=>{throw Error('storage full')},assertScope:()=>{}}),/storage full/);
  assert.equal(journal.csdn.state,'queued');
 });
+
+test('fresh browser recovers an existing current-revision draft without a second enqueue',async()=>{
+ const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');
+ const target={key:'zhihu:s1',platform:'zhihu',accountId:'author',sessionId:'s1',name:'作者',modes:['draft']};
+ const job={id:'original',sessionId:'s1',platform:'zhihu',accountId:'author',brandId:article.brandId,contentId:article.id,currentRevision:true,state:'draft',mode:'draft',created:1,receipt:{url:'https://zhuanlan.zhihu.com/p/123/edit'}};
+ const journal=await recoverDispatchJournal({article,targets:[target],jobs:[job,{...job,id:'wrong',brandId:'other',created:3},{...job,id:'old',currentRevision:false,created:2}],journal:{}});
+ assert.equal(journal[target.key].jobId,'original');assert.equal(journal[target.key].remote.url,job.receipt.url);
+ let writes=0;await dispatchArticle({article,targets:[target],mode:'draft',journal,request:async()=>{writes++;throw Error('unexpected write')},persist:async()=>{},assertScope:()=>{}});assert.equal(writes,0);
+});
+
+test('receipt recovery refuses a different image revision',async()=>{
+ const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');
+ const jobs=[{id:'j',brandId:article.brandId,contentId:article.id,currentRevision:true,platform:'douyin',sessionId:'s',state:'prepared',mediaHashes:['original']}];
+ assert.deepEqual(await recoverDispatchJournal({article:{...article,media:[{sha256:'changed'}]},targets:[],jobs,journal:{}}),{});
+});
