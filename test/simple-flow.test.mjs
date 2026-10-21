@@ -39,3 +39,9 @@ test('continuing a flow executes only that batch and the saved draft remains non
  try{for(let i=0;i<5;i++)await call(e,'/api/simple/tick','POST',{brandId:input.brandId,flowId:input.id});assert.equal(calls,2);const w=(await call(e,'/api/state')).data.state;assert.equal(w.contents.length,1);assert.equal(w.contents[0].taskId,input.id);assert.equal(w.contents[0].status,'草稿');assert.equal(w.publications.length,0);assert.equal(e.db.prepare('SELECT attempts FROM task_items WHERE plan_id=?').get(other.id).attempts,0);const flow=(await call(e,'/api/simple/flows')).data.flows.find(f=>f.id===input.id);assert.equal(flow.stage,'review');assert.equal(flow.authorization.maxModelCalls,2);
  }finally{globalThis.fetch=original;e.db.close()}
 });
+
+test('a concurrent model switch between queue checks and network call cannot spend on the new model',async()=>{
+ const {e,input}=await paidFixture();await call(e,'/api/simple/prepare','POST',await authorized(e,input));const prepare=e.DB.prepare.bind(e.DB);let switched=false;
+ e.DB.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('INSERT OR IGNORE INTO runs'))return statement;return {bind(...args){const bound=statement.bind(...args);return {...bound,async run(){const result=await bound.run();e.db.prepare("UPDATE connections SET model='unapproved-model'").run();switched=true;return result;}}}}};
+ const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('unapproved model must not be invoked')};try{const r=await call(e,'/api/simple/tick','POST',{brandId:input.brandId,flowId:input.id});assert.equal(switched,true);assert.equal(r.data.state,'failed');assert.equal(calls,0);assert.match(r.data.error,/模型已变化/);}finally{globalThis.fetch=original;e.db.close()}
+});

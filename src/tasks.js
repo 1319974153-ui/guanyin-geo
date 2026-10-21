@@ -73,7 +73,7 @@ export async function tick(env,ctx,h,planId){
    validateCheckInput(spec.input);
    if(checkStale({brandId:brand.id,kind:spec.input.kind,input:spec.input},w.state))reject(412,'原文或品牌资料在排队后发生变化，本批未调用模型；请按最新资料重新建立检查');
    if(await h.reserveRun(env,ctx.owner,runId,'analyze'))reject(409,'此检查尝试已有调用记录，需要核对结果');reserved=true;
-   const result=await h.modelCall(env,ctx.owner,checkModelRequest(spec.provider,spec.input));
+   const result=await h.modelCall(env,ctx.owner,{...checkModelRequest(spec.provider,spec.input),...(costPolicy?{expectedModel:costPolicy.model}:{})});
    record={...await checkRecord(item.id,brand.id,spec.provider,spec.input,result),taskId:item.plan_id,taskItemId:item.id};
   }else{
   if(spec.question.productId&&productFor(brand,spec.question.productId)?.status!=='active')reject(400,'任务所属产品线已归档，请核对后创建新任务');
@@ -82,7 +82,7 @@ export async function tick(env,ctx,h,planId){
   if(await h.reserveRun(env,ctx.owner,runId,spec.kind))reject(409,'此执行尝试已有调用记录，需要核对结果');reserved=true;
   const writing=spec.kind==='generate'?writingRequest({brand,product:spec.question.productSnapshot?.name||'品牌通用',question:spec.question.text,facts,style:spec.style,brief:spec.brief,variant:spec.repeat}):null;
   const messages=writing?.messages||[{role:'user',content:spec.question.text}];
-  const result=await h.modelCall(env,ctx.owner,{provider:spec.provider,messages});
+  const result=await h.modelCall(env,ctx.owner,{provider:spec.provider,messages,...(costPolicy?{expectedModel:costPolicy.model}:{})});
   const base={id:item.id,brandId:brand.id,...(Object.hasOwn(spec.question,'productId')?{productId:spec.question.productId,productSnapshot:spec.question.productSnapshot||null}:{}),taskId:item.plan_id,taskItemId:item.id,questionVersion:spec.question.version,questionSnapshot:spec.question.text,questionText:spec.question.text,provider:spec.provider,model:result.model,requestId:result.requestId,usage:result.usage,date:stamp(),demo:false};
   record=spec.kind==='generate'?{...base,questionId:spec.question.id,title:articleTitle({text:result.text,question:spec.question.text,brand:brand.name}),question:spec.question.text,status:'草稿',style:spec.style,text:result.text,ai:true,generated:false,variant:spec.repeat,brief:spec.brief,writingBasis:writing.basis,factIds:facts.map(f=>f.id),factSnapshots:facts.map(f=>({id:f.id,version:f.version||1,key:f.key,value:f.value,source:f.source,productId:f.productId||'',validFrom:f.validFrom||'',expiresAt:f.expiresAt||'',sourceDocumentId:f.sourceDocumentId||''}))}:{...base,promptId:spec.question.id,platform:h.PROVIDERS[spec.provider].name,surface:'api',entry:'api',mode:'官方 API · 不联网',region:spec.region,language:spec.language,status:'ok',text:result.text,mention:[brand.name,...String(brand.aliases||'').split(',')].map(n=>n.trim()).filter(Boolean).some(n=>result.text.toLowerCase().includes(n.toLowerCase())),recommended:false,recommendationLabeled:false,citationKnown:false,official:false,rank:null,sentiment:'待复核',citations:[]};
   }
