@@ -28,10 +28,20 @@ export function receiptEvidence(platform,url,articleId){
 }
 
 // A preparation checkpoint is an editor location, never proof of platform storage/publication.
+export function preparationEditorUrl(platform,url){
+ try{
+  const u=new URL(url);if(u.username||u.password||!editorEvidence(platform,u.href))return null;
+  const base=u.origin+u.pathname;
+  if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
+  const ids=u.searchParams.getAll('pgc_id');
+  if(ids.length!==1||!/^[1-9]\d{0,29}$/.test(ids[0]))return null;
+  return base+'?pgc_id='+ids[0];
+ }catch{return null}
+}
 export function preparationEvidence(platform,value){
- try{if(!value||value.contentVerified!==true||!editorEvidence(platform,value.evidenceUrl))return null;
- const u=new URL(value.evidenceUrl);if(u.username||u.password)return null;
- return {editorUrl:u.origin+u.pathname,accountId:value.accountId};
+ try{if(!value||value.contentVerified!==true)return null;
+ const editorUrl=preparationEditorUrl(platform,value.evidenceUrl);if(!editorUrl)return null;
+ return {editorUrl,accountId:value.accountId};
  }catch{return null}
 }
 

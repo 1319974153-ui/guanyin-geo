@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
-import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence} from '../browser-extension/platforms.js';
+import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
  let clicks=0,account='author',captcha=false,title='测试文章',body='测试正文';
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,focus(){},...extra});
@@ -104,4 +104,18 @@ test('draft URL validation rejects public pages, mismatched IDs and cross-origin
  assert.ok(draftEvidence('zhihu',savedDraft));
  for(const patch of [{url:'https://zhuanlan.zhihu.com/p/123'},{url:savedDraft.url+'?a=1'},{url:'https://evil.test/p/123/edit'},{articleId:'124'},{savedVerified:false},{contentVerified:false}])assert.equal(draftEvidence('zhihu',{...savedDraft,...patch}),null);
  assert.equal(draftEvidence('csdn',savedDraft),null);
+});
+
+
+test('Toutiao preparation retains the observed draft ID without claiming platform storage',async()=>{
+ const f=fixture('toutiao'),base=PLATFORMS.toutiao.editor;
+ f.context.location.href=base+'?pgc_id=7698291175233323555&source=editor';
+ const raw=await f.run('prepared'),result=preparationEvidence('toutiao',raw);
+ assert.equal(result.editorUrl,base+'?pgc_id=7698291175233323555');
+ assert.equal(result.savedVerified,undefined);assert.equal(f.clicks,0);
+ for(const suffix of ['?pgc_id=1&pgc_id=2','?pgc_id=invalid','?pgc_id=0','?pgc_id=-12','#draft']){
+  assert.equal(preparationEvidence('toutiao',{...raw,evidenceUrl:base+suffix}),null);
+ }
+ assert.equal(preparationEvidence('toutiao',{...raw,evidenceUrl:base}).editorUrl,base);
+ f.setBody('changed');assert.match((await f.run('prepared')).connectorError,/正文已变化/);
 });

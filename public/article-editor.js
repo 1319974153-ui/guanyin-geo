@@ -56,7 +56,7 @@ async function articleEditorAction(name,el) {
  }
  if(name==='write-article'){
   if(!['owner','admin','editor'].includes(accessInfo.current.role))throw new Error('当前角色不能写文章');
-  if(!brand().id){go('setup');toast('先填写品牌或个人 IP 名称，再开始写文章');return true;}
+  if(!brand().id){go('setup');toast('先填写品牌名称，再开始写文章');return true;}
   openArticleEditor();return true;
  }
  if(document.querySelector('[data-article-editor]')&&['submit-content','approve-content','reject-content'].includes(name)){

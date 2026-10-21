@@ -5,21 +5,19 @@ function simplePlatforms(){return brand().platforms?.filter(p=>SIMPLE_ENTRIES[p]
 function simpleScope(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand().id].join('|')}
 function simpleWrite(){return ['owner','admin','editor'].includes(accessInfo.current.role)}
 function simpleReview(){return ['owner','admin','reviewer'].includes(accessInfo.current.role)}
-const SIMPLE_TYPES={brand:'品牌',product:'产品',person:'个人'};
-function simpleTypeOptions(value='brand'){return Object.entries(SIMPLE_TYPES).map(([v,t])=>`<option value="${v}" ${v===value?'selected':''}>${t}</option>`).join('')}
-function simpleBrandPicker(){return state.brands.length>1?`<label class="simple-toolbar">当前对象<select id="brand-select">${state.brands.map(b=>`<option value="${esc(b.id)}" ${brand().id===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>`:''}
+function simpleBrandPicker(){return state.brands.length>1?`<label class="simple-toolbar">当前品牌<select id="brand-select">${state.brands.map(b=>`<option value="${esc(b.id)}" ${brand().id===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>`:''}
 function renderSimpleNavigation(){
  const count=own('facts').filter(f=>f.status==='待确认').length+own('contents').filter(c=>c.status!=='已审核').length;
- $('#nav').innerHTML=[['today','工作台','dashboard'],['inbox','内容与确认','edit'],['results','AI 引用与推荐','chart']].map(([id,t,i])=>`<a class="nav-item ${route===id?'active':''}" href="#${id}" ${route===id?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${id==='inbox'&&count?`<span class="nav-num">${count}</span>`:''}</a>`).join('')+`<details class="simple-detail"><summary>更多工具</summary>${[['knowledge','资料与项目证据'],['monitor','用户会问的问题'],['publish','发布记录'],['reports','完整报告'],['integrations','模型与账号'],['tasks','任务记录'],['brands','品牌、产品与个人']].map(([id,t])=>`<a class="nav-item" href="#${id}">${t}</a>`).join('')}<button type="button" class="nav-item" data-action="simple-full-view">完整工作台</button></details>`;
+ $('#nav').innerHTML=[['today','工作台','dashboard'],['inbox','内容与确认','edit'],['results','AI 引用与推荐','chart']].map(([id,t,i])=>`<a class="nav-item ${route===id?'active':''}" href="#${id}" ${route===id?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${id==='inbox'&&count?`<span class="nav-num">${count}</span>`:''}</a>`).join('')+`<details class="simple-detail"><summary>更多工具</summary>${[['knowledge','资料与项目证据'],['monitor','用户会问的问题'],['publish','发布记录'],['reports','完整报告'],['integrations','模型与账号'],['tasks','任务记录'],['brands','品牌管理']].map(([id,t])=>`<a class="nav-item" href="#${id}">${t}</a>`).join('')}<button type="button" class="nav-item" data-action="simple-full-view">完整工作台</button></details>`;
  $('#view-mode').value='simple';document.body.dataset.view='simple';
 }
 function simpleCard(title,body,actions=''){return `<section class="simple-card"><h3>${title}</h3>${body}${actions}</section>`}
 function renderSimpleSetup(){
  const d=simpleDraft ||= state.simpleSetupDraft||{id:uid(),entityType:'brand',platforms:['豆包','腾讯元宝','通义千问']};
  const imported=!!d.text;
- return `<div class="simple-setup">${title('先认识你的业务','填写名称和一句介绍，其他内容可以稍后补充。')}<form class="focus-setup" data-simple="setup" data-id="${esc(d.id)}">
- <fieldset class="entity-choice"><legend>你想让 AI 认识谁？</legend>${Object.entries(SIMPLE_TYPES).map(([v,t])=>`<label><input type="radio" name="entityType" value="${v}" ${v===(d.entityType||'brand')?'checked':''}><span>${t}</span></label>`).join('')}</fieldset>
- <label class="field"><span data-entity-name>名称</span><input name="name" required maxlength="160" value="${esc(d.name||'')}" placeholder="例如：温舒 / 观引 GEO" autocomplete="off"></label>
+ return `<div class="simple-setup">${title('先认识你的品牌','填写品牌名称和一句介绍，即可开始。')}<form class="focus-setup" data-simple="setup" data-id="${esc(d.id)}">
+ <input type="hidden" name="entityType" value="${esc(['brand','product','person'].includes(d.entityType)?d.entityType:'brand')}">
+ <label class="field">品牌名称<input name="name" required maxlength="160" value="${esc(d.name||'')}" placeholder="例如：温舒 / 观引 GEO" autocomplete="off"><small>个人、产品和企业都可以作为品牌。</small></label>
  <label class="field">一句介绍<textarea name="description" required minlength="8" maxlength="5000" rows="3" placeholder="你做什么、帮助谁，以及可以公开核实的项目。">${esc(d.description||'')}</textarea></label>
  <details class="simple-detail setup-extras"><summary>导入资料、设置目标与关注平台（可选）</summary>
  <label class="field">希望用户怎样问 AI 时找到你？<input name="goalQuery" maxlength="500" value="${esc(d.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>可以先留空，观引会准备初始问题建议。目标不代表已经获得推荐。</small></label>
@@ -112,7 +110,7 @@ function simpleCapture(qid,platform){
  f.elements.platform.value=SIMPLE_ENTRIES[platform]?platform:simplePlatforms()[0]||'豆包';f.elements.mode.value='未记录';f.elements.region.value='未记录';f.elements.language.value='未记录';
  const advanced=document.createElement('details');advanced.className='simple-detail';advanced.innerHTML='<summary>历史版本与其他采样条件</summary>';
  const keep=new Set(['questionId','platform','entry','dataPurpose','mode','text','collectedAt','citations','recommendation','citationKnown']);for(const el of [...f.children]){if(el.matches('.form-error,button[type="submit"]'))continue;const input=el.querySelector('[name]');if(input&&keep.has(input.name)||el.matches('[data-citation-candidates]')||el.dataset.action==='answer-citations-extract')continue;advanced.append(el);}
- f.elements.recommendation.closest('label').firstChild.textContent='回答是否明确推荐当前对象？';const intro=document.createElement('div');intro.innerHTML=`<p class="simple-question" data-simple-question>${esc(q.text)}</p><div class="form-actions">${btn('复制问题','simple-copy','','type="button"')} <a class="button" data-simple-entry target="_blank" rel="noopener noreferrer" href="${SIMPLE_ENTRIES[f.elements.platform.value]}">打开${esc(f.elements.platform.value)}</a></div><p class="simple-help">在平台新会话开启联网搜索，复制问题提问，再把实际回答粘贴回来。模式、时间与引用按平台实际情况填写；未核对时保持未知。</p>`;f.prepend(intro);f.prepend(f.elements.questionId.closest('label'));f.insertBefore(advanced,f.querySelector('.form-error'));f.querySelector('button[type="submit"]').textContent='保存这条回答';$('#drawer-title').textContent='记录 AI 平台的实际回答';
+ f.elements.recommendation.closest('label').firstChild.textContent='回答是否明确推荐当前品牌？';const intro=document.createElement('div');intro.innerHTML=`<p class="simple-question" data-simple-question>${esc(q.text)}</p><div class="form-actions">${btn('复制问题','simple-copy','','type="button"')} <a class="button" data-simple-entry target="_blank" rel="noopener noreferrer" href="${SIMPLE_ENTRIES[f.elements.platform.value]}">打开${esc(f.elements.platform.value)}</a></div><p class="simple-help">在平台新会话开启联网搜索，复制问题提问，再把实际回答粘贴回来。模式、时间与引用按平台实际情况填写；未核对时保持未知。</p>`;f.prepend(intro);f.prepend(f.elements.questionId.closest('label'));f.insertBefore(advanced,f.querySelector('.form-error'));f.querySelector('button[type="submit"]').textContent='保存这条回答';$('#drawer-title').textContent='记录 AI 平台的实际回答';
 }
 async function simpleAction(name,el){
  if(name==='simple-select-platform'){if(simplePlatforms().includes(el.dataset.platform)){simpleActivePlatform=el.dataset.platform;render();document.querySelector('.platform-tab[aria-selected="true"]')?.focus({preventScroll:true});}return true;}
@@ -123,7 +121,7 @@ async function simpleAction(name,el){
  if(!name.startsWith('simple-'))return false;
  if(name==='simple-full-view'){state.viewMode='operator';save();go('overview');render();return true;}
  if(name==='simple-goal'){
-  const b=brand();openDrawer('希望在哪个问题里被找到？',`<form data-simple="goal"><label class="field">对象类型<select name="entityType">${simpleTypeOptions(b.entityType)}</select></label><label class="field">目标问题<input name="goalQuery" required maxlength="500" value="${esc(b.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>不加入自己的名字，才能观察 AI 是否主动推荐。</small></label><p class="simple-help">保存后加入问题列表，保留已有回答与历史问题。</p><p class="form-error" role="alert"></p><button class="button primary" type="submit">保存目标</button></form>`);return true;
+  const b=brand();openDrawer('希望在哪个问题里被找到？',`<form data-simple="goal"><label class="field">目标问题<input name="goalQuery" required maxlength="500" value="${esc(b.goalQuery||'')}" placeholder="例如：杭州做 FDE 有哪些人？"><small>不加入自己的名字，才能观察 AI 是否主动推荐。</small></label><p class="simple-help">保存后加入问题列表，保留已有回答与历史问题。</p><p class="form-error" role="alert"></p><button class="button primary" type="submit">保存目标</button></form>`);return true;
  }
  if(name==='simple-read-source'){
   const f=el.closest('form'),v=Object.fromEntries(new FormData(f)),error=f.querySelector('.form-error');error.textContent='';
@@ -185,7 +183,7 @@ document.addEventListener('submit',async e=>{
   }
   if(mode==='setup'){
    const payload={...simpleDraft,...v,text:v.text?.trim()||v.description,source:v.source||'用户确认的公开介绍',id:f.dataset.id,platforms:new FormData(f).getAll('platforms'),confirmed:true};
-   const serialized=JSON.stringify(payload);if(f.dataset.submitted&&f.dataset.submitted!==serialized)throw new Error('上次保存结果尚待确认，请保持原资料重试，或刷新查看已有对象');f.dataset.submitted=serialized;
+   const serialized=JSON.stringify(payload);if(f.dataset.submitted&&f.dataset.submitted!==serialized)throw new Error('上次保存结果尚待确认，请保持原资料重试，或刷新查看已有品牌');f.dataset.submitted=serialized;
    const d=await apiRequest('/api/simple/setup',{method:'POST',body:JSON.stringify(payload)});state=d.state;serverRevision=d.revision;state.simpleSetupDraft=null;simpleDraft=null;save();await runtimeFlush();runtimeLock(false);go('today');render();toast('资料和 5 个初始问题已保存');
   }
   if(mode==='goal'){

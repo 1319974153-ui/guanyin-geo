@@ -56,3 +56,7 @@ body[data-view="simple"] .button{min-height:38px}.focus-workspace .button.primar
 .work-journey a{font-size:14px;color:var(--ink);text-underline-offset:4px}.work-journey span{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .focus-evidence>.simple-help{max-width:70ch;margin-bottom:8px}.today-progress{scroll-margin-top:24px}.today-progress>.simple-grid{margin-top:16px}
 @media(max-width:700px){.work-journey{gap:10px;margin-top:22px}.work-journey a{font-size:13px}.work-journey span{font-size:12px}}
+
+/* Account setup keeps the selected platform readable in a narrow app panel. */
+.browser-account-connect .panel-head{flex-wrap:wrap;gap:12px}.browser-account-connect .browser-account-heading{flex:1 1 240px}.browser-account-connect .panel-head>.field{flex:1 1 160px;min-width:160px;margin:0}.browser-account-connect .panel-head select{width:100%}.browser-account-connect .panel-head>.button{flex-shrink:0}
+@media(max-width:700px){.browser-account-connect .browser-account-heading{flex-basis:100%}.browser-account-connect .panel-head>.field{flex-basis:100%;min-width:0}.browser-account-connect .panel-head>.button.primary{flex:1}.browser-account-connect .panel-head>.button{min-height:44px}}

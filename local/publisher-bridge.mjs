@@ -1,4 +1,4 @@
-import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence} from '../browser-extension/platforms.js';
+import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable} from '../src/knowledge-core.js';
@@ -194,7 +194,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     let preparation;
     if(b.state==='prepared'&&b.preparation!==undefined){
      const p=b.preparation;let u;try{u=new URL(p?.editorUrl)}catch{fail(400,'缺少有效编辑页网址')}
-     if(u.username||u.password||u.search||u.hash||!editorEvidence(j.platform||'csdn',u.href)||p.accountId!==j.accountId||p.sourceHash!==j.sourceHash)fail(400,'填稿回执的平台、账号或稿件不匹配');
+     if(preparationEditorUrl(j.platform||'csdn',u.href)!==u.href||p.accountId!==j.accountId||p.sourceHash!==j.sourceHash)fail(400,'填稿回执的平台、账号或稿件不匹配');
      preparation={editorUrl:u.href,accountId:j.accountId,observedAt:clock(),verification:'editor_content_match',savedVerified:false};
     }
     if(j.state==='prepared'&&b.state==='prepared'&&!j.attempted&&j.mode==='prepare')return respond({job:publicJob(j),existing:true});

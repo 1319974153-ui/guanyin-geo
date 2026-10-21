@@ -225,3 +225,19 @@ test('dashboard exposes content identity and distinguishes an old draft from the
  assert.equal(r.data.jobs[0].snapshot,undefined);assert.equal(r.data.jobs[0].lease,undefined);assert.equal(r.data.jobs[0].sourceHash,undefined);
  const other=await e.request('/api/local-publisher/status?brandId=other',null,{'x-geo-request':'1',origin:ORIGIN},'GET');assert.equal(other.data.jobs.length,0);
 });
+
+
+test('Toutiao checkpoint keeps only a validated original draft link across restart',async t=>{
+ const e=setup(t,false);await e.pair('toutiao');await e.account();await e.enqueue({mode:'prepare'});
+ const j=(await e.ext('claim')).data.job,editor=PLATFORMS.toutiao.editor;
+ const preparation={editorUrl:editor+'?pgc_id=7698291175233323555',accountId:j.accountId,sourceHash:j.sourceHash};
+ const report={id:j.id,lease:j.lease,state:'prepared',preparation};
+ for(const query of ['?pgc_id=1&token=secret','?pgc_id=1&pgc_id=2','?pgc_id=abc','?pgc_id=0','?next=https://evil.test/']){
+  assert.equal((await e.ext('report',{...report,preparation:{...preparation,editorUrl:editor+query}})).status,400);
+ }
+ const r=await e.ext('report',report);assert.equal(r.status,200);
+ assert.equal(r.data.job.preparation.editorUrl,preparation.editorUrl);assert.equal(r.data.job.receipt,null);
+ assert.equal(r.data.job.preparation.savedVerified,false);
+ e.restart();const again=await e.ext('report',report);assert.equal(again.data.existing,true);
+ assert.equal(again.data.job.preparation.editorUrl,preparation.editorUrl);
+});
