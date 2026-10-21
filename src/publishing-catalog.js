@@ -14,11 +14,11 @@ const groups = {
  video: [['bilibili','哔哩哔哩']],
  vertical: [['xueqiu','雪球'],['eastmoney','东方财富'],['smzdm','什么值得买'],['sohufocus','搜狐焦点']]
 };
+import {publishingEvidence,publishingEvidenceSummary,PUBLISHING_EVIDENCE_DATE} from './publishing-evidence.js';
 const browserAdapters=new Set(['csdn','toutiao','zhihu','douyin','xiaohongshu']);
-const prepareTested=new Set(['csdn','toutiao','zhihu']);
 export function publishingCatalog(){
  return Object.entries(groups).flatMap(([group,entries])=>entries.map(([id,name])=>{
-  const wp=id==='wordpress',browser=browserAdapters.has(id),tested=prepareTested.has(id);
+  const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
   return {
    id,name,group,referenceIncluded:referencePlatformIds.includes(id),
    implementation:wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
@@ -26,8 +26,8 @@ export function publishingCatalog(){
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
    connectionMethod:wp?'application_password':browser?'local_browser_extension':null,
    acceptance:wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
-   stage:wp?'可连接网站':tested?'已实测填稿':browser?'接入验收中':'待开发',
-   note:wp?'支持草稿与发布；须验证自己的账号和权限':tested?'已实测账号与填稿；公开提交仍待验收':browser?'已有适配代码；账号、图片与填稿仍须实机验收':'已列入完整接入计划，尚不能自动填稿或发布',
+   ...publishingEvidenceSummary(id,actions),
+   actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,
    // Catalog metadata must never grant a publish capability to an account.
    accountRequired:true
   };

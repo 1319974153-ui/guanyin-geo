@@ -1,5 +1,6 @@
 // UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
 // Journal before writes; uncertain work is reconciled, never silently replayed.
+export {dispatchNeedsRefresh,createDispatchWatcher} from './dispatch-watch.js';
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
@@ -45,28 +46,31 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
 }
 
 export async function reconcileDispatch({article,journal,request,persist,assertScope}){
- let browserStatus;
- for(const row of Object.values(journal)){
+ let browserStatus;const next=structuredClone(journal);
+ for(const row of Object.values(next)){
   assertScope();
   try{
    if(row.platform==='wordpress'){
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
-    row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
+    assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
+    assertScope();
     let job=browserStatus.jobs.find(j=>j.id===row.jobId);
     if(!job&&!row.jobId){
      if(await dispatchId(article,row)!==row.id)throw new Error('稿件版本已变化，请核对原发送记录');
      const lookup=await request('/api/local-publisher/lookup',{method:'POST',body:JSON.stringify({brandId:article.brandId,contentId:article.id,sessionId:row.sessionId,accountId:row.accountId})});
+     assertScope();
      job=lookup.job;
-     if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error='已确认未入队；重新核验账号后可再次点击填入或发布';continue;}
+     if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error='已确认未入队；重新核验账号后可再次点击填入或发布';delete row.refreshError;continue;}
      if(job)row.jobId=job.id;
     }
     if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null}
-    else row.error='没有找到唯一任务回执，请在发布账号页核对；不会重新发送';
+    else throw new Error('没有找到唯一任务回执，请在发布账号页核对；不会重新发送');
    }
-  }catch(e){row.error=e.message;}
+   delete row.refreshError;
+  }catch(e){assertScope();row.refreshError=e.message;}
  }
- assertScope();await persist(journal);return journal;
+ assertScope();await persist(next);assertScope();Object.assign(journal,next);return journal;
 }

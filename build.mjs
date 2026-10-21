@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import './scripts/generate-publishing-status.mjs';
 fs.rmSync('public/assistant/guanyin-geo.zip',{force:true});
 execFileSync('zip',['-q','-r','-X','guanyin-geo.zip','guanyin-geo'],{cwd:'public/assistant'});
 import {build} from 'esbuild';

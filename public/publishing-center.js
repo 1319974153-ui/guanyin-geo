@@ -21,7 +21,7 @@ function publishingAccountSelector(){
 }
 function publishingCatalogPanel(platforms){
  const groupNames={self_hosted:'自建网站',knowledge:'技术与知识社区',general:'综合内容平台',social:'社交与图文',video:'视频社区',vertical:'垂直社区'};
- return `<details class="simple-detail"><summary>全部平台与接入进度 · ${platforms.length} 项</summary><p>文章、图文和自建网站统一管理；长文与图文分别接入。</p><p class="helper">平台清单不代表已经登录或可发布。浏览器适配仅用于本机连接器；是否可发送以你自己的账号和实际开放操作为准。</p>${Object.entries(groupNames).map(([group,label])=>`<h3>${label}</h3><div class="integration-grid">${platforms.filter(p=>p.group===group).map(p=>`<article class="integration"><h4>${esc(p.name)}</h4><p>${esc(p.stage||'待开发')}</p><p class="helper">${esc(p.note)}</p></article>`).join('')}</div>`).join('')}<p class="helper">Markdown / PDF 是本地导出，不计作平台发布。待开发平台暂不申请登录权限。</p></details>`;
+ return `<details class="simple-detail"><summary>全部平台与接入进度 · ${platforms.length} 项</summary><p>文章、图文和自建网站统一管理；长文与图文分别接入。</p><p class="helper">平台清单不代表已经登录或可发布。浏览器适配仅用于本机连接器；是否可发送以你自己的账号和实际开放操作为准。</p>${Object.entries(groupNames).map(([group,label])=>`<h3>${label}</h3><div class="integration-grid">${platforms.filter(p=>p.group===group).map(p=>`<article class="integration"><h4>${esc(p.name)}</h4><p>${esc(p.stage||'待开发')}</p><p class="helper">${esc(p.note)}</p>${p.actionEvidence?'<details><summary>各项能力验收</summary>'+Object.entries(p.actionEvidence).map(([action,e])=>'<p class="helper">'+esc(({identity:'账号核验',prepare:'填入编辑器',draft:'平台草稿',publish:'公开提交'})[action]||action)+'：'+esc(e.label)+(e.evidence?.connectorVersion?' · 连接器 '+esc(e.evidence.connectorVersion):'')+'</p>').join('')+'</details>':''}</article>`).join('')}</div>`).join('')}<p class="helper">Markdown / PDF 是本地导出，不计作平台发布。待开发平台暂不申请登录权限。</p></details>`;
 }
 function renderPublishingCenter(){
  if(!brand()?.id)return '';

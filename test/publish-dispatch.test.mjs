@@ -64,3 +64,19 @@ test('browser draft dispatch uses draft mode and never silently promotes existin
   f.journal.zhihu.state=state;const count=f.calls.length;await f.run({targets:[target],mode});assert.equal(f.calls.length,count);assert.match(f.journal.zhihu.error,/原稿/);
  }
 });
+
+test('late read after brand or article change never mutates or persists the old journal',async()=>{
+ let valid=true,writes=0;const journal={csdn:{...csdn,jobId:'j',state:'queued'}};
+ await assert.rejects(reconcileDispatch({article,journal,request:async()=>{valid=false;return {jobs:[{id:'j',state:'draft'}]}},persist:async()=>writes++,assertScope:()=>{if(!valid)throw Error('scope changed')}}),/scope changed/);
+ assert.equal(writes,0);assert.equal(journal.csdn.state,'queued');
+});
+test('failed status reads preserve platform errors and recover on next read without any enqueue',async()=>{
+ const journal={csdn:{...csdn,jobId:'j',state:'uncertain',error:'平台原始错误'}};let failed=true;const calls=[];
+ const args={article,journal,request:async path=>{calls.push(path);if(failed)throw Error('offline');return {jobs:[{id:'j',state:'draft',receipt:{url:'https://example.org/draft',publicVerified:false}}]}},persist:async()=>{},assertScope:()=>{}};
+ await reconcileDispatch(args);assert.equal(journal.csdn.state,'uncertain');assert.equal(journal.csdn.error,'平台原始错误');assert.equal(journal.csdn.refreshError,'offline');failed=false;await reconcileDispatch(args);assert.equal(journal.csdn.state,'draft');assert.equal(journal.csdn.refreshError,undefined);assert.equal(journal.csdn.remote.publicVerified,false);assert.ok(calls.every(p=>p.includes('/status?')));
+});
+test('journal storage failure leaves displayed receipt unchanged',async()=>{
+ const journal={csdn:{...csdn,jobId:'j',state:'queued'}};
+ await assert.rejects(reconcileDispatch({article,journal,request:async()=>({jobs:[{id:'j',state:'draft'}]}),persist:async()=>{throw Error('storage full')},assertScope:()=>{}}),/storage full/);
+ assert.equal(journal.csdn.state,'queued');
+});
