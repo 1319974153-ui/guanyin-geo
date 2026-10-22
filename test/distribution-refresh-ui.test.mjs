@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import * as dispatch from '../src/publish-dispatch-core.js';
 function fixture(){
- const timers=new Map(),storage=new Map(),box={innerHTML:''},calls=[];let timerId=0;
+ const timers=new Map(),storage=new Map(),box={innerHTML:'',watch:{textContent:''},querySelector(){return this.watch}},calls=[];let timerId=0;
  const f={isConnected:true,dataset:{id:'article',brand:'brand'},distributionKey:'isolated-journal',distributionJournal:{zhihu:{jobId:'job',platform:'zhihu',name:'隔离测试账号',state:'queued'}},querySelector:()=>box};
  const g={scope:'owner/brand',dirty:false,runtimeBusy:false,document:{hidden:false,addEventListener(){}},navigator:{onLine:true},window:{addEventListener(){}},
   GEO_DISPATCH:{...dispatch,createDispatchWatcher:args=>dispatch.createDispatchWatcher({...args,schedule:(fn,delay)=>{timers.set(++timerId,{fn,delay});return timerId},cancel:id=>timers.delete(id)})},
@@ -16,7 +16,7 @@ function fixture(){
 }
 test('editor automatically renders and stores saved draft without a reconcile click',async()=>{
  const x=fixture();x.g.distributionWatch(x.f);await x.tick();
- assert.match(x.box.innerHTML,/草稿已保存/);assert.match(x.box.innerHTML,/结果已更新/);assert.equal(JSON.parse(x.storage.get('isolated-journal')).zhihu.state,'draft');assert.equal(x.timers.size,0);assert.ok(x.calls.every(p=>p.startsWith('/api/local-publisher/status?')));
+ assert.match(x.box.innerHTML,/草稿已保存/);assert.match(x.box.watch.textContent,/结果已更新/);assert.equal(JSON.parse(x.storage.get('isolated-journal')).zhihu.state,'draft');assert.equal(x.timers.size,0);assert.ok(x.calls.every(p=>p.startsWith('/api/local-publisher/status?')));
 });
 test('editing, closing or switching workspaces before a timer prevents reads',async()=>{
  for(const change of [x=>x.g.dirty=true,x=>x.f.isConnected=false,x=>x.g.scope='other/brand']){

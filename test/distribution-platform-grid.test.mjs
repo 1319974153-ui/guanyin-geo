@@ -72,3 +72,12 @@ test('failed draft opens only its matching desktop account without sending or ch
  t.accountId='author';x.f.dataset.brand='other';await assert.rejects(x.g.distributionOpenOriginal(x.f,t.key),/工作区已变化/);assert.deepEqual(calls,['session']);
  for(const state of ['published','draft','queued','preparing'])assert.equal(x.g.distributionRecoveryButton(x.f,{...row,state}),'');
 });
+
+test('unchanged receipt polling preserves action nodes while progress text updates',()=>{
+ const x=fixture(),box=x.get('[data-distribution-results]'),watch={textContent:''};let writes=0,html='';
+ Object.defineProperty(box,'innerHTML',{get:()=>html,set:v=>{writes++;html=v}});box.querySelector=()=>watch;
+ x.f.distributionJournal={one:{key:'one',platform:'toutiao',name:'作者',state:'needs_attention',error:'未保存'}};
+ x.f.distributionWatchState='checking';x.g.distributionResults(x.f);assert.equal(writes,1);assert.match(watch.textContent,/读取/);
+ x.f.distributionWatchState='watching';x.g.distributionResults(x.f);assert.equal(writes,1);assert.match(watch.textContent,/自动更新/);
+ x.f.distributionJournal.one.error='平台拒绝保存';x.g.distributionResults(x.f);assert.equal(writes,2);assert.match(html,/平台拒绝保存/);
+});
