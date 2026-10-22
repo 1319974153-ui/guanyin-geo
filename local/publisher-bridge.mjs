@@ -88,7 +88,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!extension){
     if(action==='status'){
      const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;
-     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform,s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
+     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform])fail(400,'不支持的发布平台');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}
     if(action==='revoke'){
@@ -106,7 +106,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(action==='enqueue'){
      const s=sessions().find(s=>s.id===b.sessionId&&!s.revoked&&s.brandId===b.brandId);if(!s?.account)fail(409,'请先核验真实发布账号');
      if(!['prepare','publish','draft'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');
-     if(b.mode==='draft'&&!supportsDraftProtocol(s.platform,s.draftProtocol))fail(409,'请重载支持草稿的连接器并重新核验对应平台账号');
+     if(b.mode==='draft'&&!supportsDraftProtocol(s.platform||'csdn',s.draftProtocol))fail(409,'请重载支持草稿的连接器并重新核验对应平台账号');
      const tags=Array.isArray(b.tags)?b.tags.map(t=>String(t).trim()):[];
      const platform=s.platform||'csdn',limits=platformConfig(platform);
      if((limits.tagsRequired&&!tags.length)||tags.length>5||tags.some(t=>!t||t.length>20)||new Set(tags).size!==tags.length)fail(400,'请填写 1 至 5 个不同的文章标签');
@@ -151,7 +151,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(b.editorReady!==true)invalid.push('编辑器就绪状态');
     if(!editorEvidence(session.platform||'csdn',b.evidenceUrl))invalid.push('编辑器网址');
     if(invalid.length)fail(409,'没有取得完整的登录身份和编辑器证据：'+invalid.join('、'));
-    session.draftProtocol=supportsDraftProtocol(session.platform,b.draftProtocol)?b.draftProtocol:0;
+    session.draftProtocol=supportsDraftProtocol(session.platform||'csdn',b.draftProtocol)?b.draftProtocol:0;
     const previous=session.account;
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
@@ -161,7 +161,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
     const j=jobs().find(j=>j.sessionId===session.id&&j.state==='queued');if(!j)return respond({job:null});
-    try{if(j.mode==='draft'&&!supportsDraftProtocol(session.platform,session.draftProtocol))fail(409,'当前连接器不支持草稿，请重载后核对');checkCurrent(j,session)}catch(e){j.state='needs_attention';j.error=e.message;save('publisher_jobs',j);return respond({job:null})}
+    try{if(j.mode==='draft'&&!supportsDraftProtocol(session.platform||'csdn',session.draftProtocol))fail(409,'当前连接器不支持草稿，请重载后核对');checkCurrent(j,session)}catch(e){j.state='needs_attention';j.error=e.message;save('publisher_jobs',j);return respond({job:null})}
     j.state='preparing';if(j.mode==='draft')j.editorRetained=true;j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
     return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],lease:j.lease}});
    }

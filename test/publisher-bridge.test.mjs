@@ -267,3 +267,26 @@ test('CSDN draft protocol 3 is isolated from publish and binds receipt to source
  const r=await e.ext('report',report);assert.equal(r.status,200);assert.equal(r.data.job.receipt.publicVerified,false);assert.equal((await e.ext('report',report)).data.existing,true);
  e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
 });
+
+
+test('legacy CSDN pairing accepts current draft protocol without re-pairing or opening publish',async t=>{
+ const e=setup(t,false);await e.pair('csdn');
+ const row=e.db.prepare('SELECT body FROM publisher_sessions WHERE id=?').get(e.connection.sessionId);
+ const legacy=JSON.parse(row.body);delete legacy.platform;
+ e.db.prepare('UPDATE publisher_sessions SET body=? WHERE id=?').run(JSON.stringify(legacy),legacy.id);
+ // Other-platform protocols must not upgrade a legacy CSDN connection.
+ for(const protocol of [1,2]){
+  await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.csdn.editor,draftProtocol:protocol});
+  assert.equal((await e.enqueue({mode:'draft'})).status,409);
+ }
+ assert.equal((await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.toutiao.editor,draftProtocol:3})).status,409);
+ assert.equal((await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.csdn.editor,draftProtocol:3})).status,200);
+ const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');
+ assert.deepEqual(status.data.accounts[0].modes,['prepare','draft']);
+ assert.equal((await e.enqueue({mode:'publish'})).status,409);
+ assert.equal((await e.enqueue({mode:'draft'})).status,200);
+ const j=(await e.ext('claim')).data.job;assert.equal(j.platform,'csdn');
+ const r=await e.ext('report',draftReport(j,{url:'https://mp.csdn.net/mp_blog/creation/editor/123'}));
+ assert.equal(r.status,200);assert.equal(r.data.job.state,'draft');assert.equal(r.data.job.receipt.publicVerified,false);
+ e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
+});
