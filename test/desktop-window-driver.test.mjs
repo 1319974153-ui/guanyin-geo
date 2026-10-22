@@ -13,7 +13,7 @@ function fixture(t){
   async loadURL(url){this.webContents.url=url;queueMicrotask(()=>this.webContents.emit('did-navigate',{},url))}isDestroyed(){return !!this.closed}isVisible(){return this.visible}show(){this.visible=true}focus(){}destroy(){this.closed=true;this.emit('closed')}
  }
  const session={fromPartition:p=>{partitions.push(p);return {setPermissionRequestHandler(f){this.permission=f},setPermissionCheckHandler(f){this.check=f}}}};
- const connection={sessionId:'session-a',platform:'toutiao'},create=c=>windowDriver({BrowserWindow:Window,session,root,connection:c||connection});return {root,windows,partitions,create,connection};
+ const connection={sessionId:'session-a',platform:'toutiao'},create=(c,extra={})=>windowDriver({BrowserWindow:Window,session,root,connection:c||connection,...extra});return {root,windows,partitions,create,connection};
 }
 test('desktop login has no page privileges, returns to editor automatically, and retains its own private session',async t=>{
  const x=fixture(t),d=x.create();await d.initialize();await d.openLogin();assert.equal(x.windows.length,1);const w=x.windows[0];assert.equal(w.webContents.url,LOGIN_URLS.toutiao);assert.equal(d.loginEditorReady(),false);
@@ -33,4 +33,14 @@ test('external navigation is rejected and scripts cannot run on login or foreign
 test('login recovery never replaces an in-flight original editor',async t=>{
  const x=fixture(t),d=x.create();await d.chrome.storage.local.set({'editorTab:toutiao':44,inflightByPlatform:{toutiao:{tabId:44,job:{id:'original'}}}});await d.openLogin();assert.equal((await d.chrome.storage.local.get('editorTab:toutiao'))['editorTab:toutiao'],44);
  for(const p of ['csdn','toutiao','zhihu']){assert.equal(loginReturned(p,'https://evil.test/'),false);assert.equal(loginReturned(p,LOGIN_URLS[p].replace('https:','http:')),false)}
+});
+
+test('late login signals readiness only from its own editor window, without writing content',async t=>{
+ const x=fixture(t);let signals=0;const d=x.create(null,{onLoginReady:()=>signals++});await d.openLogin();const login=x.windows[0];
+ login.webContents.emit('did-finish-load');assert.equal(signals,0);
+ await login.loadURL('https://mp.toutiao.com/profile_v4/graphic/publish');login.webContents.emit('did-finish-load');assert.equal(signals,1);
+ await d.chrome.tabs.create({url:'https://mp.toutiao.com/profile_v4/graphic/publish',active:true});x.windows[1].webContents.emit('did-finish-load');assert.equal(signals,1);
+ login.webContents.emit('did-navigate-in-page',{},login.webContents.url,false);assert.equal(signals,1);
+ login.webContents.emit('did-navigate-in-page',{},login.webContents.url,true);assert.equal(signals,2);
+ assert.equal(login.webContents.lastScript,undefined);
 });

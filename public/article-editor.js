@@ -66,7 +66,7 @@ async function articleEditorAction(name,el) {
 }
 document.addEventListener('submit',e=>{if(!e.target.matches('[data-article-editor]'))return;e.preventDefault();e.stopImmediatePropagation();articleEditorSave('save');},true);
 let articlePreviewTimer;
-document.addEventListener('input',e=>{const f=e.target.closest('[data-article-editor]');if(!f)return;f.querySelector('[data-article-save-status]').textContent='有未保存修改';clearTimeout(articlePreviewTimer);articlePreviewTimer=setTimeout(()=>{if(f.isConnected)articleEditorRefresh(f)},200);});
+document.addEventListener('input',e=>{const f=e.target.closest('[data-article-editor]');if(!f||!['title','text','articleAi'].includes(e.target.name))return;f.querySelector('[data-article-save-status]').textContent='有未保存修改';clearTimeout(articlePreviewTimer);articlePreviewTimer=setTimeout(()=>{if(f.isConnected)articleEditorRefresh(f)},200);});
 document.addEventListener('click',e=>{
  const f=e.target.closest('[data-article-editor]');if(!f)return;
  const b=e.target.closest('[data-article-format]');if(b){const t=f.elements.text;if(t.readOnly)return;const result=GEO_ARTICLE_EDITOR.markdownInsertion(t.value,t.selectionStart,t.selectionEnd,b.dataset.articleFormat);if(result.text.length>100000)return toast('正文不能超过 100000 字');t.value=result.text;t.focus();t.setSelectionRange(result.start,result.end);distributionInvalidate(f);articleEditorRefresh(f);}

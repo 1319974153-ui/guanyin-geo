@@ -50,7 +50,14 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
  else {for(const e of many('header,[class*="user-info"],[class*="userInfo"],.creator-info,[class*="account-info"]')){const m=text(e).match(cfg.id);if(m)identities.push({accountId:m[1],name:m[1]})}}
  const ids=[...new Set(identities.map(i=>i.accountId))];if(ids.length!==1)fail('未读到唯一账号 ID；请展开创作者账号信息后再核验');
- const me=identities[0];if(accountId&&me.accountId!==accountId)fail('当前登录账号已变化，任务已停止');
+ const me=identities[0];
+ // The account menu link may say only “我的主页”. Prefer the visible profile
+ // control's accessible display name; account identity still comes from its URL.
+ if(platform==='zhihu'&&/^(我的主页|个人主页)$/.test(me.name)){
+  const names=[...new Set(many('[aria-label^="点击打开"][aria-label$="的主页"]').filter(e=>!e.closest('[contenteditable],article,aside')).map(e=>e.getAttribute('aria-label')?.match(/^点击打开(.+)的主页$/)?.[1]).filter(Boolean))];
+  me.name=names.length===1?names[0].slice(0,100):me.accountId;
+ }
+ if(accountId&&me.accountId!==accountId)fail('当前登录账号已变化，任务已停止');
  const evidence={...me,editorReady:true,evidenceUrl:location.href};if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.body).length===1;const hasUpload=cfg.images&&[...document.querySelectorAll('input[type="file"]')].some(e=>/image|\.png|\.jpg|\.jpeg/.test(e.accept));if(!hasFields&&!hasUpload)fail('已登录，但编辑器还未就绪');return evidence;}
  if(draftList){
   const titles=many('main a.title').filter(e=>text(e)===article.title.trim());

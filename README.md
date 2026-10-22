@@ -26,7 +26,7 @@ English: Guanyin GEO is an open-source local workbench for generative engine opt
 
 新增内置平台登录窗口与本机执行器，账号识别、发稿前复查和回执回收由观引执行。桌面用户无需安装、重载或配对 Chrome 扩展。先接入头条、知乎、CSDN 的既有适配器；每种动作仍单独验收，公开自动提交默认关闭，35 项目录不代表已完成全部接入。
 
-Mac arm64 独立预览包已通过重新解压后的启动、建档、本机草稿保存、重启保留和正常退出验收；新桌面会话的真实平台草稿和公开提交尚未完成。源码全套 775 项自动测试通过。Windows 桌面包未交付，GitHub 既有 Release 安装包不含本次桌面改动。
+Mac arm64 独立预览包已通过重新解压后的启动、建档、本机草稿保存、重启保留和正常退出验收；新桌面会话已完成知乎首次登录、自动账号识别、非公开草稿完整保存、自动回执和重复操作去重；头条、CSDN 桌面草稿与公开提交尚未完成。源码全套自动测试持续覆盖隔离与恢复。Windows 桌面包未交付，GitHub 既有 Release 安装包不含本次桌面改动。
 
 源码启动：`npm ci`，`node node_modules/electron/install.js`，`npm run desktop`。说明及数据位置见 [免插件桌面版使用说明](docs/免插件桌面版使用说明.md)，范围见 [交付约定](docs/免插件桌面版交付约定.md)。
 

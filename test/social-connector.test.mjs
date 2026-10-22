@@ -15,7 +15,8 @@ function fixture(platform,options={}){
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
-  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
+  if(s==='[aria-label^="点击打开"][aria-label$="的主页"]')return (options.profileLabels||[]).map(label=>element('',{getAttribute:()=>label,closest:()=>null}));
+  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
   if(s.startsWith('.image-item img'))return[element('图片')];
@@ -162,4 +163,9 @@ test('Toutiao list opens only one exact title after current account check; never
  assert.equal((await f.run('draft-list-inspect')).matched,true);assert.equal(f.draftOpens,0);assert.equal((await f.run('draft-list-open')).attempted,true);assert.equal(f.draftOpens,1);assert.ok((await f.run('draft-list-open')).connectorError);assert.equal(f.draftOpens,1);assert.equal(f.clicks,0);
  for(const titles of [[],['其他标题'],['测试文章','测试文章']]){const f=fixture('toutiao',{listTitles:titles});f.context.location.pathname='/profile_v4/manage/draft';assert.ok((await f.run('draft-list-open')).connectorError);assert.equal(f.draftOpens,0)}
  const wrong=fixture('toutiao',{listTitles:['测试文章']});wrong.context.location.pathname='/profile_v4/manage/draft';wrong.setAccount('other');assert.ok((await wrong.run('draft-list-open')).connectorError);assert.equal(wrong.draftOpens,0);
+});
+
+test('Zhihu generic profile link uses visible accessible name without changing account identity',async()=>{
+ const f=fixture('zhihu',{profileName:'我的主页',profileLabels:['点击打开温舒的主页','点击打开温舒的主页']});const me=await f.run('identity');assert.equal(me.name,'温舒');assert.equal(me.accountId,'author');
+ const ambiguous=fixture('zhihu',{profileName:'我的主页',profileLabels:['点击打开甲的主页','点击打开乙的主页']});assert.equal((await ambiguous.run('identity')).name,'author');
 });

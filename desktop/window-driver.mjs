@@ -4,7 +4,7 @@ import {randomInt} from 'node:crypto';
 import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './security.mjs';
 import {editorEvidence,platformConfig} from '../browser-extension/platforms.js';
 // No Chrome profiles, remote debugging port, arbitrary renderer scripts, or credential exports.
-export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=>{}}){
+export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=>{},onLoginReady=()=>{}}){
  fs.mkdirSync(root,{recursive:true,mode:0o700});const filename=path.join(root,'executor.json');
  let state={};if(fs.existsSync(filename)){state=JSON.parse(fs.readFileSync(filename,'utf8'));if(!state||typeof state!=='object'||Array.isArray(state))throw new Error('发布记录损坏，已停止以防重发')}
  let loginTab=null;const windows=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(connectionPartition(connection.sessionId));
@@ -18,6 +18,10 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
   wc.on('will-navigate',(e,url)=>{if(!navigationAllowed(connection.platform,url))e.preventDefault()});
   wc.on('will-redirect',(e,url)=>{if(!navigationAllowed(connection.platform,url))e.preventDefault()});
   wc.on('will-attach-webview',e=>e.preventDefault());
+  // Resume a bounded login check after the human returns, even if the initial
+  // wait expired. Only this connection's login window can signal readiness.
+  const loginReady=()=>{if(id===loginTab&&!win.isDestroyed()&&!wc.isLoadingMainFrame()&&editorEvidence(connection.platform,wc.getURL()))onLoginReady()};
+  wc.on('did-finish-load',loginReady);wc.on('did-navigate-in-page',(_e,_url,main)=>{if(main)loginReady()});
   wc.setWindowOpenHandler(({url})=>{if(navigationAllowed(connection.platform,url))createWindow(url,{openerTabId:id,active:true});return {action:'deny'}});
   wc.on('did-navigate',(_e,url)=>{saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{});});wc.on('did-navigate-in-page',(_e,url,main)=>{if(main){saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{})}});
   win.on('closed',()=>windows.delete(id));win.loadURL(url).catch(()=>onStatus('平台页面未加载完成，请检查网络或登录状态'));

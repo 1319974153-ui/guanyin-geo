@@ -87,10 +87,12 @@ async function refreshDesktopAccounts(){
  const form=document.querySelector('[data-article-editor]');if(!['integrations','publish'].includes(route)&&!form)return;
  const scope=browserPublisherContext(),id=brand().id;desktopAccountsRefreshing=true;
  try{const data=await apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:id}));if(scope!==browserPublisherContext())return;
-  const changed=JSON.stringify(browserPublisherData?.accounts)!==JSON.stringify(data.accounts);browserPublisherData=data;browserPublisherScope=scope;
+  const changed=desktopAccountFingerprint(browserPublisherData?.accounts)!==desktopAccountFingerprint(data.accounts);browserPublisherData=data;browserPublisherScope=scope;
   if(changed){const table=document.getElementById('desktop-account-table');if(table)table.innerHTML=desktopAccountTable(data);if(form&&!form.distributionBusy&&form.isConnected)await distributionLoad(form);}
  }catch{}finally{desktopAccountsRefreshing=false}
 }
 
 function startDesktopAccountWatch(){if(!desktopAccountTimer)desktopAccountTimer=setInterval(()=>void refreshDesktopAccounts(),4000)}
 window.addEventListener('beforeunload',()=>{clearInterval(desktopAccountTimer);desktopAccountTimer=null;browserPublisherWatcher?.stop()});
+
+function desktopAccountFingerprint(accounts){return JSON.stringify((accounts||[]).map(a=>({id:a.id,platform:a.platform,transport:a.transport,state:a.connectionState,error:a.connectionError,modes:a.modes,account:a.account?{accountId:a.account.accountId,name:a.account.name}:null})).sort((a,b)=>a.id.localeCompare(b.id)))}

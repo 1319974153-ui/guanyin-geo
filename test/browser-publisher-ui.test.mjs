@@ -42,3 +42,9 @@ test('desktop status polling updates only account rows and never replaces the se
  await vm.runInContext('refreshDesktopAccounts()',ctx);assert.equal(updates,1);
  assert.doesNotMatch(vm.runInContext('renderBrowserPublisher()',ctx),/配对信息|核验当前账号|安装连接器/);
 });
+
+test('desktop heartbeat times do not repaint account rows or article choices',async()=>{
+ const {ctx}=ui();let updates=0,tick=0;ctx.window.guanyinDesktop={available:true};ctx.document.getElementById=()=>({set innerHTML(v){updates++}});
+ ctx.apiRequest=async()=>({jobs:[],accounts:[{id:'desktop-a',transport:'desktop',platform:'zhihu',connectionState:'connected',lastSeen:++tick,account:{accountId:'author',name:'温舒',checkedAt:tick}}]});
+ await vm.runInContext('refreshDesktopAccounts()',ctx);await vm.runInContext('refreshDesktopAccounts()',ctx);assert.equal(updates,1);
+});
