@@ -190,7 +190,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      // never grants new writing authority. The current login must still match.
      if(session.account?.accountId!==j.accountId)fail(409,'当前账号已变化，未登记草稿');
      if(j.receipt){if(j.receipt.articleId!==draft.articleId)fail(409,'草稿编号与已有回执不同');return respond({job:publicJob(j),existing:true})}
-     j.state='draft';j.error='';j.receipt={url:draft.url,articleId:draft.articleId,observedAt:clock(),verification:'editor_saved_status_and_content',savedVerified:true,publicVerified:false};
+     j.state='draft';j.error='';j.receipt={url:draft.url,articleId:draft.articleId,observedAt:clock(),verification:draft.verification||'editor_saved_status_and_content',savedVerified:true,publicVerified:false};
      save('publisher_jobs',j);return respond({job:publicJob(j)});
     }
     let preparation;

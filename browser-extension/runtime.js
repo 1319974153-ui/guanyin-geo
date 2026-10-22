@@ -71,6 +71,26 @@ async function locateToutiaoDraft(job,tabId){
  }
  throw new Error('原稿打开结果待确认，保留现场；不会再次点击或重新填稿');
 }
+async function locateCsdnDraft(job){
+ let entry=await journal('csdn');if(!entry||entry.job.id!==job.id)throw new Error('原稿记录不匹配');
+ const article={...job.snapshot,tags:job.tags};
+ if(!entry.csdnLookup){const list=await chrome.tabs.create({url:'https://mp.csdn.net/mp_blog/manage/article',active:false});entry.csdnLookup={listTabId:list.id};await saveJournal('csdn',entry);}
+ const lookup=entry.csdnLookup;
+ if(!lookup.selectionAttempted){
+  // This only changes a list filter. Failed loads may be retried; never save or
+  // publish through the recovery path.
+  await page(lookup.listTabId,'draft-list-select',article,job.accountId,'csdn');
+  lookup.selectionAttempted=true;await saveJournal('csdn',entry);
+ }
+ if(!lookup.candidate){
+  const candidate=await page(lookup.listTabId,'draft-list-inspect',article,job.accountId,'csdn');
+  const valid=draftEvidence('csdn',{...candidate,savedVerified:true,contentVerified:true});
+  if(!valid||candidate.draftListed!==true||valid.accountId!==job.accountId)throw new Error('草稿列表候选不匹配');
+  lookup.candidate=candidate;await saveJournal('csdn',entry);
+ }
+ if(!lookup.editorTabId){const editor=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=editor.id;await saveJournal('csdn',entry);}
+ return {tabId:lookup.editorTabId,candidate:lookup.candidate};
+}
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
@@ -78,7 +98,8 @@ async function savedDraft(platform,job,tabId,call){
  for(let i=0;i<20;i++){
   await delay(1000);
   if(platform==='toutiao'&&i===3){tabId=await locateToutiaoDraft(job,tabId);}
-  const raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[]);
+  if(platform==='csdn'&&i>=3){try{const found=await locateCsdnDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw new Error('草稿箱原稿定位待确认，未重复保存');continue}}
+  let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if(platform==='csdn'&&!article.verifiedDraftList&&i<3)continue;throw e;}
   const receipt=draftEvidence(platform,raw);
   if(receipt&&receipt.accountId!==job.accountId)throw new Error('草稿回执账号不匹配');
   if(receipt&&previous===receipt.articleId){

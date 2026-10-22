@@ -33,3 +33,10 @@ test('restart during an old read ignores its result and schedules a fresh genera
  assert.equal(reads,1);release(false);await oldTick;assert.equal(f.timers.size,1);
  await f.next();assert.equal(reads,2);assert.equal(f.events.at(-1).failures,0);assert.equal(f.events.at(-1).state,'watching');f.watcher.stop();
 });
+
+test('an existing attention job can recover automatically without sending again',async()=>{
+ const journal={one:{state:'needs_attention',jobId:'original'}};let reads=0;
+ const f=fixture({pending:()=>dispatchNeedsRefresh(journal),refresh:async()=>{reads++;journal.one.state='draft';return true}});
+ f.watcher.start();await f.next();assert.equal(reads,1);assert.equal(f.watcher.active,false);assert.equal(f.events.at(-1).state,'complete');
+ assert.equal(dispatchNeedsRefresh({one:{state:'needs_attention'}}),false);
+});

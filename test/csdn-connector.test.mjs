@@ -130,3 +130,26 @@ test('CSDN may save its just-filled draft after platform autosave assigns an edi
  const f=fixture();f.setTitle('');f.setHtml('');await f.run('fill');f.context.location.pathname='/mp_blog/creation/editor/123';
  assert.equal((await f.run('save-draft')).attempted,true);assert.equal(f.draftClicks,1);assert.equal(f.clicks,0);
 });
+
+test('CSDN reopened draft requires a matching draft-list receipt and complete content',async()=>{
+ const f=fixture();f.context.location.pathname='/mp_blog/creation/editor/123';
+ const evidence={url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',accountId:'author',draftListed:true};
+ const article={title:'测试文章',html:'<p>正文</p>',verifiedDraftList:evidence};
+ const r=await f.run('draft-receipt',{article});assert.equal(r.verification,'draft_list_and_reopened_content');assert.equal(f.draftClicks,0);
+ for(const patch of [{articleId:'124'},{accountId:'other'},{draftListed:false},{url:evidence.url+'?fake=1'}])assert.equal(await f.run('draft-receipt',{article:{...article,verifiedDraftList:{...evidence,...patch}}}),null);
+ f.setHtml('<p>changed</p>');await assert.rejects(f.run('draft-receipt',{article}),/正文/);
+});
+
+function listFixture({owner='author',ids=['123'],draft=true}={}){
+ let clicks=0;const shown={getClientRects:()=>[{}]};
+ const tab={...shown,textContent:'草稿箱(10)',getAttribute:()=> 'false',click(){clicks++}};
+ const avatar={...shown,href:'https://blog.csdn.net/'+owner,querySelector:()=>({}),closest:()=>null,getBoundingClientRect:()=>({bottom:80})};
+ const links=ids.map(id=>{const a={...shown,href:'https://mp.csdn.net/mp_blog/creation/editor/'+id,textContent:'验收稿'};a.parentElement={textContent:draft?'验收稿 草稿2026-10-22 12:01:15':'验收稿 已发布',querySelectorAll:()=>[a],parentElement:null};return a});
+ const document={querySelectorAll:s=>s==='[role="tab"]'?[tab]:s==='a[href]'?links:s.startsWith('a[href^=')?[avatar]:[]};
+ const context=vm.createContext({URL,document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/manage/article'}});
+ return {get clicks(){return clicks},run:action=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'验收稿'}})};
+}
+test('CSDN list recovery accepts only one matching draft ID in the correct account',async()=>{
+ const f=listFixture();assert.equal((await f.run('draft-list-select')).selected,true);assert.equal(f.clicks,1);assert.equal((await f.run('draft-list-inspect')).articleId,'123');assert.equal(f.clicks,1);
+ for(const opts of [{owner:'other'},{ids:['123','124']},{draft:false},{ids:[]}]){const bad=listFixture(opts);assert.ok((await bad.run('draft-list-inspect')).connectorError);assert.equal(bad.clicks,0);}
+});

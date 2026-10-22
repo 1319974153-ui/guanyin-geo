@@ -9,6 +9,27 @@ export async function csdnPage({action,article,accountId}) {
   const match=location.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/);
   return match?{state:'submitted',articleId:match[1],url:location.origin+location.pathname}:null;
  }
+ // Read-only recovery for saved drafts whose initial editor URL stayed blank.
+ // Only a unique title inside an actual draft row is a candidate; the runtime
+ // subsequently opens that editor and compares its full body before reporting.
+ if(['draft-list-select','draft-list-inspect'].includes(action)){
+  if(location.pathname!=='/mp_blog/manage/article')fail('不在文章管理页，未定位草稿');
+  const owners=[...document.querySelectorAll('a[href^="https://blog.csdn.net/"]')].filter(a=>visible(a)&&a.querySelector('img')&&!a.closest('article,aside,[contenteditable]')&&a.getBoundingClientRect().bottom<=200).map(a=>{try{const u=new URL(a.href);return u.origin==='https://blog.csdn.net'&&/^\/[A-Za-z0-9_-]+\/?$/.test(u.pathname)?u.pathname.replace(/^\/|\/$/g,''):null}catch{return null}}).filter(Boolean);
+  if(new Set(owners).size!==1||owners[0]!==accountId)fail('草稿箱账号不匹配，未继续');
+  const tabs=[...document.querySelectorAll('[role="tab"]')].filter(e=>visible(e)&&/^草稿箱(?:[（(]\d+[）)])?$/.test(e.textContent.trim()));
+  if(tabs.length!==1)fail('未找到唯一草稿箱入口');
+  if(action==='draft-list-select'){if(tabs[0].getAttribute('aria-selected')!=='true')tabs[0].click();return {selected:true};}
+  const matches=[...document.querySelectorAll('a[href]')].filter(a=>visible(a)&&a.textContent.trim()===article.title).map(a=>{
+   try{const u=new URL(a.href),id=u.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);if(u.origin!==location.origin||u.search||u.hash||u.username||u.password||!id)return null;
+    let row=a.parentElement;for(let n=0;row&&n<5;n++,row=row.parentElement){
+     const ids=new Set([...row.querySelectorAll('a[href]')].map(e=>{try{return new URL(e.href).pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/)?.[1]}catch{return null}}).filter(Boolean));
+     if(ids.size>1)break;
+     if(ids.size===1&&/草稿\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/.test(row.textContent))return {url:u.href,articleId:id[1],accountId,draftListed:true};
+    }return null;
+   }catch{return null}
+  }).filter(Boolean);
+  const unique=new Map(matches.map(m=>[m.articleId,m]));if(unique.size!==1)fail('草稿箱没有唯一匹配原稿，未重复保存');return [...unique.values()][0];
+ }
  const blankEditor=location.pathname==='/mp_blog/creation/editor';
  const savedEditor=location.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
  const readExisting=['identity','inspect','prepared','draft-receipt'].includes(action)||(action==='save-draft'&&globalThis.__guanyinFilledDraftAccount===accountId);
@@ -85,6 +106,8 @@ export async function csdnPage({action,article,accountId}) {
   if(title.value!==article.title||!bodyMatches())fail('草稿正文已变化，未登记保存回执');
   if(!savedEditor)return null;
   const statuses=[...document.querySelectorAll('.edit-tip-box .autosave-tip')].filter(e=>visible(e)&&!e.closest('[contenteditable], article, aside'));
+  const listed=article.verifiedDraftList;
+  if(listed?.draftListed===true&&listed.accountId===identity.accountId&&listed.articleId===savedEditor[1]&&listed.url===location.origin+location.pathname)return {...evidence,url:listed.url,articleId:savedEditor[1],contentVerified:true,savedVerified:true,verification:'draft_list_and_reopened_content'};
   if(statuses.length!==1||!/^草稿已保存\s+(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(statuses[0].textContent.trim()))return null;
   return {...evidence,url:location.origin+location.pathname,articleId:savedEditor[1],contentVerified:true,savedVerified:true};
  }

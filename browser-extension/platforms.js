@@ -59,7 +59,7 @@ export function draftEvidence(platform,value){
   if(platform==='csdn'){
    const u=new URL(value.url),m=u.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
    if(u.origin!=='https://mp.csdn.net'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
-   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};
+   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};
   }
   if(platform!=='zhihu')return null;
   const u=new URL(value.url),m=u.pathname.match(/^\/p\/(\d+)\/edit$/);
