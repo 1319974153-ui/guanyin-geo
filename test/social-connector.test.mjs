@@ -186,3 +186,9 @@ test('Zhihu selects and verifies native AI declaration before original draft sub
  const f=fixture('zhihu',{aiCombo:true,aiResponsibility:true});assert.equal((await f.run('preflight',patch)).ready,true);assert.equal(f.clicks,0);assert.equal((await f.run('submit',patch)).attempted,true);assert.equal(f.clicks,1);
  const a=fixture('zhihu',{aiCombo:true,duplicateAI:true});assert.match((await a.run('preflight',patch)).connectorError,/不唯一/);assert.equal(a.clicks,0);
 });
+
+test('Toutiao account setup is reported before any editor write or submission',async()=>{
+ const f=fixture('toutiao');f.context.location.pathname='/profile_v4/personal/landing-type';
+ for(const action of ['identity','fill','submit','draft-list-open'])assert.match((await f.run(action)).connectorError,/完善账号信息.*发布权益/);
+ assert.equal(f.clicks,0);assert.equal(f.draftOpens,0);
+});

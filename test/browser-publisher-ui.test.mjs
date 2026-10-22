@@ -48,3 +48,21 @@ test('desktop heartbeat times do not repaint account rows or article choices',as
  ctx.apiRequest=async()=>({jobs:[],accounts:[{id:'desktop-a',transport:'desktop',platform:'zhihu',connectionState:'connected',lastSeen:++tick,account:{accountId:'author',name:'温舒',checkedAt:tick}}]});
  await vm.runInContext('refreshDesktopAccounts()',ctx);await vm.runInContext('refreshDesktopAccounts()',ctx);assert.equal(updates,1);
 });
+
+test('background receipt refresh preserves expanded controls and selected platform',async()=>{
+ const {ctx}=ui();let controls=[{open:true,querySelector:()=>({textContent:'账号管理'})}],select={value:'zhihu',options:[{value:'zhihu'},{value:'toutiao'}]};
+ ctx.document.querySelectorAll=()=>controls;ctx.document.querySelector=s=>s==='#browser-publisher-platform'?select:null;
+ ctx.render=()=>{controls=[{open:false,querySelector:()=>({textContent:'账号管理'})}];select.value='toutiao'};
+ await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(controls[0].open,true);assert.equal(select.value,'zhihu');
+});
+
+test('unchanged background status does not replace live buttons, but changed receipts and errors do',async()=>{
+ const {ctx}=ui();let renders=0,tick=0,jobState='queued',fail=false;
+ ctx.render=()=>renders++;
+ ctx.apiRequest=async()=>{if(fail)throw Error('离线');return {accounts:[{id:'desktop-a',lastSeen:++tick,account:{accountId:'me',checkedAt:tick}}],jobs:[{id:'j',state:jobState}]}};
+ await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,1);
+ await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,1);
+ jobState='draft';await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,2);
+ fail=true;await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,3);
+ fail=false;await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,4);
+});

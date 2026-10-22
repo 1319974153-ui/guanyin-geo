@@ -29,6 +29,8 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const verifyChallenge=()=>{if(many('iframe[src*="captcha"],.geetest_panel,.yidun_modal,[class*="captcha"]').length||many('input[placeholder*="验证码"]').length)fail('平台要求本人验证，请处理后核对状态；不会自动发送验证码')};
  const saveFailure=()=>many('[role="alert"],[role="status"],[class*="message"],[class*="toast"]').some(e=>!e.closest('[contenteditable],article,aside')&&text(e)==='保存失败');
  if(location.origin!==cfg.origin)fail('页面已跳转，请先完成本人登录');
+ // The official setup page is an account eligibility gate, not a saved draft.
+ if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const candidates=[location.href,...many('a[href]').filter(a=>/^(查看文章|查看作品|查看笔记|查看发布内容)$/.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];

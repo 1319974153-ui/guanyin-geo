@@ -2,7 +2,7 @@ const browserPlatformNames={csdn:'CSDN',toutiao:'头条',zhihu:'知乎',douyin:'
 let desktopAccountTimer=null;
 function desktopPublisherAvailable(){return !!window.guanyinDesktop?.available&&browserPublisherAvailable()}
 let browserPublisherData=null,browserPublisherScope='',browserPublisherLoading=false,browserPublisherError='';
-let browserPublisherWatcher=null,browserPublisherWatchScope='';
+let browserPublisherWatcher=null,browserPublisherWatchScope='',browserPublisherRendered='';
 const browserPublisherStates={published:'发布成功 · 公开正文已核验',publishing:'提交中',sending:'正在发送',draft:'平台草稿已保存 · 未公开',queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
 function browserPublisherAvailable(){return isLocalRuntime()&&isManager()&&!sessionStorage.getItem('geo.workspace')&&location.hostname==='127.0.0.1'}
 function browserPublisherContext(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand()?.id].join('|')}
@@ -11,7 +11,18 @@ async function refreshBrowserPublisher(){
  const id=brand().id,scope=browserPublisherContext();if(browserPublisherScope!==scope){browserPublisherData=null;browserPublisherError='';}browserPublisherLoading=true;
  try{const d=await apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:id}));if(browserPublisherContext()===scope&&browserPublisherAvailable()){browserPublisherData=d;browserPublisherScope=scope;browserPublisherError=''}}
  catch(e){if(browserPublisherContext()===scope){browserPublisherError=e.message;browserPublisherScope=scope;}}
- finally{browserPublisherLoading=false;if(['integrations','publish'].includes(route)){if(browserPublisherContext()!==scope)void refreshBrowserPublisher();else {render();browserPublisherWatch();}}}
+ finally{browserPublisherLoading=false;if(['integrations','publish'].includes(route)){if(browserPublisherContext()!==scope)void refreshBrowserPublisher();else {renderPublisherStatus();browserPublisherWatch();}}}
+}
+// Preserve the controls the user is using while background receipts refresh.
+function renderPublisherStatus(){
+ const signature=JSON.stringify([browserPublisherScope,route,browserPublisherError,desktopAccountFingerprint(browserPublisherData?.accounts),browserPublisherData?.jobs]);
+ if(signature===browserPublisherRendered)return;
+ browserPublisherRendered=signature;
+ const details=[...(document.querySelectorAll?.('main details')||[])].filter(e=>e.open).map(e=>e.querySelector('summary')?.textContent);
+ const platform=document.querySelector('#browser-publisher-platform')?.value;
+ render();
+ for(const e of document.querySelectorAll?.('main details')||[])if(details.includes(e.querySelector('summary')?.textContent))e.open=true;
+ const select=document.querySelector('#browser-publisher-platform');if(select&&platform&&[...select.options].some(o=>o.value===platform))select.value=platform;
 }
 function browserPublisherWatch(){
  if(!browserPublisherAvailable()||!['integrations','publish'].includes(route))return;

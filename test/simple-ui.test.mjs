@@ -43,7 +43,7 @@ test('restored setup draft retains source URL and user edits with escaped HTML',
 
 test('next action prioritizes existing content instead of requiring an AI sample or goal',()=>{
  const {ctx}=ui();const data={facts:[{usable:true}],contents:[]};ctx.own=k=>data[k]||[];ctx.GEO_KNOWLEDGE={factUsable:f=>f.usable};ctx.serverConnections=[];
- assert.equal(vm.runInContext('simpleNextWork().action',ctx),'write-article');
+ assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-prepare');
  data.contents=[{id:'draft',title:'已有稿件',status:'草稿'}];assert.equal(vm.runInContext('simpleNextWork().id',ctx),'draft');
  data.contents[0].status='已审核';assert.equal(vm.runInContext('simpleNextWork().action',ctx),'distribute-article');
  vm.runInContext("simplePublishingScope=simpleScope();simplePublishing={jobs:[{contentId:'draft',state:'draft',currentRevision:true,created:1}]}",ctx);ctx.browserPublisherStates={draft:'平台草稿已保存'};
@@ -87,4 +87,17 @@ test('home merges official API receipts and accounts with browser channels',asyn
  ctx.apiRequest=async path=>path.includes('/simple/flows')?{flows:[]}:path.includes('/publishing-center')?{accounts:[{accountId:'cb',verifiedAt:'2026-10-22'}],receipts:[{id:'cb1',contentId:'c',currentRevision:true,state:'draft'}]}:{accounts:[{account:{accountId:'browser'}}],jobs:[{id:'j1',state:'draft'}]};
  await vm.runInContext('refreshSimple()',ctx);
  assert.equal(vm.runInContext('simplePublishing.jobs.length',ctx),2);assert.equal(vm.runInContext('simplePublishing.accounts.filter(a=>a.account).length',ctx),2);
+});
+
+test('automatic writing without a model opens model connection, never a manual draft or paid call',async()=>{
+ const {ctx,seen}=ui();ctx.serverConnections=[];ctx.renderSimpleModelConnections=()=>'<section>模型连接表单</section>';
+ await vm.runInContext("simpleAction('simple-prepare',{})",ctx);assert.equal(seen.title,'连接写作模型');assert.match(seen.html,/模型连接表单/);assert.equal(seen.name,undefined);assert.equal(seen.request,undefined);
+});
+
+test('automatic writing recommends an uncovered question without treating demo content as real coverage',async()=>{
+ const {ctx,seen}=ui();const questions=[{id:'old',text:'旧问题？'},{id:'target',text:'新的需求问题？'}];let contents=[{questionId:'target',question:'新的需求问题？'}];
+ ctx.own=k=>k==='questions'?questions:k==='contents'?contents:[];
+ await vm.runInContext("simpleAction('simple-prepare',{})",ctx);assert.equal(seen.request.body.questionId,'old');
+ contents[0].demo=true;await vm.runInContext("simpleAction('simple-prepare',{})",ctx);assert.equal(seen.request.body.questionId,'target');
+ contents=[{questionId:'target'},{questionId:'old'}];assert.equal(vm.runInContext('simpleWritingQuestion().id',ctx),'target');
 });
