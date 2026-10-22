@@ -208,3 +208,7 @@ test('changed saved draft cannot be overwritten or published on promotion',async
  const f=await fixture(t,{originalDraft:{url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',savedVerified:true},preparedError:true});await f.send('run');
  assert.equal(f.actions.includes('fill'),false);assert.equal(f.clicks,0);assert.equal(f.requests.includes('commit'),false);assert.ok(f.stored.inflight);
 });
+
+test('platform quota receipt stops polling and preserves original submit attempt without retry',async t=>{
+ const f=await fixture(t,{receipt:{blocked:true,error:'今日发文额度已用完'}});await f.send('run');assert.equal(f.clicks,1);assert.ok(f.stored.inflight);assert.match(f.stored.status,/额度/);await f.send('reconcile');assert.equal(f.clicks,1);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);
+});

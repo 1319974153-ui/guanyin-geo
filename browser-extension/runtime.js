@@ -36,7 +36,7 @@ async function submitPrepared(platform,job,tabId,article,call){
  const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
   if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
   await page(tabId,'submit',article,job.accountId,platform,job.media);
-  for(let i=0;i<20;i++){await delay(1000);try{const receipt=await page(tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}catch{}}
+  for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',undefined,undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
   throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
 }
 // Resolve a saved-but-unnumbered Toutiao editor using its visible draft list.
@@ -148,12 +148,12 @@ async function run(platform='csdn'){
   await setStatus(e.message);return {error:e.message,hasJob:!!job};
  }finally{running=false}
 }
-async function resume(platform='csdn'){
+async function resume(platform='csdn',expectedJobId){
  if(running)throw new Error('正在处理任务，请稍后');
  running=true;let inflight,call;
  try{
   inflight=await journal(platform);if(!inflight)throw new Error('没有待继续的原稿');
-  const j=inflight.job,connection=await settings(platform);call=(action,data)=>api(action,data,connection);
+  const j=inflight.job;if(expectedJobId&&j.id!==expectedJobId)throw new Error('原任务已变化，未继续提交');const connection=await settings(platform);call=(action,data)=>api(action,data,connection);
   const state=await call('job-state',{id:j.id,lease:j.lease});
   if(!state.canResume)throw new Error('此任务不能继续提交；请核对上次回执，不会重复发布');
   const article={...j.snapshot,tags:j.tags};
@@ -187,11 +187,11 @@ async function reconcileJob(platform='csdn'){
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
   if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
-  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
+  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
    const message=String(e.message||'平台结果待核对').slice(0,240);
    // Recovery is read-only. Surface a newly observed error to the same job;
    // never create a second task or silently hide the platform failure.
-   if(inflight.job.mode==='draft'&&inflight.lastRecoveryError!==message){try{await call('report',{id:inflight.job.id,lease:inflight.job.lease,state:'needs_attention',editorRetained:true,error:message});const latest=await journal(platform);if(latest?.job.id===inflight.job.id){latest.lastRecoveryError=message;await saveJournal(platform,latest)}}catch{}}
+   if(inflight.lastRecoveryError!==message){try{await call('report',{id:inflight.job.id,lease:inflight.job.lease,state:'needs_attention',editorRetained:true,error:message});const latest=await journal(platform);if(latest?.job.id===inflight.job.id){latest.lastRecoveryError=message;await saveJournal(platform,latest)}}catch{}}
    await setStatus(message+'；不会自动重发');
   }
 }
@@ -220,7 +220,7 @@ async function command(message){
    if(!editorTab)editorTab=await freshEditor(platform);
    const me=await identity(editorTab,platform);await api('account',accountEvidence(me,platform),connection);await setStatus('已核验账号：'+me.name+'（'+me.accountId+'）');return {ok:true};
   }
-  if(message.action==='resume'){await resume(platform);return {ok:true}}
+  if(message.action==='resume'){await resume(platform,message.jobId);return {ok:true}}
   if(message.action==='run'){if(await journal(platform))await reconcile(platform);else await run(platform);return {ok:true}}
   if(message.action==='reconcile'){await reconcile(platform);return {ok:true}}
   throw new Error('不支持的操作');

@@ -9,7 +9,7 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status})};
 const EXT=/^chrome-extension:\/\/[a-p]{32}$/;
 const csrf=req=>req.headers.get('x-geo-request')==='1';
 const safeId=v=>typeof v==='string'&&/^[\w-]{1,100}$/.test(v);
-const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
+const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,resumable:j.mode==='publish'&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.state==='submitted'&&j.receipt?'':j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
 
 
 function validateMedia(input,limits){
@@ -219,7 +219,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     else if(b.state==='submitted'&&j.attempted){
      let url;try{url=new URL(b.url)}catch{fail(400,'缺少实际回执网址')}
      if(!receiptEvidence(j.platform||'csdn',url.href,b.articleId))fail(400,'回执不是此平台的实际文章网址');
-     j.state='submitted';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:'extension_success_page',publicVerified:false};
+     j.state='submitted';j.error='';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:'extension_success_page',publicVerified:false};
     }else if(b.state==='needs_attention'||b.state==='uncertain'){j.state=j.attempted?'uncertain':'needs_attention';if(b.editorRetained===true)j.editorRetained=true;j.error=String(b.error||'请在平台检查当前页面').slice(0,300)}else fail(400,'不支持此回执状态');
     save('publisher_jobs',j);return respond({job:publicJob(j)});
    }

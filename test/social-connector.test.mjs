@@ -5,13 +5,17 @@ import {socialPage} from '../browser-extension/social-page.js';
 import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
  let clicks=0,draftOpens=0,account='author',captcha=false,title='测试文章',body='测试正文';
- const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,focus(){},...extra});
+ const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,closest:()=>null,focus(){},...extra});
  const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
   let value=body;return {get textContent(){return value},querySelectorAll:s=>s==='span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'?[element(options.placeholderText||'请输入正文',{remove(){value=value.replace(options.placeholderText||'请输入正文','')}})]:[]};
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
- const button=element(platform==='toutiao'?'预览并发布':'发布',{click:()=>clicks++});
+ const button=element(platform==='toutiao'?'预览并发布':'发布',{tagName:'BUTTON',value:'',click:()=>clicks++});
+ let declaration='无声明';const combo=element('',{tagName:'BUTTON',value:'',get textContent(){return declaration},get innerText(){return declaration},click(){}});
+ Object.defineProperties(combo,{textContent:{get:()=>declaration},innerText:{get:()=>declaration}});
  const doc={querySelectorAll(s){
+  if(s==='[role="combobox"]')return options.aiCombo?[combo]:[];
+  if(s==='[role="option"],li')return options.aiCombo?Array.from({length:options.duplicateAI?2:1},()=>element(options.aiResponsibility?'包含 AI 辅助创作 作者对内容负责':'包含 AI 辅助创作',{click(){declaration='包含 AI 辅助创作'}})):[];
   if(s==='[role="alert"],[role="status"],[class*="message"],[class*="toast"]')return options.saveFailure?[element('保存失败',{closest:()=>options.failureInBody?bodyEl:null})]:[];
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
@@ -175,4 +179,10 @@ test('Zhihu generic profile link uses visible accessible name without changing a
 test('Toutiao visible save failure is reported without inventing a draft receipt',async()=>{
  const f=fixture('toutiao',{saveFailure:true});assert.match((await f.run('draft-receipt')).connectorError,/头条提示保存失败/);assert.equal(f.clicks,0);
  const spoof=fixture('toutiao',{saveFailure:true,failureInBody:true});assert.equal(await spoof.run('draft-receipt'),null);
+});
+
+test('Zhihu selects and verifies native AI declaration before original draft submission',async()=>{
+ const patch={article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:true}};
+ const f=fixture('zhihu',{aiCombo:true,aiResponsibility:true});assert.equal((await f.run('preflight',patch)).ready,true);assert.equal(f.clicks,0);assert.equal((await f.run('submit',patch)).attempted,true);assert.equal(f.clicks,1);
+ const a=fixture('zhihu',{aiCombo:true,duplicateAI:true});assert.match((await a.run('preflight',patch)).connectorError,/不唯一/);assert.equal(a.clicks,0);
 });

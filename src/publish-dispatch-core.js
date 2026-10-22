@@ -82,7 +82,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
      if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error='已确认未入队；重新核验账号后可再次点击填入或发布';delete row.refreshError;continue;}
      if(job)row.jobId=job.id;
     }
-    if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null}
+    if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null;row.resumable=job.resumable===true}
     else throw new Error('没有找到唯一任务回执，请在发布账号页核对；不会重新发送');
    }
    delete row.refreshError;
@@ -109,7 +109,7 @@ export async function recoverDispatchJournal({article,targets,jobs,journal}){
   const key=job.platform+':'+job.sessionId;if(next[key])continue;
   const target=targets.find(t=>t.key===key&&t.platform===job.platform&&t.accountId===job.accountId);
   const row={key,platform:job.platform,sessionId:job.sessionId,accountId:job.accountId,name:target?.name||job.accountId};
-  next[key]={...row,id:await dispatchId(article,row),jobId:job.id,state:job.state,stage:job.mode,error:job.error||'',remote:job.receipt||null,preparation:job.preparation||null};
+  next[key]={...row,id:await dispatchId(article,row),jobId:job.id,state:job.state,stage:job.mode,resumable:job.resumable===true,error:job.error||'',remote:job.receipt||null,preparation:job.preparation||null};
  }
  return next;
 }

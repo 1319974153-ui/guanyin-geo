@@ -17,7 +17,7 @@ async function seed(e){const w=(await call(e,'/api/state')).data;w.state.brands=
 async function fixture(fn,opts={}){
  const original=globalThis.fetch,posts=new Map(),calls=[];
  globalThis.fetch=async(url,o={})=>{
-  const u=new URL(url);if(u.hostname.includes('dns'))return Response.json({Status:0,Answer:[{type:u.searchParams.get('type')==='AAAA'?28:1,data:u.searchParams.get('type')==='AAAA'?'2606:4700:4700::1111':'1.1.1.1'}]});
+  const u=new URL(url);if(u.hostname.includes('dns')&&opts.dnsDown)throw Error('dns offline');if(u.hostname.includes('dns'))return Response.json({Status:0,Answer:[{type:u.searchParams.get('type')==='AAAA'?28:1,data:u.searchParams.get('type')==='AAAA'?'2606:4700:4700::1111':'1.1.1.1'}]});
   if(u.hostname==='www.cnblogs.com'){assert.equal(o.headers.cookie,undefined);const post=[...posts.values()].find(p=>u.pathname==='/test-blog/p/'+p.postid);return new Response(opts.publicHtml??(post?.public?'<a id="cb_post_title_url">'+post.title+'</a><div id="cnblogs_post_body">'+post.description+'</div>':'not public'),{status:opts.publicUnavailable?403:200,headers:{'content-type':'text/html'}})}
   assert.equal(u.href,'https://rpc.cnblogs.com/metaweblog/test-blog');assert.equal(o.redirect,'manual');
   const method=o.body.match(/<methodName>(.*?)<\/methodName>/)[1];
@@ -92,4 +92,22 @@ test('public evidence rejects a search snippet, title-only page, login page and 
  const valid='<a id="cb_post_title_url">中文 &amp; 回执</a><div id="cnblogs_post_body">'+r.html+'</div>';
  assert.equal(cnblogsPublicMatches(valid,r),true);
  for(const page of ['<h1>中文 &amp; 回执</h1>'+r.html,valid.replace('完整正文','部分正文'),valid.replace('<p>AI 声明</p>',''),'<title>登录</title>'])assert.equal(cnblogsPublicMatches(page,r),false);
+});
+
+test('pre-write DNS failure is safely retryable on the original ID while concurrent retries write once',async()=>{
+ const e=environment();await seed(e);const opts={};await fixture(async({calls})=>{
+ await connect(e);const id=crypto.randomUUID();opts.dnsDown=true;assert.equal((await create(e,id)).status,502);
+ const detail=()=>call(e,'/api/cnblogs/detail?'+new URLSearchParams({...args,id}));assert.equal((await detail()).data.record.state,'not_queued');assert.equal((await run(e,'reconcile',id)).data.record.state,'not_queued');opts.dnsDown=false;
+ const replies=await Promise.all([create(e,id),create(e,id)]);assert.ok(replies.some(r=>r.status===200));assert.equal(calls.filter(c=>c.method==='metaWeblog.newPost').length,1);assert.equal((await detail()).data.record.state,'draft');
+ },opts);e.db.close();
+});
+
+test('accepted publication remains submitted when later DNS lookup fails, and public evidence can recover without RPC',async()=>{
+ const e=environment();await seed(e);const opts={publicUnavailable:true};await fixture(async({calls})=>{
+ await connect(e);const r=(await create(e)).data.record;assert.equal((await run(e,'publish',r.id)).data.record.state,'submitted');
+ opts.dnsDown=true;assert.equal((await run(e,'reconcile',r.id)).status,502);
+ const d=await call(e,'/api/cnblogs/detail?'+new URLSearchParams({...args,id:r.id}));assert.equal(d.data.record.state,'submitted');
+ opts.dnsDown=false;opts.publicUnavailable=false;opts.handler=({method})=>method==='metaWeblog.getPost'?new Response('down',{status:503}):null;
+ assert.equal((await run(e,'reconcile',r.id)).data.record.state,'published');assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,1);
+ },opts);e.db.close();
 });

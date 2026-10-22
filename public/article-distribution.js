@@ -64,11 +64,20 @@ function distributionRecoveryTarget(f,row){
  if(!window.guanyinDesktop?.available||!['needs_attention','uncertain'].includes(row?.state)||!row.sessionId)return null;
  return (f.distributionTargets||[]).find(t=>t.transport==='desktop'&&t.sessionId===row.sessionId&&t.platform===row.platform&&t.accountId===row.accountId)||null;
 }
-function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button><span class="helper">查看原任务，不会重新发送</span></p>`:'';}
+function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button>${row.resumable&&row.jobId?`<button type="button" class="button small" data-distribution-resume="${esc(row.key)}">继续原稿发布</button>`:''}<span class="helper">查看原任务，不会重新发送</span></p>`:'';}
 async function distributionOpenOriginal(f,key){
  if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id)throw Error('工作区已变化，请重新打开稿件');
  const row=f.distributionJournal?.[key],target=distributionRecoveryTarget(f,row);if(!target)throw Error('原账号连接已变化，请检查账号设置');
  await window.guanyinDesktop.openAccount(target.sessionId);
+}
+async function distributionResumeOriginal(f,key){
+ if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())throw Error('稿件或工作区已变化');
+ const row=f.distributionJournal?.[key],target=distributionRecoveryTarget(f,row);
+ if(!target||row.resumable!==true||!row.jobId||!window.guanyinDesktop.resume)throw Error('原任务不能继续提交，请核对回执');
+ const assertCurrent=()=>{if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty()||distributionRecoveryTarget(f,row)!==target)throw Error('稿件或账号已变化，未继续提交')};
+ await window.guanyinDesktop.prepare([{sessionId:target.sessionId,accountId:target.accountId}]);assertCurrent();
+ await apiRequest('/api/local-publisher/retry',{method:'POST',body:JSON.stringify({id:row.jobId})});assertCurrent();
+ await window.guanyinDesktop.resume({sessionId:target.sessionId,accountId:target.accountId,jobId:row.jobId});await distributionReconcile(f);distributionWatch(f);
 }
 function distributionResults(f){
  const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');distributionInlineResults(f);
@@ -132,6 +141,7 @@ async function distributionSend(f,mode){
   assertScope();await persist(journal);f.distributionJournal=journal;f.distributionKey=key;
   runtimeLock(true);f.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=true);
   const desktopTargets=targets.filter(t=>t.transport==='desktop');if(desktopTargets.length){if(!window.guanyinDesktop)throw new Error('请在观引桌面版打开此稿件');await window.guanyinDesktop.prepare(desktopTargets.map(t=>({sessionId:t.sessionId,accountId:t.accountId})));assertScope();}
+  await GEO_DISPATCH.reconcileDispatch({article:c,journal,request:apiRequest,persist,assertScope});assertScope();
   await GEO_DISPATCH.dispatchArticle({article:{...c,tags},targets,mode,journal,request:apiRequest,persist,assertScope,changed:()=>distributionResults(f)});
   if(desktopTargets.length)void window.guanyinDesktop.wake();
   // WordPress publication registers server-owned receipt data. Reload before the next workspace write.
@@ -156,6 +166,7 @@ document.addEventListener('click',async e=>{
   }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}
  }
  if(b.dataset.distributionOpenOriginal){try{b.disabled=true;await distributionOpenOriginal(f,b.dataset.distributionOpenOriginal)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
+ if(b.dataset.distributionResume){try{b.disabled=true;await distributionResumeOriginal(f,b.dataset.distributionResume)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionSend){f.elements.distributionConfirmed.checked=true;await distributionSend(f,b.dataset.distributionSend);}
  if(b.hasAttribute('data-distribution-reconcile')){
   try{b.disabled=true;await distributionReconcile(f);distributionWatch(f);}

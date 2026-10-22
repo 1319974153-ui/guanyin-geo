@@ -13,7 +13,7 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  const visible=e=>!!e&&!!e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden';
  const many=s=>[...document.querySelectorAll(s)].filter(visible);
  const unique=(s,label)=>{const list=many(s);if(list.length!==1)fail(label+'结构未通过适配检查');return list[0]};
- const text=e=>(e?.value??e?.innerText??e?.textContent??'').replace(/\s+/g,' ').trim();
+ const text=e=>((/^(INPUT|TEXTAREA|SELECT)$/.test(e?.tagName||'')?e.value:undefined)??e?.innerText??e?.textContent??'').replace(/\s+/g,' ').trim();
  // Toutiao renders a non-editable placeholder widget INSIDE the document.
  // Strip only that observed decoration from a detached clone; never treat plain
  // text equal to the prompt as empty, and never mutate the live document here.
@@ -123,11 +123,21 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
   if(article.ai){const labels=many('label').filter(e=>/^(引用AI|AI辅助创作|内容由AI生成|包含AI生成内容)$/.test(text(e)));if(labels.length===1&&!labels[0].querySelector('input:checked'))labels[0].click()}
   return {...evidence,prepared:true};
  }
+ const aiLabel='包含 AI 辅助创作',aiLabels=[aiLabel,aiLabel+' 作者对内容负责'];
+ const aiCombo=()=>{const items=many('[role="combobox"]').filter(e=>!e.closest('[contenteditable],article,aside')&&['无声明',...aiLabels].includes(text(e)));return items.length===1?items[0]:null};
+ const aiDeclared=()=>platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
  if(action==='preflight'||action==='submit'){
   if(!matches())fail('正文或标题与已确认版本不同');verifyChallenge();
+  if(platform==='zhihu'&&article.ai&&action==='preflight'&&!aiDeclared()){
+   const combo=aiCombo();if(!combo)fail('未找到唯一的 AI 创作声明选项，请在原稿核对');
+   combo.click();await wait(200);
+   const options=many('[role="option"],li').filter(e=>aiLabels.includes(text(e))&&!e.closest('[contenteditable],article,aside'));
+   if(options.length!==1)fail('AI 创作声明选项不唯一，未提交');options[0].click();await wait(200);
+   if(!aiDeclared())fail('平台尚未保存 AI 创作声明，未提交');
+  }
   if(cfg.images){if(many('.uploading,[class*="upload-progress"],[class*="upload-error"]').length)fail('图片仍在上传或上传失败');const previews=many('.image-item img,.img-preview img,[class*="image-preview"] img,.image-preview');if(!media.length||previews.length!==media.length)fail('未核对到全部图片上传结果，未提交');}
   const exclusive=many('label').find(e=>/独家|独占|首发/.test(text(e))&&e.querySelector('input:checked'));if(exclusive)fail('请关闭独家/首发选项，再继续');
-  if(article.ai&&!many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked')))fail('平台 AI 声明尚未核对，请先完成声明');
+  if(article.ai&&!aiDeclared())fail('平台 AI 声明尚未核对，请先完成声明');
   const widgets=platform==='xiaohongshu'?many('xhs-publish-btn').filter(e=>e.getAttribute('is-publish')!=='false'&&e.getAttribute('submit-disabled')!=='true'):[];const b=widgets.length?widgets:buttons(cfg.publish);if(b.length!==1)fail('未找到唯一可用的发布按钮');
   if(action==='preflight')return {...evidence,ready:true};
   if(globalThis.__guanyinSubmitAttempted)fail('本页已执行提交，不会再点击');globalThis.__guanyinSubmitAttempted=true;

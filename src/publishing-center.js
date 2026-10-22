@@ -1,6 +1,6 @@
 import {canBrand,reject} from './access.js';
 import {wordpressAccount,wordpressProvider} from './publishing-accounts.js';
-import {cnblogsProvider} from './cnblogs.js';
+import {cnblogsProvider,cnblogsRunState} from './cnblogs.js';
 
 export {publishingCatalog} from './publishing-catalog.js';
 import {publishingCatalog} from './publishing-catalog.js';
@@ -40,7 +40,7 @@ export async function publishingCenterApi(req,env,ctx,h){
   accounts.push({id:row.provider,platform:'cnblogs',brandId,accountId:m.accountId,username:m.username,site:m.site,blog:m.blog,connectionRevision:m.revision,status:!m.enabled?'disabled':usable?'verified':'unverified',verifiedAt:m.verifiedAt,capabilities:{createDraft:!!usable&&['owner','admin','editor'].includes(ctx.role),publish:!!usable&&['owner','admin','editor'].includes(ctx.role)}});
  }
  const receiptRows=(await env.DB.prepare("SELECT id,state,created,result FROM runs WHERE owner=? AND kind='cnblogs' AND json_extract(result,'$.brandId')=? ORDER BY created DESC LIMIT 1000").bind(ctx.owner,brandId).all()).results;
- const receipts=receiptRows.map(row=>{const r=JSON.parse(row.result),c=w.state.contents.find(c=>c.brandId===brandId&&c.id===r.snapshot.contentId);return {id:row.id,brandId,platform:'cnblogs',accountId:r.accountId,contentId:r.snapshot.contentId,title:r.snapshot.title,state:row.state,mode:r.publishAttemptedAt?'publish':'draft',created:Date.parse(row.created),error:r.error||'',receipt:r.remote,currentRevision:!!c&&!c.demo&&c.status==='已审核'&&c.title===r.snapshot.title&&c.text===r.snapshot.text&&!!c.ai===r.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(r.snapshot.facts||[])}});
+ const receipts=receiptRows.map(row=>{const r=JSON.parse(row.result),c=w.state.contents.find(c=>c.brandId===brandId&&c.id===r.snapshot.contentId);return {id:row.id,brandId,platform:'cnblogs',accountId:r.accountId,contentId:r.snapshot.contentId,title:r.snapshot.title,state:cnblogsRunState(r,row.state),mode:r.publishAttemptedAt?'publish':'draft',created:Date.parse(row.created),error:r.error||'',receipt:r.remote,currentRevision:!!c&&!c.demo&&c.status==='已审核'&&c.title===r.snapshot.title&&c.text===r.snapshot.text&&!!c.ai===r.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(r.snapshot.facts||[])}});
  return h.json({brandId,platforms:publishingCatalog(),accounts,receipts,
   batchPublishingAvailable:false,
   connectionLimit:'支持同一品牌多个 WordPress 账号；旧连接保留为默认账号',

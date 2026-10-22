@@ -71,10 +71,11 @@ test('restarts and restores never replay an in-flight operation',async t=>{
 });
 test('receipt accepts only observed CSDN success URL, never guessed public URL or fake published state',async t=>{
  const e=setup(t),j=await e.ready();await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash});
+ await e.ext('report',{id:j.id,lease:j.lease,state:'needs_attention',error:'navigation interrupted'});
  const report={id:j.id,lease:j.lease,state:'submitted',articleId:'123456'};
  assert.equal((await e.ext('report',{...report,url:'https://blog.csdn.net/author/article/details/123456'})).status,400);
  assert.equal((await e.ext('report',{...report,url:'https://mp.csdn.net.evil.test/mp_blog/creation/success/123456'})).status,400);
- const r=await e.ext('report',{...report,url:'https://mp.csdn.net/mp_blog/creation/success/123456'});assert.equal(r.status,200);assert.equal(r.data.job.state,'submitted');assert.equal(r.data.job.receipt.publicVerified,false);
+ const r=await e.ext('report',{...report,url:'https://mp.csdn.net/mp_blog/creation/success/123456'});assert.equal(r.status,200);assert.equal(r.data.job.state,'submitted');assert.equal(r.data.job.error,'');assert.equal(r.data.job.receipt.publicVerified,false);
  assert.equal((await e.ext('report',{...report,url:'wrong'})).data.existing,true);
 });
 test('prepare-only task cannot commit, and failed preparation can explicitly reauthorize without automatic replay',async t=>{

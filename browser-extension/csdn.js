@@ -5,7 +5,9 @@ export async function csdnPage({action,article,accountId}) {
  const fail=message=>{throw new Error(message)};
  const visible=el=>!!el&&!!el.getClientRects().length;
  if(location.origin!=='https://mp.csdn.net')fail('页面已跳转，请先完成本人登录');
+ const quotaBlocked=()=>[...document.querySelectorAll('[role="dialog"],h2,.el_mcm-message,footer,button')].some(e=>visible(e)&&!e.closest('[contenteditable],article,aside')&&/^(今日发文已达上限|今日发文额度已用完[，,]?)$/.test(e.textContent.trim()))||[...document.querySelectorAll('a[href*="utm_source=editor_max"]')].some(e=>visible(e)&&!e.closest('[contenteditable],article,aside')&&/^今日发文额度已用完[，,]/.test(e.parentElement?.textContent.trim()||''));
  if(action==='receipt'){
+  if(quotaBlocked())return {blocked:true,error:'CSDN 今日发文额度已用完，未发布；保留原稿，不自动重试或开通会员'};
   const match=location.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/);
   return match?{state:'submitted',articleId:match[1],url:location.origin+location.pathname}:null;
  }
@@ -32,7 +34,7 @@ export async function csdnPage({action,article,accountId}) {
  }
  const blankEditor=location.pathname==='/mp_blog/creation/editor';
  const savedEditor=location.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
- const readExisting=['identity','inspect','prepared','draft-receipt'].includes(action)||(action==='save-draft'&&globalThis.__guanyinFilledDraftAccount===accountId);
+ const readExisting=['identity','inspect','prepared','draft-receipt','preflight','submit'].includes(action)||(action==='save-draft'&&globalThis.__guanyinFilledDraftAccount===accountId);
  if(location.search||location.hash||(!blankEditor&&!(readExisting&&savedEditor)))fail('仅允许全新编辑页，不会覆盖已有稿件');
  const title=document.querySelector('#txtTitle, textarea[placeholder*="标题"]');
  const editors=Object.values(globalThis.CKEDITOR?.instances||{}).filter(e=>e.status==='ready');
@@ -158,6 +160,7 @@ export async function csdnPage({action,article,accountId}) {
   return {...evidence,prepared:true};
  }
  if(action==='preflight'||action==='submit'){
+  if(quotaBlocked())fail('CSDN 今日发文额度已用完，未提交；保留原稿');
   if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未提交');
   if(document.querySelector('iframe[src*="captcha"], .geetest_panel, .yidun_modal'))fail('平台要求本人验证，请手动处理');
   const selected=selectedTags();

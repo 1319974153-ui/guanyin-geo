@@ -18,6 +18,7 @@ function fixture(options={}){
  const titleEl=new Textarea();const button={getClientRects:()=>[{}],textContent:'发布博客',click:()=>clicks++};
  const editor={status:'ready',getData:()=>html,setData:(v,opts)=>{html=v;opts.callback()}};
  const document={querySelector(selector){if(selector.startsWith('#txtTitle'))return titleEl;if(selector.startsWith('iframe[src'))return captcha?{}:null;if(selector==='.el_mcm-form-item.is-error')return dirty?{}:null;return null},querySelectorAll(selector){
+  if(selector==='[role="dialog"],h2,.el_mcm-message,footer,button')return options.quota?[{...shown,textContent:'今日发文已达上限',closest:()=>options.quotaInBody?{}:null}]:[];
   if(selector.includes('passport.csdn.net/login'))return options.visibleLogin?[{getClientRects:()=>[{}]}]:[{getClientRects:()=>[]}];
   if(selector.startsWith('#csdn-toolbar'))return options.modernHeader?[]:[{href:'https://blog.csdn.net/'+account,textContent:options.identityText??'作者',title:options.identityTitle??'',getClientRects:()=>[{}]}];
   if(selector.startsWith('a[href^='))return options.modernHeader?(options.avatars||[{}]).map(a=>({href:'https://blog.csdn.net/'+(a.account||account),textContent:'',getClientRects:()=>a.hidden?[]:[{}],closest:()=>a.insideContent?{}:null,querySelector:()=>a.noAvatar?null:{},compareDocumentPosition:()=>a.afterTitle?2:4,getBoundingClientRect:()=>({top:20,bottom:a.belowTitle?250:50})})):[];
@@ -114,7 +115,7 @@ test('CSDN saved editor receipt requires platform timestamp plus exact account, 
  const f=fixture({savedStatus:['草稿已保存 10:07:27']});f.context.location.pathname='/mp_blog/creation/editor/168559842';
  const r=await f.run('draft-receipt');assert.equal(r.articleId,'168559842');assert.equal(r.savedVerified,true);assert.equal(r.url,'https://mp.csdn.net/mp_blog/creation/editor/168559842');
  assert.equal((await f.run('prepared')).contentVerified,true);assert.equal((await f.run('identity')).accountId,'author');
- for(const action of ['fill','submit','save-draft'])await assert.rejects(f.run(action),/全新编辑页/);
+ for(const action of ['fill','save-draft'])await assert.rejects(f.run(action),/全新编辑页/);
  f.setHtml('<p>changed</p>');await assert.rejects(f.run('draft-receipt'),/正文已变化/);f.setHtml('<p>正文</p>');f.setAccount('other');await assert.rejects(f.run('draft-receipt'),/账号已切换/);
  assert.equal(f.clicks,0);assert.equal(f.draftClicks,0);
 });
@@ -152,4 +153,9 @@ function listFixture({owner='author',ids=['123'],draft=true}={}){
 test('CSDN list recovery accepts only one matching draft ID in the correct account',async()=>{
  const f=listFixture();assert.equal((await f.run('draft-list-select')).selected,true);assert.equal(f.clicks,1);assert.equal((await f.run('draft-list-inspect')).articleId,'123');assert.equal(f.clicks,1);
  for(const opts of [{owner:'other'},{ids:['123','124']},{draft:false},{ids:[]}]){const bad=listFixture(opts);assert.ok((await bad.run('draft-list-inspect')).connectorError);assert.equal(bad.clicks,0);}
+});
+
+test('CSDN quota blocks public submission and is returned as blocked, never success',async()=>{
+ const f=fixture({quota:true});await assert.rejects(f.run('preflight'),/额度已用完/);assert.equal((await f.run('receipt')).blocked,true);assert.equal(f.clicks,0);
+ const body=fixture({quota:true,quotaInBody:true});assert.equal(await body.run('receipt'),null);
 });

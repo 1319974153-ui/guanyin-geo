@@ -50,13 +50,13 @@ test('website provenance checks real body beyond the preview; mismatch, script-o
  ['web-script','隐藏脚本中的内容不能成为正文证据。','https://example.com/product'],
  ['web-private','内网资料不可通过网页核对。','http://127.0.0.1/']
  ].map(([id,value,source])=>({id,brandId:brand.id,key:id,value,source,status:'待确认'})));await request(e,'A','/api/state','PUT',w);
- const old=globalThis.fetch;let pageCalls=0;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});pageCalls++;return new Response('<title>产品页</title><p>'+('背景说明。'.repeat(500))+'</p><p>产品支持按照项目管理客户资料。</p><p>不产品支持全自动批量发布功能。</p><script>隐藏脚本中的内容不能成为正文证据。</script>',{headers:{'content-type':'text/html'}})};
+ const old=globalThis.fetch;let pageCalls=0;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});pageCalls++;return new Response('<title>产品页</title><p>'+('背景说明。'.repeat(500))+'</p><p>产品支持按照项目管理客户资料。</p><p>不产品支持全自动批量发布功能。</p><script>隐藏脚本中的内容不能成为正文证据。</script>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/review-facts','POST',{brandId:brand.id,ids:['web-match','web-mismatch','web-script','web-private']});assert.equal(r.status,200);assert.equal(pageCalls,1);assert.deepEqual(r.data.reviews.map(x=>x.status),['matched','needs_review','needs_review','needs_review']);assert.equal(r.data.state.facts.find(f=>f.id==='web-match').status,'已确认')}finally{globalThis.fetch=old}
 });
 
 test('review response cannot confirm a concurrently edited fact',async()=>{
  const e=env(),w=await populated(e);w.state.facts.push({id:'race-source',brandId:brand.id,key:'功能',value:'产品支持按照项目管理客户资料。',source:'https://example.com',status:'待确认'});await request(e,'A','/api/state','PUT',w);
- const old=globalThis.fetch;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});const current=(await request(e,'A','/api/state')).data;current.state.facts.find(f=>f.id==='race-source').value='用户刚修改了这段内容，不能沿用旧审核。';await request(e,'A','/api/state','PUT',current);return new Response('<p>产品支持按照项目管理客户资料。</p>',{headers:{'content-type':'text/html'}})};
+ const old=globalThis.fetch;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});const current=(await request(e,'A','/api/state')).data;current.state.facts.find(f=>f.id==='race-source').value='用户刚修改了这段内容，不能沿用旧审核。';await request(e,'A','/api/state','PUT',current);return new Response('<p>产品支持按照项目管理客户资料。</p>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/review-facts','POST',{brandId:brand.id,ids:['race-source']});assert.equal(r.status,200);assert.deepEqual(r.data.reviews,[]);const f=r.data.state.facts.find(f=>f.id==='race-source');assert.equal(f.status,'待确认');assert.equal(f.sourceReview,undefined)}finally{globalThis.fetch=old}
 });
 
@@ -66,7 +66,7 @@ test('AI generation fills generated article title and preserves a manually suppl
 });
 
 test('publication metadata resolves title without creating a publication and refuses authentication pages',async()=>{
- const e=env();await populated(e);const old=globalThis.fetch;let login=false;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});return new Response(login?'<title>账号登录</title>':'<title>产品介绍 &amp; 常见问答</title><h1>产品介绍</h1>',{headers:{'content-type':'text/html'}})};
+ const e=env();await populated(e);const old=globalThis.fetch;let login=false;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});return new Response(login?'<title>账号登录</title>':'<title>产品介绍 &amp; 常见问答</title><h1>产品介绍</h1>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'});assert.equal(r.status,200);assert.equal(r.data.title,'产品介绍 & 常见问答');assert.equal((await request(e,'A','/api/state')).data.state.publications.length,0);login=true;assert.equal((await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,422);assert.equal((await request(e,'B','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,404)}finally{globalThis.fetch=old}
 });
 test('model-only edits retain encrypted key within the same owner and provider, without network calls',async()=>{
