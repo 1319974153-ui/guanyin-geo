@@ -1,0 +1,16 @@
+{
+  "kind": "synthetic_offline_example",
+  "notice": "构造数据，不是真实 AI 回答、客户反馈或推荐证据。",
+  "clock": "2026-10-15T10:00:00+08:00",
+  "brand": {"id":"demo-brand","name":"演练主体","site":"https://example.com","aliases":"","productLines":[]},
+  "question": {"id":"demo-question","brandId":"demo-brand","text":"修改后的演练问题","version":"v2","history":[{"version":"v1","text":"如何核对一个项目的公开依据？"}]},
+  "capture": {
+    "brandId":"demo-brand","questionId":"demo-question","questionVersion":"v1",
+    "externalId":"offline-demo-001","platform":"本地构造样本（非消费者平台）",
+    "entry":"web","mode":"离线演练","region":"未采集","language":"zh-CN","model":"",
+    "collectedAt":"2026-10-15T09:00:00+08:00",
+    "text":"【构造数据，非真实 AI 回答】演练主体提供了示例页面。\n\n这句话仅用于检查原文保留和来源去重。",
+    "citations":[{"url":"https://example.com"},{"url":"https://example.com/"}],
+    "dataPurpose":"trial"
+  }
+}
