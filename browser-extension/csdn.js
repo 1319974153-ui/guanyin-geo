@@ -9,7 +9,10 @@ export async function csdnPage({action,article,accountId}) {
   const match=location.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/);
   return match?{state:'submitted',articleId:match[1],url:location.origin+location.pathname}:null;
  }
- if(location.pathname!=='/mp_blog/creation/editor'||location.search)fail('仅允许全新编辑页，不会覆盖已有稿件');
+ const blankEditor=location.pathname==='/mp_blog/creation/editor';
+ const savedEditor=location.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
+ const readExisting=['identity','inspect','prepared','draft-receipt'].includes(action)||(action==='save-draft'&&globalThis.__guanyinFilledDraftAccount===accountId);
+ if(location.search||location.hash||(!blankEditor&&!(readExisting&&savedEditor)))fail('仅允许全新编辑页，不会覆盖已有稿件');
  const title=document.querySelector('#txtTitle, textarea[placeholder*="标题"]');
  const editors=Object.values(globalThis.CKEDITOR?.instances||{}).filter(e=>e.status==='ready');
  if(!visible(title)||editors.length!==1)fail('当前编辑器结构未通过适配检查，未提交');
@@ -76,6 +79,25 @@ export async function csdnPage({action,article,accountId}) {
   }
  };
 
+ // A saved URL alone is insufficient: require current editor content and the
+ // platform-owned saved timestamp. Never infer a public URL from a draft ID.
+ if(action==='draft-receipt'){
+  if(title.value!==article.title||!bodyMatches())fail('草稿正文已变化，未登记保存回执');
+  if(!savedEditor)return null;
+  const statuses=[...document.querySelectorAll('.edit-tip-box .autosave-tip')].filter(e=>visible(e)&&!e.closest('[contenteditable], article, aside'));
+  if(statuses.length!==1||!/^草稿已保存\s+(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(statuses[0].textContent.trim()))return null;
+  return {...evidence,url:location.origin+location.pathname,articleId:savedEditor[1],contentVerified:true,savedVerified:true};
+ }
+ if(action==='save-draft'){
+  if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未保存草稿');
+  if(document.querySelector('iframe[src*="captcha"], .geetest_panel, .yidun_modal'))fail('平台要求本人验证，请手动处理');
+  if(article.ai&&!aiDeclared())fail('请确认平台的 AI 辅助声明后继续');
+  sideEffectsClear();
+  const buttons=[...document.querySelectorAll('.btn-outline-secondary')].filter(b=>visible(b)&&b.textContent.trim()==='保存草稿'&&!b.disabled);
+  if(buttons.length!==1)fail('未找到唯一可用的保存草稿按钮，未尝试其他操作');
+  if(globalThis.__guanyinDraftSaveAttempted)fail('本页已尝试保存草稿，请核对原稿回执');
+  globalThis.__guanyinDraftSaveAttempted=true;buttons[0].click();return {attempted:true};
+ }
  if(action==='prepared'){if(title.value!==article.title||!bodyMatches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,contentVerified:true};}
  if(action==='fill'){
   if(title.value?.trim()||new DOMParser().parseFromString(editor.getData(),'text/html').body.textContent.trim()||/<img|<video|<iframe/i.test(editor.getData()))fail('编辑器已有内容或恢复了旧草稿，未覆盖；请检查后重新开空白编辑器');
@@ -109,6 +131,7 @@ export async function csdnPage({action,article,accountId}) {
    options[0].click();await pause(250);
    if(!aiDeclared())fail('平台尚未确认 AI 辅助声明，请在原稿核对');
   }
+  globalThis.__guanyinFilledDraftAccount=identity.accountId;
   return {...evidence,prepared:true};
  }
  if(action==='preflight'||action==='submit'){

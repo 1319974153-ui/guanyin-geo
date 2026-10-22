@@ -7,7 +7,7 @@ export function publishingEvidence(id){
  const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(id),wp=id==='wordpress';
  const tested=['csdn','toutiao','zhihu'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao'].includes(id));
+  const implemented=wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn'].includes(id));
   const passed=tested&&['identity','prepare'].includes(action)||id==='zhihu'&&action==='draft';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],

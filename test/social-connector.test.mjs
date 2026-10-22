@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
 import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
- let clicks=0,account='author',captcha=false,title='测试文章',body='测试正文';
+ let clicks=0,draftOpens=0,account='author',captcha=false,title='测试文章',body='测试正文';
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,focus(){},...extra});
  const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
@@ -14,7 +14,8 @@ function fixture(platform,options={}){
  const doc={querySelectorAll(s){
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
-  if(s==='a[href]')return [element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
+  if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
+  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element('本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
   if(s.startsWith('.image-item img'))return[element('图片')];
@@ -27,7 +28,7 @@ function fixture(platform,options={}){
  const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
  const run=(action,patch={})=>vm.runInContext('('+socialPage.toString()+')',context)({platform,action,media:[{name:'fixture.png'}],article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:false},accountId:platform==='toutiao'?'123':'author',...patch});
  if(platform==='toutiao')account='123';
- return {run,context,setTitle:v=>title=v,get clicks(){return clicks},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
+ return {run,context,setTitle:v=>title=v,get clicks(){return clicks},get draftOpens(){return draftOpens},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
 }
 test('new adapters fail closed on identity changes, edited body, AI disclosure and CAPTCHA before submit',async()=>{
  for(const platform of ['toutiao','zhihu','douyin','xiaohongshu']){
@@ -138,4 +139,27 @@ test('Toutiao bridge receipt accepts only canonical editor URLs with the same du
  const r={...savedDraft,url:PLATFORMS.toutiao.editor+'?pgc_id=123'};assert.ok(draftEvidence('toutiao',r));
  for(const patch of [{url:PLATFORMS.toutiao.editor},{url:r.url+'&token=secret'},{url:r.url+'&pgc_id=123'},{url:r.url+'#x'},{url:'https://www.toutiao.com/article/123/'},{url:'https://evil.test/?pgc_id=123'},{articleId:'124'},{savedVerified:false},{contentVerified:false}])assert.equal(draftEvidence('toutiao',{...r,...patch}),null);
  assert.equal(draftEvidence('zhihu',r),null);
+});
+
+
+test('CSDN draft contract accepts only exact saved editor IDs and excludes public or credential URLs',()=>{
+ const r={...savedDraft,url:'https://mp.csdn.net/mp_blog/creation/editor/123'};assert.ok(draftEvidence('csdn',r));assert.ok(editorEvidence('csdn',r.url));
+ for(const patch of [{url:PLATFORMS.csdn.editor},{url:r.url+'?id=1'},{url:r.url+'#x'},{url:r.url.replace('123','0')},{url:'https://blog.csdn.net/author/article/details/123'},{url:'https://u:p@mp.csdn.net/mp_blog/creation/editor/123'},{articleId:'124'},{savedVerified:false},{contentVerified:false}])assert.equal(draftEvidence('csdn',{...r,...patch}),null);
+ assert.equal(draftEvidence('toutiao',r),null);
+});
+
+
+test('Toutiao draft list navigation requires saved editor text and observed same-origin list link',async()=>{
+ const f=fixture('toutiao',{savedStatus:['草稿已保存'],draftLink:'https://mp.toutiao.com/profile_v4/manage/draft?from=creation'});
+ const r=await f.run('draft-location');assert.equal(r.url,'https://mp.toutiao.com/profile_v4/manage/draft');assert.equal(r.accountId,'123');assert.equal(f.clicks,0);
+ f.setBody('changed');assert.ok((await f.run('draft-location')).connectorError);
+ for(const options of [{draftLink:'https://evil.test/profile_v4/manage/draft'},{draftLink:'https://mp.toutiao.com/profile_v4/manage/draft',linkInBody:true},{draftLink:'https://mp.toutiao.com/profile_v4/manage/draft',savedStatus:['草稿保存中']}]){
+  const f=fixture('toutiao',{savedStatus:['草稿已保存'],...options});assert.equal(await f.run('draft-location'),null);
+ }
+});
+test('Toutiao list opens only one exact title after current account check; never publishes or repeats',async()=>{
+ const f=fixture('toutiao',{listTitles:['测试文章']});f.context.location.pathname='/profile_v4/manage/draft';
+ assert.equal((await f.run('draft-list-inspect')).matched,true);assert.equal(f.draftOpens,0);assert.equal((await f.run('draft-list-open')).attempted,true);assert.equal(f.draftOpens,1);assert.ok((await f.run('draft-list-open')).connectorError);assert.equal(f.draftOpens,1);assert.equal(f.clicks,0);
+ for(const titles of [[],['其他标题'],['测试文章','测试文章']]){const f=fixture('toutiao',{listTitles:titles});f.context.location.pathname='/profile_v4/manage/draft';assert.ok((await f.run('draft-list-open')).connectorError);assert.equal(f.draftOpens,0)}
+ const wrong=fixture('toutiao',{listTitles:['测试文章']});wrong.context.location.pathname='/profile_v4/manage/draft';wrong.setAccount('other');assert.ok((await wrong.run('draft-list-open')).connectorError);assert.equal(wrong.draftOpens,0);
 });

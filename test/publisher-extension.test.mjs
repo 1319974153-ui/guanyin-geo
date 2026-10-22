@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
+ let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  if(options.platform){stored.connections={[options.platform]:stored.connection};if(options.inflight)stored.inflightByPlatform={[options.platform]:stored.inflight};}
- globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener(){}}},alarms:{async create(){},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create(){actions.push('new-tab');return{id:1}}},scripting:{async executeScript({args}){
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create({url}){actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
-  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
+  if(action==='draft-location')return[{result:{accountId:'author',url:'https://mp.toutiao.com/profile_v4/manage/draft',contentVerified:true}}];
+  if(action==='draft-receipt'&&options.locateDraft&&target.tabId!==3)return[{result:null}];
+  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
   if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
   if(action==='submit')clicks++;
@@ -29,7 +31,7 @@ async function fixture(t,options={}){
  await import('../browser-extension/background.js?fixture='+Math.random());
  t.after(()=>{globalThis.chrome=originalChrome;globalThis.fetch=originalFetch});
  const send=(action,platform='csdn')=>new Promise(resolve=>handler({action,platform},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));
- return{send,actions,requests,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler};
+ return{send,actions,requests,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler,get alarmCreates(){return alarmCreates},installed:()=>installed(),startup:()=>startup()};
 }
 test('extension prepares, checks, commits once, then reports only actual success-page evidence',async t=>{
  const f=await fixture(t,{receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}});await f.send('run');
@@ -136,4 +138,31 @@ test('Toutiao draft connector observes stable saved ID twice and never invokes p
 test('Toutiao lost draft report reconciles original tab without refilling or republishing',async t=>{
  const f=await fixture(t,{platform:'toutiao',mode:'draft',lostReport:true,identityResult:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.toutiao.com/profile_v4/graphic/publish'}});await f.send('run','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);
  await f.send('reconcile','toutiao');assert.equal(f.stored.inflightByPlatform.toutiao,undefined);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.clicks,0);
+});
+
+
+test('CSDN draft task saves once, observes ID twice and never commits public publication',async t=>{
+ const f=await fixture(t,{platform:'csdn',mode:'draft',lostReport:true});await f.send('run');assert.ok(f.stored.inflight);
+ await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.equal(f.actions.filter(a=>a==='save-draft').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);
+ assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(!f.actions.includes('preflight'));assert.match(f.stored.status,/草稿已保存/);
+});
+test('worker reload restores missing queue polling without opening editors or executing new jobs',async t=>{
+ const f=await fixture(t);await new Promise(r=>setImmediate(r));assert.equal(f.alarmCreates,1);assert.equal(f.actions.length,0);assert.equal(f.requests.length,0);
+ await f.startup();assert.equal(f.alarmCreates,1);assert.equal(f.actions.length,0);
+});
+test('worker startup preserves existing polling schedule',async t=>{
+ const f=await fixture(t,{existingAlarm:true});await new Promise(r=>setImmediate(r));assert.equal(f.alarmCreates,0);assert.equal(f.actions.length,0);
+});
+
+
+test('unnumbered Toutiao draft resolves via owned list then verifies content; lost report never reopens it',async t=>{
+ const f=await fixture(t,{platform:'toutiao',mode:'draft',locateDraft:true,lostReport:true,identityResult:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.toutiao.com/profile_v4/graphic/publish'}});
+ await f.send('run','toutiao');assert.equal(f.stored.inflightByPlatform.toutiao.tabId,3);await f.send('reconcile','toutiao');
+ assert.equal(f.stored.inflightByPlatform.toutiao,undefined);for(const action of ['fill','new-tab','draft-list-tab','draft-list-open'])assert.equal(f.actions.filter(a=>a===action).length,1,action);
+ assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));
+});
+test('ambiguous draft children remain unresolved without another title click or refill',async t=>{
+ const f=await fixture(t,{platform:'toutiao',mode:'draft',locateDraft:true,ambiguousChildren:true,identityResult:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.toutiao.com/profile_v4/graphic/publish'}});
+ await f.send('run','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);await f.send('reconcile','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);
+ assert.equal(f.actions.filter(a=>a==='draft-list-open').length,1);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.clicks,0);
 });

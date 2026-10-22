@@ -18,7 +18,7 @@ async function page(tabId,action,article,accountId,platform='csdn',media=[]){
  const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
- if(['receipt','draft-receipt'].includes(action)&&value===null)return null;
+ if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('未取得编辑器操作结果，请重新核验');
  if(action==='identity'&&(!value.accountId||!value.name||value.editorReady!==true||!editorEvidence(platform,value.evidenceUrl)))throw new Error('编辑器未返回完整账号信息，未继续提交');
  return value;
@@ -35,12 +35,45 @@ async function submitPrepared(platform,job,tabId,article,call){
   for(let i=0;i<20;i++){await delay(1000);try{const receipt=await page(tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}catch{}}
   throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
 }
+// Resolve a saved-but-unnumbered Toutiao editor using its visible draft list.
+// Persist the read-navigation attempt before clicking; interruption never opens
+// or fills another article. A same-title match is only a candidate: savedDraft
+// still verifies exact account, full content and durable ID on the editor.
+async function locateToutiaoDraft(job,tabId){
+ let entry=await journal('toutiao');if(!entry||entry.job.id!==job.id)throw new Error('原稿记录不匹配');
+ const article={...job.snapshot,tags:job.tags};
+ if(entry.lookup?.resolved)return entry.tabId;
+ if(!entry.lookup){
+  const hint=await page(tabId,'draft-location',article,job.accountId,'toutiao');
+  if(!hint)return tabId;
+  if(hint.accountId!==job.accountId||hint.contentVerified!==true||hint.url!=='https://mp.toutiao.com/profile_v4/manage/draft')throw new Error('草稿定位依据不匹配');
+  const list=await chrome.tabs.create({url:hint.url,active:false});
+  entry.lookup={tabId:list.id,openAttempted:false};await saveJournal('toutiao',entry);
+ }
+ const lookup=entry.lookup;
+ if(!lookup.openAttempted){
+  let ready=false;
+  for(let i=0;i<10;i++){try{await page(lookup.tabId,'draft-list-inspect',article,job.accountId,'toutiao');ready=true;break}catch{await delay(500)}}
+  if(!ready)throw new Error('草稿箱没有唯一匹配原稿，请核对；未重复建稿');
+  lookup.openAttempted=true;await saveJournal('toutiao',entry);
+  await page(lookup.tabId,'draft-list-open',article,job.accountId,'toutiao');
+ }
+ for(let i=0;i<10;i++){
+  const children=(await chrome.tabs.query({url:'https://mp.toutiao.com/profile_v4/graphic/publish*'})).filter(t=>t.openerTabId===lookup.tabId);
+  const candidates=children.filter(t=>{try{const u=new URL(t.url);return u.origin==='https://mp.toutiao.com'&&u.pathname==='/profile_v4/graphic/publish'&&!u.username&&!u.password&&!u.hash&&u.searchParams.getAll('pgc_id').length===1&&/^[1-9]\d{0,29}$/.test(u.searchParams.get('pgc_id'))}catch{return false}});
+  if(candidates.length>1)throw new Error('打开了多个原稿候选，请手动核对；未再次点击');
+  if(candidates.length===1){entry.tabId=candidates[0].id;entry.lookup.resolved=true;await saveJournal('toutiao',entry);return entry.tabId;}
+  await delay(500);
+ }
+ throw new Error('原稿打开结果待确认，保留现场；不会再次点击或重新填稿');
+}
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
  const article={...job.snapshot,tags:job.tags};let previous=null;
  for(let i=0;i<20;i++){
   await delay(1000);
+  if(platform==='toutiao'&&i===3){tabId=await locateToutiaoDraft(job,tabId);}
   const raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[]);
   const receipt=draftEvidence(platform,raw);
   if(receipt&&receipt.accountId!==job.accountId)throw new Error('草稿回执账号不匹配');
@@ -64,7 +97,7 @@ async function run(platform='csdn'){
   await saveJournal(platform,{job,tabId});
   const article={...job.snapshot,tags:job.tags};editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
-  if(job.mode==='draft'){await savedDraft(platform,job,tabId,call);return}
+  if(job.mode==='draft'){if(platform==='csdn')await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   await page(tabId,'preflight',article,job.accountId,platform,job.media);
   await submitPrepared(platform,job,tabId,article,call);
  }catch(e){
@@ -93,6 +126,9 @@ async function resume(platform='csdn'){
  }finally{running=false}
 }
 async function reconcile(platform='csdn'){
+ if(running)return;running=true;try{await reconcileJob(platform)}finally{running=false}
+}
+async function reconcileJob(platform='csdn'){
  await requireStorage();const inflight=await journal(platform);if(!inflight)return;const call=(action,data)=>api(action,data,settingsConnection);const settingsConnection=await settings(platform);
  try{
   if(inflight.job.mode==='draft'){
@@ -145,4 +181,9 @@ chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
 });
 async function tick(){for(const platform of Object.keys(PLATFORMS)){if(!await settings(platform))continue;if(await journal(platform))await reconcile(platform);else await run(platform)}}
 chrome.alarms.onAlarm.addListener(async alarm=>{if(alarm.name!=='publisher')return;try{await requireStorage();await tick()}catch(e){await setStatus(e.message)}});
-chrome.runtime.onStartup.addListener(async()=>{for(const p of Object.keys(PLATFORMS))try{if(await settings(p))await reconcile(p)}catch{}});
+async function restorePolling(){await requireStorage();const saved=await chrome.storage.local.get(['connections','connection']);if((saved.connection||Object.keys(saved.connections||{}).length)&&!await chrome.alarms.get('publisher'))await chrome.alarms.create('publisher',{periodInMinutes:1});}
+chrome.runtime.onInstalled.addListener(()=>{restorePolling().catch(e=>setStatus(e.message))});
+chrome.runtime.onStartup.addListener(async()=>{await restorePolling();for(const p of Object.keys(PLATFORMS))try{if(await settings(p))await reconcile(p)}catch{}});
+
+// MV3 reloads also start a worker without an onStartup event.
+restorePolling().catch(e=>setStatus(e.message));

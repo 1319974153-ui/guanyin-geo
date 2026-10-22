@@ -1,6 +1,6 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
- csdn:{name:'CSDN',editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
+ csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:30,textMax:1000,images:9},
@@ -9,7 +9,7 @@ export const PLATFORMS = {
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
 export function editorEvidence(platform,url){
  try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.hash)return false;
- if(platform==='csdn')return u.pathname==='/mp_blog/creation/editor'&&!u.search;
+ if(platform==='csdn')return /^\/mp_blog\/creation\/editor(?:\/[1-9]\d{0,29})?$/.test(u.pathname)&&!u.search;
  if(platform==='toutiao')return u.pathname==='/profile_v4/graphic/publish';
  if(platform==='zhihu')return u.pathname==='/write'||/^\/p\/\d+\/edit$/.test(u.pathname);
  if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
@@ -55,6 +55,11 @@ export function draftEvidence(platform,value){
    const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
    const id=new URL(url).searchParams.get('pgc_id');if(!id||id!==String(value.articleId))return null;
    return {url,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true};
+  }
+  if(platform==='csdn'){
+   const u=new URL(value.url),m=u.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
+   if(u.origin!=='https://mp.csdn.net'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
+   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};
   }
   if(platform!=='zhihu')return null;
   const u=new URL(value.url),m=u.pathname.match(/^\/p\/(\d+)\/edit$/);

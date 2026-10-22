@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import {csdnPage} from '../browser-extension/csdn.js';
 function fixture(options={}){
- let title='测试文章',html='<p>正文</p>',clicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
+ let title='测试文章',html='<p>正文</p>',clicks=0,draftClicks=0,account='author',captcha=false,dirty=false,selected=['软件测试'];
  class Input{get value(){return this.tagInput?this.tagValue:title}set value(v){if(this.tagInput)this.tagValue=v;else title=v}getClientRects(){return[{}]}getBoundingClientRect(){return{top:options.scrolled?-500:100,bottom:options.scrolled?-460:140}}dispatchEvent(){}}
  class Textarea extends Input{get value(){return title}set value(v){title=v}}
  let tagsOpen=false,dropdownOpen=false,declaration=options.declaration||'无声明',tagWrites=0;
@@ -26,13 +26,15 @@ function fixture(options={}){
   if(selector==='input')return tagsOpen?[tagInput]:[];
   if(selector==='.tag__btn-tag')return [{...shown,textContent:'添加文章标签',click(){tagsOpen=true}}];
   if(selector==='[role="option"],li')return dropdownOpen?[{...shown,textContent:'部分内容由AI辅助生成',click(){declaration='部分内容由AI辅助生成';dropdownOpen=false}}]:[];
+  if(selector==='.edit-tip-box .autosave-tip')return(options.savedStatus||[]).map(textContent=>({...shown,textContent,closest:()=>options.statusInBody?{}:null}));
+  if(selector==='.btn-outline-secondary')return Array.from({length:options.draftButtons??1},()=>({...shown,textContent:'保存草稿',disabled:options.disabledDraft,click:()=>draftClicks++}));
   if(selector==='.btn-outline-danger')return[button];if(selector.includes('.is-closable'))return selected.map(textContent=>({...shown,textContent}));return[];
  }};
  class Parser{parseFromString(value){return{body:{textContent:value.replace(/<[^>]*>/g,''),querySelectorAll:()=>[]},querySelectorAll:()=>[]}}}
  const context=vm.createContext({URL,Node:{DOCUMENT_POSITION_FOLLOWING:4},document,location:{origin:'https://mp.csdn.net',pathname:'/mp_blog/creation/editor',search:''},CKEDITOR:{instances:{one:editor}},DOMParser:Parser,HTMLTextAreaElement:Textarea,HTMLInputElement:Input,Event:class{constructor(type,values){this.type=type;Object.assign(this,values)}},KeyboardEvent:class{constructor(type,values){this.type=type;Object.assign(this,values)}},setTimeout,clearTimeout});
  const raw=(action,patch={})=>vm.runInContext('('+csdnPage.toString()+')',context)({action,accountId:'author',article:{title:'测试文章',html:'<p>正文</p>',tags:['软件测试'],ai:false},...patch});
  const run=async(action,patch={})=>{const result=await raw(action,patch);if(result?.connectorError)throw new Error(result.connectorError);return result};
- return {raw,run,context,get tagWrites(){return tagWrites},get declaration(){return declaration},get clicks(){return clicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
+ return {raw,run,context,get tagWrites(){return tagWrites},get declaration(){return declaration},get clicks(){return clicks},get draftClicks(){return draftClicks},setAccount:v=>account=v,setHtml:v=>html=v,setTitle:v=>title=v,setCaptcha:v=>captcha=v,setTags:v=>selected=v,setDirty:v=>dirty=v};
 }
 test('CSDN publisher clicks once only after exact identity, body and tags match',async()=>{
  const f=fixture();assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);await f.run('submit');assert.equal(f.clicks,1);await assert.rejects(f.run('submit'),/已尝试/);assert.equal(f.clicks,1);
@@ -94,4 +96,37 @@ test('CSDN publish cannot enable GitCode signup or its separate multi-platform s
 test('CSDN fixed header identity survives metadata scrolling without accepting article or lower-page avatars',async()=>{
  const f=fixture({modernHeader:true,scrolled:true});assert.equal((await f.run('prepared')).accountId,'author');assert.equal(f.clicks,0);
  for(const avatars of [[{insideContent:true}],[{afterTitle:true}],[{belowTitle:true}]]){const invalid=fixture({modernHeader:true,scrolled:true,avatars});await assert.rejects(invalid.run('identity'),/唯一/)}
+});
+
+
+test('CSDN draft save clicks only the unique draft control once and never publishes',async()=>{
+ const f=fixture();assert.equal((await f.run('save-draft')).attempted,true);assert.equal(f.draftClicks,1);assert.equal(f.clicks,0);
+ await assert.rejects(f.run('save-draft'),/已尝试保存/);assert.equal(f.draftClicks,1);
+});
+test('CSDN draft save stops on changed identity/content, captcha, AI declaration or side effects',async()=>{
+ for(const [change,message] of [[f=>f.setAccount('other'),/账号已切换/],[f=>f.setHtml('<p>changed</p>'),/正文已变化/],[f=>f.setCaptcha(true),/本人验证/]]){
+  const f=fixture();change(f);await assert.rejects(f.run('save-draft'),message);assert.equal(f.draftClicks,0);assert.equal(f.clicks,0);
+ }
+ for(const options of [{gitCode:true},{multiPlatform:true},{draftButtons:0},{draftButtons:2},{disabledDraft:true}]){const f=fixture(options);await assert.rejects(f.run('save-draft'));assert.equal(f.draftClicks,0);assert.equal(f.clicks,0)}
+ const f=fixture();await assert.rejects(f.run('save-draft',{article:aiArticle}),/AI/);assert.equal(f.draftClicks,0);
+});
+test('CSDN saved editor receipt requires platform timestamp plus exact account, content and ID',async()=>{
+ const f=fixture({savedStatus:['草稿已保存 10:07:27']});f.context.location.pathname='/mp_blog/creation/editor/168559842';
+ const r=await f.run('draft-receipt');assert.equal(r.articleId,'168559842');assert.equal(r.savedVerified,true);assert.equal(r.url,'https://mp.csdn.net/mp_blog/creation/editor/168559842');
+ assert.equal((await f.run('prepared')).contentVerified,true);assert.equal((await f.run('identity')).accountId,'author');
+ for(const action of ['fill','submit','save-draft'])await assert.rejects(f.run(action),/全新编辑页/);
+ f.setHtml('<p>changed</p>');await assert.rejects(f.run('draft-receipt'),/正文已变化/);f.setHtml('<p>正文</p>');f.setAccount('other');await assert.rejects(f.run('draft-receipt'),/账号已切换/);
+ assert.equal(f.clicks,0);assert.equal(f.draftClicks,0);
+});
+test('CSDN draft receipt rejects bare URL, saving, failed, spoofed or ambiguous status',async()=>{
+ for(const options of [{},{savedStatus:['保存中']},{savedStatus:['草稿已保存 99:99:99']},{savedStatus:['保存失败']},{savedStatus:['草稿已保存 10:07:27','草稿已保存 10:07:28']},{savedStatus:['草稿已保存 10:07:27'],statusInBody:true}]){
+  const f=fixture(options);f.context.location.pathname='/mp_blog/creation/editor/123';assert.equal(await f.run('draft-receipt'),null);
+ }
+ const f=fixture({savedStatus:['草稿已保存 10:07:27']});assert.equal(await f.run('draft-receipt'),null);
+});
+
+
+test('CSDN may save its just-filled draft after platform autosave assigns an editor ID',async()=>{
+ const f=fixture();f.setTitle('');f.setHtml('');await f.run('fill');f.context.location.pathname='/mp_blog/creation/editor/123';
+ assert.equal((await f.run('save-draft')).attempted,true);assert.equal(f.draftClicks,1);assert.equal(f.clicks,0);
 });

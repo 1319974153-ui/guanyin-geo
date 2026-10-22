@@ -255,3 +255,15 @@ test('Toutiao draft capability requires protocol 2 and preserves independent non
  const r=await e.ext('report',report);assert.equal(r.status,200);assert.equal(r.data.job.state,'draft');assert.equal(r.data.job.receipt.publicVerified,false);
  assert.equal((await e.ext('report',report)).data.existing,true);e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
 });
+
+
+test('CSDN draft protocol 3 is isolated from publish and binds receipt to source, account and original ID',async t=>{
+ const e=setup(t,false);await e.pair('csdn');
+ for(const draftProtocol of [undefined,1,2]){await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.csdn.editor,draftProtocol});assert.equal((await e.enqueue({mode:'draft'})).status,409)}
+ await e.ext('account',{accountId:'author',name:'作者',editorReady:true,evidenceUrl:PLATFORMS.csdn.editor,draftProtocol:3});assert.equal((await e.enqueue({mode:'draft'})).status,200);
+ const j=(await e.ext('claim')).data.job,report=draftReport(j,{url:'https://mp.csdn.net/mp_blog/creation/editor/123'});
+ assert.equal((await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash})).status,409);
+ for(const patch of [{sourceHash:'wrong'},{accountId:'other'},{url:'https://mp.csdn.net/mp_blog/creation/success/123'}])assert.equal((await e.ext('report',{...report,draft:{...report.draft,...patch}})).status,400);
+ const r=await e.ext('report',report);assert.equal(r.status,200);assert.equal(r.data.job.receipt.publicVerified,false);assert.equal((await e.ext('report',report)).data.existing,true);
+ e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
+});
