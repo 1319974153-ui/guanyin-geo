@@ -61,3 +61,19 @@ test('Douyin desktop login stays in its own session and reaches the supported ed
  assert.equal(d.loginEditorReady(),true);assert.match(w.webContents.url,/content\/upload$/);
  assert.equal(w.options.webPreferences.preload,undefined);assert.equal(w.options.webPreferences.nodeIntegration,false);
 });
+
+test('login rate limit persists across restart and only explicit user retry clears it',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'douyin-session',platform:'douyin'});await d.openLogin();
+ let reads=0;const w=x.windows[0];w.webContents.executeJavaScript=async()=>{reads++;return 'rate_limited'};
+ assert.equal(await d.detectLoginHold(),true);assert.equal(d.loginHeld(),true);
+ assert.equal(await d.detectLoginHold(),true);assert.equal(reads,1);
+ await d.openLogin();assert.equal(x.windows.length,1);assert.equal(d.loginHeld(),true);
+ d.close();const restored=x.create({sessionId:'douyin-session',platform:'douyin'});
+ assert.equal(restored.loginHeld(),true);assert.equal(await restored.detectLoginHold(),true);assert.equal(x.windows.length,1);
+ restored.clearLoginHold();assert.equal(restored.loginHeld(),false);
+ assert.equal(await restored.detectLoginHold(),false);assert.equal(x.windows.length,1);
+});
+test('unavailable login inspection does not invent a platform rate-limit result',async t=>{
+ const x=fixture(t),d=x.create();await d.openLogin();x.windows[0].webContents.executeJavaScript=async()=>{throw Error('closed')};
+ assert.equal(await d.detectLoginHold(),false);assert.equal(d.loginHeld(),false);
+});

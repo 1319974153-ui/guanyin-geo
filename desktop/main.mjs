@@ -5,6 +5,7 @@ import net from 'node:net';
 import {fileURLToPath} from 'node:url';
 import {createPublisherRuntime} from '../browser-extension/runtime.js';
 import {windowDriver} from './window-driver.mjs';
+import {LOGIN_RATE_LIMIT_MESSAGE} from './login-state.mjs';
 import {trustedFrame,connectionInput,targetInput} from './security.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
@@ -42,11 +43,11 @@ async function getConnection(id){if(typeof id!=='string')throw new Error('账号
 async function control(connection){
  if(controllers.has(connection.sessionId))return controllers.get(connection.sessionId);
  let controller,busy=false,loginUntil=0,paused=false,lastLoginCheck=0;
- const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,onLoginReady(){if(controller&&paused&&!busy){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();
+ const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,onLoginReady(){if(controller&&paused&&!busy&&!driver.loginHeld()){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();paused=driver.loginHeld();
  const request=(action,data)=>rpc('desktop-request',{sessionId:connection.sessionId,action,data});const runtime=createPublisherRuntime(driver.chrome,{request});await runtime.ready;
- async function verify(expected){if(busy)throw new Error('该账号正在处理原任务，请等待结果');busy=true;try{await runtime.command({action:'verify',platform:connection.platform});const c=await getConnection(connection.sessionId);if(expected&&c.accountId!==expected)throw new Error('登录账号已变化，请在观引重新选择账号');paused=false;loginUntil=0;return true}catch(e){await request('connection-state',{state:'needs_login',error:e.message}).catch(()=>{});throw e}finally{busy=false}}
- controller={driver,async login(){if(busy)throw new Error('原任务正在执行，请等待结果');await driver.openLogin();loginUntil=Date.now()+600000;paused=false;await request('connection-state',{state:'awaiting_login'});void controller.checkLogin()},verify,
-  async checkLogin(){if(busy||!loginUntil)return;if(Date.now()>loginUntil){loginUntil=0;paused=true;await request('connection-state',{state:'needs_login',error:'登录等待已暂停，点击去登录可继续'});return}if(!driver.hasVisibleWindow()){loginUntil=0;await request('connection-state',{state:'needs_login',error:'登录窗口已关闭，可重新打开'});return}lastLoginCheck=Date.now();if(!driver.loginEditorReady())return;try{await verify()}catch{}},
+ async function verify(expected){if(driver.loginHeld())throw new Error(LOGIN_RATE_LIMIT_MESSAGE);if(busy)throw new Error('该账号正在处理原任务，请等待结果');busy=true;try{await runtime.command({action:'verify',platform:connection.platform});const c=await getConnection(connection.sessionId);if(expected&&c.accountId!==expected)throw new Error('登录账号已变化，请在观引重新选择账号');paused=false;loginUntil=0;return true}catch(e){await request('connection-state',{state:'needs_login',error:e.message}).catch(()=>{});throw e}finally{busy=false}}
+ controller={driver,async login(){if(busy)throw new Error('原任务正在执行，请等待结果');driver.clearLoginHold();await driver.openLogin();loginUntil=Date.now()+600000;paused=false;await request('connection-state',{state:'awaiting_login'});void controller.checkLogin()},verify,
+  async checkLogin(){if(busy||!loginUntil)return;if(Date.now()>loginUntil){loginUntil=0;paused=true;await request('connection-state',{state:'needs_login',error:'登录等待已暂停，点击去登录可继续'});return}if(!driver.hasVisibleWindow()){loginUntil=0;await request('connection-state',{state:'needs_login',error:'登录窗口已关闭，可重新打开'});return}lastLoginCheck=Date.now();if(await driver.detectLoginHold()){loginUntil=0;paused=true;await request('connection-state',{state:'needs_login',error:LOGIN_RATE_LIMIT_MESSAGE});return}if(!driver.loginEditorReady())return;try{await verify()}catch{}},
   async tick(){if(busy)return;if(loginUntil){if(Date.now()-lastLoginCheck>4000)await controller.checkLogin();return}if(paused)return;busy=true;try{const saved=await driver.chrome.storage.local.get(['inflightByPlatform','inflight']);if(saved.inflightByPlatform?.[connection.platform]||saved.inflight)await runtime.reconcile(connection.platform);else{const r=await runtime.run(connection.platform);if(r?.error&&!r.hasJob){paused=true;await request('connection-state',{state:'needs_login',error:r.error})}}}finally{busy=false}},close:()=>driver.close()};
  controllers.set(connection.sessionId,controller);return controller;
 }

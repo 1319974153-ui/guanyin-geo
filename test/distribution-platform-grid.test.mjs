@@ -59,3 +59,16 @@ test('desktop offers Douyin login but keeps the unintegrated Xiaohongshu entry d
  const x=fixture();x.g.window.guanyinDesktop={available:true};x.g.distributionRenderTargets(x.f,new Set());
  assert.match(x.html(),/data-distribution-connect="douyin"/);assert.doesNotMatch(x.html(),/data-distribution-connect="xiaohongshu"/);assert.match(x.html(),/桌面版待接入/);assert.match(x.html(),/data-distribution-connect="toutiao"/);
 });
+
+test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{
+ const x=fixture(),calls=[];x.g.window.guanyinDesktop={available:true,openAccount:async id=>calls.push(id)};
+ x.g.wordpressBaseScope=()=> 'scope';x.g.brand=()=>({id:'brand'});
+ Object.assign(x.f,{isConnected:true,distributionScope:'scope'});x.f.dataset.brand='brand';
+ const t={key:'toutiao:session',platform:'toutiao',sessionId:'session',accountId:'author',transport:'desktop',modes:[]};x.f.distributionTargets.push(t);
+ const row={...t,state:'needs_attention',error:'未保存'};x.f.distributionJournal[t.key]=row;
+ assert.match(x.g.distributionRecoveryButton(x.f,row),/打开平台处理/);
+ await x.g.distributionOpenOriginal(x.f,t.key);assert.deepEqual(calls,['session']);assert.equal(row.state,'needs_attention');
+ t.accountId='other';assert.equal(x.g.distributionRecoveryButton(x.f,row),'');await assert.rejects(x.g.distributionOpenOriginal(x.f,t.key),/连接已变化/);
+ t.accountId='author';x.f.dataset.brand='other';await assert.rejects(x.g.distributionOpenOriginal(x.f,t.key),/工作区已变化/);assert.deepEqual(calls,['session']);
+ for(const state of ['published','draft','queued','preparing'])assert.equal(x.g.distributionRecoveryButton(x.f,{...row,state}),'');
+});

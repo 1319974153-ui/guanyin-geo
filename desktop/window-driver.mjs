@@ -3,6 +3,7 @@ import path from 'node:path';
 import {randomInt} from 'node:crypto';
 import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './security.mjs';
 import {editorEvidence,platformConfig} from '../browser-extension/platforms.js';
+import {readLoginWarning} from './login-state.mjs';
 // No Chrome profiles, remote debugging port, arbitrary renderer scripts, or credential exports.
 export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=>{},onLoginReady=()=>{}}){
  fs.mkdirSync(root,{recursive:true,mode:0o700});const filename=path.join(root,'executor.json');
@@ -41,7 +42,12 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
    let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);return [{result}]}finally{clearTimeout(timer)}
   }}
  };
- return {chrome,showOriginal(){const entry=state.inflightByPlatform?.[connection.platform]||(connection.platform==='csdn'?state.inflight:null);if(!entry?.tabId)return false;const win=ensureWindow(entry.tabId);win.show();win.focus();return true},async openLogin(){
+ return {chrome,loginHeld(){return state._loginHold==='rate_limited'},clearLoginHold(){delete state._loginHold;persist()},async detectLoginHold(){
+  if(state._loginHold==='rate_limited')return true;
+  const w=windows.get(loginTab);if(!w||w.isDestroyed()||w.webContents.isLoadingMainFrame())return false;
+  if(!navigationAllowed(connection.platform,w.webContents.getURL()))return false;
+  let timer;try{const result=await Promise.race([w.webContents.executeJavaScript('('+readLoginWarning.toString()+')()'),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),3000)})]);if(result==='rate_limited'){state._loginHold=result;persist();return true}return false}catch{return false}finally{clearTimeout(timer)}
+ },showOriginal(){const entry=state.inflightByPlatform?.[connection.platform]||(connection.platform==='csdn'?state.inflight:null);if(!entry?.tabId)return false;const win=ensureWindow(entry.tabId);win.show();win.focus();return true},async openLogin(){
   if(loginTab&&windows.has(loginTab)){const w=windows.get(loginTab);w.show();w.focus();return}
   const tab=createWindow(LOGIN_URLS[connection.platform]);loginTab=tab.id;
   // Reuse this window for the first identity check. Never replace an in-flight original editor.

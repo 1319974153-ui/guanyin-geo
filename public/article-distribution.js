@@ -59,9 +59,19 @@ async function distributionKey(c,scope){
  return 'guanyin.distribution.v1.'+scope+'.'+hash;
 }
 function distributionSummary(rows){const counts=new Map();for(const row of rows){const label=distributionResultLabel(row);counts.set(label,(counts.get(label)||0)+1)}return [...counts].map(([label,n])=>label+' '+n+' 个').join(' · ')}
+function distributionRecoveryTarget(f,row){
+ if(!window.guanyinDesktop?.available||!['needs_attention','uncertain'].includes(row?.state)||!row.sessionId)return null;
+ return (f.distributionTargets||[]).find(t=>t.transport==='desktop'&&t.sessionId===row.sessionId&&t.platform===row.platform&&t.accountId===row.accountId)||null;
+}
+function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button><span class="helper">查看原任务，不会重新发送</span></p>`:'';}
+async function distributionOpenOriginal(f,key){
+ if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id)throw Error('工作区已变化，请重新打开稿件');
+ const row=f.distributionJournal?.[key],target=distributionRecoveryTarget(f,row);if(!target)throw Error('原账号连接已变化，请检查账号设置');
+ await window.guanyinDesktop.openAccount(target.sessionId);
+}
 function distributionResults(f){
  const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');distributionInlineResults(f);
- box.innerHTML=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p><details class="distribution-result-details" ${rows.some(r=>['needs_attention','uncertain'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}${r.state==='prepared'&&r.preparation?.editorUrl&&/^https:\/\//.test(r.preparation.editorUrl)?`<p><a href="${esc(r.preparation.editorUrl)}" target="_blank" rel="noopener noreferrer">打开平台编辑页</a> · 填稿已核对，保存与公开状态待确认</p>`:''}</li>`).join('')}</ul></details><p class="helper" role="status">${esc(distributionWatchLabel(f))}</p><p class="helper">结果自动更新。遇到异常再展开账号设置处理，不会自动重复发布。</p>`:'';
+ box.innerHTML=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p><details class="distribution-result-details" ${rows.some(r=>['needs_attention','uncertain'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionStateLabels[r.state]||r.state)}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${r.remote?.url&&/^https?:\/\//.test(r.remote.url)?`<a href="${esc(r.remote.url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`:''}${distributionRecoveryButton(f,r)}${r.state==='prepared'&&r.preparation?.editorUrl&&/^https:\/\//.test(r.preparation.editorUrl)?`<p><a href="${esc(r.preparation.editorUrl)}" target="_blank" rel="noopener noreferrer">打开平台编辑页</a> · 填稿已核对，保存与公开状态待确认</p>`:''}</li>`).join('')}</ul></details><p class="helper" role="status">${esc(distributionWatchLabel(f))}</p><p class="helper">结果自动更新。需要处理时可直接打开对应平台；不会自动重复发布。</p>`:'';
 }
 function distributionWatchLabel(f){
  return ({checking:'正在读取最新结果…',watching:'正在自动更新发布进度。',retry_wait:'暂时无法读取新结果，稍后自动再查；不会重发。',paused:'页面在后台或网络不可用，恢复后继续核对。',timeout:'自动核对已暂停，点击“刷新结果”继续；原任务不会重发。',complete:'结果已更新。'})[f.distributionWatchState]||'等待中的任务会自动更新结果。';
@@ -141,6 +151,7 @@ document.addEventListener('click',async e=>{
    if(b.dataset.distributionConnect==='wordpress')await publishingCenterAction('publishing-account-add',b);else await browserPublisherAction('browser-publisher-pair',{dataset:{platform:b.dataset.distributionConnect,contentId:f.dataset.id}});
   }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}
  }
+ if(b.dataset.distributionOpenOriginal){try{b.disabled=true;await distributionOpenOriginal(f,b.dataset.distributionOpenOriginal)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionSend){f.elements.distributionConfirmed.checked=true;await distributionSend(f,b.dataset.distributionSend);}
  if(b.hasAttribute('data-distribution-reconcile')){
   try{b.disabled=true;await distributionReconcile(f);distributionWatch(f);}
