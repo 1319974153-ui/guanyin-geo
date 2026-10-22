@@ -22,7 +22,12 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
   try{
-   if(target.platform==='wordpress'){
+   if(target.platform==='cnblogs'){
+    const preview=await request('/api/cnblogs/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
+    row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
+    const d=await post('/api/cnblogs/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
+    row.id=d.record.id;row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';
+   }else if(target.platform==='wordpress'){
     if(row.state!=='draft'){
      const preview=await request('/api/wordpress/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
      row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
@@ -50,7 +55,9 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
  for(const row of Object.values(next)){
   assertScope();
   try{
-   if(row.platform==='wordpress'){
+   if(row.platform==='cnblogs'){
+    const data=await request('/api/cnblogs/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));assertScope();row.state=data.record.state;row.remote=data.record.remote;row.error=data.record.error||'';
+   }else if(row.platform==='wordpress'){
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.

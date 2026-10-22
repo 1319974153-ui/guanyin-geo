@@ -4,6 +4,15 @@ import {dispatchArticle,availableActions,reconcileDispatch,dispatchId} from '../
 const article={id:'c',brandId:'b',status:'已审核',tags:['软件测试']};
 const wp=(key='one')=>({key,platform:'wordpress',accountId:key,name:key,modes:['draft','publish']});
 const csdn={key:'csdn',platform:'csdn',sessionId:'s',name:'author',modes:['prepare']};
+test('blog draft selection adopts the durable server id, blocks publishing and polls only local receipts',async()=>{
+ const target={key:'cnblogs:account',platform:'cnblogs',accountId:'account',name:'author',modes:['draft']},journal={},calls=[];
+ const request=async(path,opts)=>{calls.push({path,opts});return path.includes('/preview')?{previewHash:'h'}:{record:{id:'original-id',state:'draft',remote:{postId:'100'}}}};
+ const params={article,targets:[target],mode:'draft',journal,request,persist:async()=>{},assertScope:()=>{}};
+ await dispatchArticle(params);assert.equal(journal[target.key].id,'original-id');assert.equal(journal[target.key].state,'draft');
+ await dispatchArticle(params);assert.equal(calls.length,2);
+ await assert.rejects(dispatchArticle({...params,mode:'publish'}),/不都支持/);
+ await reconcileDispatch(params);assert.match(calls.at(-1).path,/\/api\/cnblogs\/detail\?/);assert.equal(calls.at(-1).opts,undefined);assert.equal(calls.filter(c=>c.opts).length,1);
+});
 function fixture(options={}){
  const calls=[],journal={},saved=[];let posts=0;
  const request=async(path,init)=>{calls.push([path,init?.body&&JSON.parse(init.body)]);if(path.includes('/preview?'))return{previewHash:'hash'};

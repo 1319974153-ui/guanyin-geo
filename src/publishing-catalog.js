@@ -21,11 +21,11 @@ export function publishingCatalog(){
   const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
   return {
    id,name,group,referenceIncluded:referencePlatformIds.includes(id),
-   implementation:wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
-   contentTypes:wp||browser?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
+   implementation:id==='cnblogs'?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
+   contentTypes:wp||browser||id==='cnblogs'?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:wp?'application_password':browser?'local_browser_extension':null,
-   acceptance:wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
+   connectionMethod:id==='cnblogs'?'metaweblog_token':wp?'application_password':browser?'local_browser_extension':null,
+   acceptance:id==='cnblogs'?'live_acceptance_pending':wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,
    // Catalog metadata must never grant a publish capability to an account.

@@ -7,7 +7,7 @@ export function publishingEvidence(id){
  const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(id),wp=id==='wordpress';
  const tested=['csdn','toutiao','zhihu'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn'].includes(id));
+  const implemented=id==='cnblogs'?['identity','draft'].includes(action):wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn'].includes(id));
   const passed=tested&&['identity','prepare'].includes(action)||id==='zhihu'&&action==='draft';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
@@ -15,6 +15,7 @@ export function publishingEvidence(id){
  }));
 }
 export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
+ if(id==='cnblogs')return {stage:'草稿接口待实机验收',note:'官方 MetaWeblog 账号连接、草稿保存与原稿核对已实现；公开发布尚未开放'};
  if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};
  if(actions.draft.liveAcceptance==='passed')return {stage:'平台草稿已实测',note:'账号、填稿与平台草稿已验收；公开提交仍待验收'};
  if(actions.prepare.liveAcceptance==='passed')return {stage:'已实测填稿',note:actions.draft.implemented?'账号与填稿已验收；平台草稿已实现待实机验收，公开提交待实机验收':'账号与填稿已验收；平台草稿待接入，公开提交待实机验收'};

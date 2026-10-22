@@ -1,5 +1,6 @@
 import {canBrand,reject} from './access.js';
 import {wordpressAccount,wordpressProvider} from './publishing-accounts.js';
+import {cnblogsProvider} from './cnblogs.js';
 
 export {publishingCatalog} from './publishing-catalog.js';
 import {publishingCatalog} from './publishing-catalog.js';
@@ -30,6 +31,13 @@ export async function publishingCenterApi(req,env,ctx,h){
    capabilities:{createDraft:enabled&&verified&&canOperate,publish:enabled&&verified&&m.canPublish===true&&canOperate},
    note:'展示上次验证结果；提交时仍须核对当前连接、稿件与平台权限'
   });
+ }
+ const cbPrefix='cnblogs:'+brandId+':';
+ const cbRows=(await env.DB.prepare('SELECT provider,model,updated FROM connections WHERE owner=? AND substr(provider,1,length(?))=? ORDER BY provider').bind(ctx.owner,cbPrefix,cbPrefix).all()).results;
+ for(const row of cbRows){let m;try{m=JSON.parse(row.model)}catch{reject(409,'博客园连接记录无法读取')}
+  if(m.brandId!==brandId||cnblogsProvider(brandId,m.accountId)!==row.provider)reject(409,'博客园连接品牌或账号不匹配');
+  const usable=m.enabled&&m.verifiedAt&&m.blogId;
+  accounts.push({id:row.provider,platform:'cnblogs',brandId,accountId:m.accountId,username:m.username,site:m.site,blog:m.blog,connectionRevision:m.revision,status:!m.enabled?'disabled':usable?'draft_only':'unverified',verifiedAt:m.verifiedAt,capabilities:{createDraft:!!usable&&['owner','admin','editor'].includes(ctx.role),publish:false}});
  }
  return h.json({brandId,platforms:publishingCatalog(),accounts,
   batchPublishingAvailable:false,

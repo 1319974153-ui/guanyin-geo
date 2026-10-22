@@ -35,6 +35,11 @@ test('changing to draft only permits draft-capable accounts and never promotes p
  assert.equal(x.get('[data-distribution-send]').disabled,true);
  assert.equal(x.get('[data-distribution-send]').textContent,'发布');
 });
+test('blog API connection is visible, while only a connected draft-capable account is selectable',()=>{
+ const x=fixture('draft');x.g.distributionRenderTargets(x.f,new Set());assert.match(x.html(),/data-distribution-connect="cnblogs"/);assert.match(x.html(),/value="catalog:cnblogs"[^>]*disabled/);
+ x.f.distributionTargets.push({key:'cnblogs:cb1',platform:'cnblogs',accountId:'cb1',name:'我的博客',modes:['draft']});x.g.distributionRenderTargets(x.f,new Set(['cnblogs:cb1']));assert.match(x.html(),/value="cnblogs:cb1"[^>]*checked/);
+ x.f.elements.distributionMode.value='publish';x.g.distributionRenderTargets(x.f,new Set(['cnblogs:cb1']));assert.match(x.html(),/value="cnblogs:cb1"[^>]*disabled/);assert.doesNotMatch(x.html(),/value="cnblogs:cb1"[^>]*checked/);
+});
 test('confirmed publish, draft, submission and failure remain separate in cards and totals',()=>{
  const x=fixture();const states=['published','draft','submitted','uncertain','prepared'];
  assert.equal(x.g.distributionSummary(states.map(state=>({state}))),'发布成功 1 个 · 草稿已保存 1 个 · 已提交，待确认 1 个 · 结果待确认 1 个 · 已填稿，未发布 1 个');
