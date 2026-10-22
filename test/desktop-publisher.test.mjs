@@ -35,3 +35,13 @@ test('desktop navigation and IPC reject other websites, subframes, malformed inp
  const frame={url:origin+'/#today'},contents={mainFrame:frame};assert.equal(trustedFrame({sender:contents,senderFrame:frame},contents,origin),true);assert.equal(trustedFrame({sender:contents,senderFrame:{url:origin}},contents,origin),false);assert.equal(trustedFrame({sender:{},senderFrame:frame},contents,origin),false);
  assert.notEqual(connectionPartition('one'),connectionPartition('two'));assert.throws(()=>connectionPartition('../secret'));assert.throws(()=>connectionInput({brandId:'a',platform:'other'}));assert.throws(()=>targetInput([{sessionId:'a',accountId:'../b'}]));
 });
+
+
+test('Douyin desktop connection exposes preparation only until draft and publish are verified',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'douyin'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('douyin')});
+ const r=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'draft',expectedAccountId:'author'});
+ assert.notEqual(r.status,200);
+ assert.equal(navigationAllowed('douyin','https://creator.douyin.com/creator-micro/home'),true);
+ assert.equal(navigationAllowed('douyin','https://evil.douyin.com.example/'),false);
+});

@@ -44,3 +44,20 @@ test('late login signals readiness only from its own editor window, without writ
  login.webContents.emit('did-navigate-in-page',{},login.webContents.url,true);assert.equal(signals,2);
  assert.equal(login.webContents.lastScript,undefined);
 });
+
+
+test('open original shows the journal window without login or creating a second draft',async t=>{
+ const x=fixture(t),d=x.create();assert.equal(d.showOriginal(),false);
+ const original=await d.chrome.tabs.create({url:'https://mp.toutiao.com/profile_v4/graphic/publish',active:false});
+ await d.chrome.storage.local.set({inflightByPlatform:{toutiao:{tabId:original.id,job:{id:'same-job'}}}});
+ assert.equal(d.showOriginal(),true);assert.equal(x.windows.length,1);assert.equal(x.windows[0].visible,true);
+ assert.equal(x.windows[0].webContents.lastScript,undefined);
+});
+
+test('Douyin desktop login stays in its own session and reaches the supported editor',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'douyin-session',platform:'douyin'});await d.openLogin();
+ const w=x.windows[0];assert.equal(w.webContents.url,LOGIN_URLS.douyin);
+ await w.loadURL('https://creator.douyin.com/creator-micro/home');await new Promise(r=>setImmediate(r));
+ assert.equal(d.loginEditorReady(),true);assert.match(w.webContents.url,/content\/upload$/);
+ assert.equal(w.options.webPreferences.preload,undefined);assert.equal(w.options.webPreferences.nodeIntegration,false);
+});

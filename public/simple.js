@@ -46,14 +46,17 @@ function simpleNextWork(){
  const flow=simpleFlowScope===simpleScope()?simpleFlows.find(f=>f.paused||['writing','checking','needs_attention'].includes(f.stage)):null;
  const review=contents.find(c=>c.status!=='已审核'),approved=contents.slice().reverse().find(c=>c.status==='已审核');
  const pub=simplePublishingScope===simpleScope()?simplePublishing:null;
- const job=pub?.jobs?.filter(j=>j.state!=='cancelled'&&j.currentRevision===true&&j.contentId===approved?.id).sort((a,b)=>b.created-a.created)[0];
+ const jobs=pub?.jobs?.filter(j=>j.state!=='cancelled'&&j.currentRevision===true&&j.contentId===approved?.id)||[];
+ const job=jobs.slice().sort((a,b)=>b.created-a.created)[0];
  if(!simpleWrite()&&!simpleReview())return {title:'查看已记录的结果',text:'可以查看内容和证据；编辑与发送由有权限的成员完成。',label:'查看效果',href:'#results'};
  if(simpleFlowScope===simpleScope()&&simpleError.includes('内容进度暂时无法读取'))return {title:'先恢复内容进度',text:'没有重新创建任务。刷新后可继续原稿，避免重复生成与费用。',label:'重新读取进度',action:'simple-refresh'};
  if(flow)return {title:flow.paused?'内容任务已暂停':flow.stage==='needs_attention'||flow.issues?.length?'这项任务需要处理':'内容正在准备中',text:flow.paused?'原任务和稿件已保留，可以从中断处继续。':flow.issues?.length?'本批已经停止，不会自动重试或隔日继续扣费；先查看原因，再决定是否重新授权。':runtimeContext.background?.enabled?'后台会继续处理，完成后在这里核对稿件。':'在本页自动完成已确认的批次；中断后可继续，失败需重新确认重试。',label:'查看任务进度',action:'simple-work-progress'};
  if(review)return {title:'有一篇内容等你确认',text:review.title||'先核对这份稿件，再选择自己的发布账号。',label:simpleWrite()?'查看并编辑':'查看待审核稿',action:'edit-content',id:review.id};
  if(approved&&simpleWrite()){
   const same=job?.contentId===approved.id;
-  return {title:same?'继续查看这篇内容的结果':'内容已就绪，选择发布账号',text:same?(browserPublisherStates[job.state]||'平台结果待核对'):'不需要重新复制正文，勾选账号后按已支持的方式发送。',label:same?'查看原稿与回执':'选择账号并发送',action:'distribute-article',id:approved.id};
+  const counts=new Map();for(const j of jobs){const label=browserPublisherStates[j.state]||'平台结果待核对';counts.set(label,(counts.get(label)||0)+1)}
+  const summary=!same?'':jobs.length>1?[...counts].map(([label,n])=>label+' '+n+' 个').join(' · '):browserPublisherStates[job?.state]||'平台结果待核对';
+  return {title:same?'继续查看这篇内容的结果':'内容已就绪，选择发布账号',text:same?summary:'不需要重新复制正文，勾选账号后按已支持的方式发送。',label:same?'查看原稿与回执':'选择账号并发送',action:'distribute-article',id:approved.id};
  }
  if(!simpleWrite())return {title:'目前没有待审核稿件',text:'新稿件准备好后会出现在这里。',label:'查看内容',href:'#inbox'};
  if(!facts.some(GEO_KNOWLEDGE.factUsable))return {title:'先补充可以公开的业务资料',text:'一份现有介绍或项目说明即可，核对后可反复使用。',label:'补充资料',href:'#knowledge'};

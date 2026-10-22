@@ -41,7 +41,7 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
    let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);return [{result}]}finally{clearTimeout(timer)}
   }}
  };
- return {chrome,async openLogin(){
+ return {chrome,showOriginal(){const entry=state.inflightByPlatform?.[connection.platform]||(connection.platform==='csdn'?state.inflight:null);if(!entry?.tabId)return false;const win=ensureWindow(entry.tabId);win.show();win.focus();return true},async openLogin(){
   if(loginTab&&windows.has(loginTab)){const w=windows.get(loginTab);w.show();w.focus();return}
   const tab=createWindow(LOGIN_URLS[connection.platform]);loginTab=tab.id;
   // Reuse this window for the first identity check. Never replace an in-flight original editor.

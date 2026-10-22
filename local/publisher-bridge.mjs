@@ -215,7 +215,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  }
  // Private process API. Never exported through an HTTP route or renderer IPC directly.
  function connectDesktop({brandId,platform}){
-  brand(brandId);if(!['csdn','toutiao','zhihu'].includes(platform))fail(400,'该平台桌面登录尚未接入');
+  brand(brandId);if(!['csdn','toutiao','zhihu','douyin'].includes(platform))fail(400,'该平台桌面登录尚未接入');
   let s=sessions().find(s=>!s.revoked&&s.transport==='desktop'&&s.brandId===brandId&&s.platform===platform);
   if(!s){s={id:randomUUID(),transport:'desktop',platform,brandId,origin,created:clock(),connectionState:'awaiting_login'};db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s))}
   return {sessionId:s.id,brandId,platform,origin,instance};

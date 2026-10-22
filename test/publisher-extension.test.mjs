@@ -5,15 +5,16 @@ async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
  let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  if(options.platform){stored.connections={[options.platform]:stored.connection};if(options.inflight)stored.inflightByPlatform={[options.platform]:stored.inflight};}
- globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return{id}},async create({url}){actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:options.csdnLookup?(url.includes('/manage/article')?2:url.endsWith('/123')?3:1):1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return options.sameTabDraft&&id===2?{id:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}:{id}},async create({url}){actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:options.csdnLookup?(url.includes('/manage/article')?2:url.endsWith('/123')?3:1):1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.sameTabDraft?[]:options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='draft-list-inspect'&&options.platform==='toutiao')return[{result:{accountId:options.wrongListAccount?'other':'author',matched:true}}];
   if(action==='draft-list-inspect'&&options.csdnLookup)return[{result:{accountId:'author',url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',draftListed:true}}];
   if(action==='draft-receipt'&&options.csdnLookup&&target.tabId!==3)return[{result:null}];
   if(action==='draft-receipt'&&options.csdnLookup)assert.equal(args[0].article.verifiedDraftList.articleId,'123');
   if(action==='draft-location')return[{result:{accountId:'author',url:'https://mp.toutiao.com/profile_v4/manage/draft',contentVerified:true}}];
-  if(action==='draft-receipt'&&options.locateDraft&&target.tabId!==3)return[{result:null}];
+  if(action==='draft-receipt'&&options.locateDraft&&target.tabId!==(options.sameTabDraft?2:3))return[{result:options.blankOriginal?{connectorError:'草稿正文或标题与已确认版本不同'}:null}];
   if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
   if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
@@ -173,4 +174,27 @@ test('ambiguous draft children remain unresolved without another title click or 
 test('CSDN missing new-editor ID recovers through list and reopened content without another save',async t=>{
  const f=await fixture(t,{mode:'draft',platform:'csdn',csdnLookup:true,lostReport:true});await f.send('run');assert.ok(f.stored.inflight);const before=f.actions.filter(a=>a==='new-tab').length;
  await f.send('reconcile');assert.equal(f.stored.inflight,undefined);assert.equal(f.actions.filter(a=>a==='new-tab').length,before);assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.actions.filter(a=>a==='save-draft').length,1);assert.equal(f.actions.filter(a=>a==='draft-list-select').length,1);assert.equal(f.clicks,0);
+});
+
+
+test('draft recovery exposes a new error once and never refills or resubmits',async t=>{
+ const f=await fixture(t,{platform:'toutiao',inflight:true,mode:'draft',draftError:true});
+ await f.send('reconcile','toutiao');await f.send('reconcile','toutiao');
+ assert.equal(f.requests.filter(a=>a==='report').length,1);
+ assert.match(f.stored.status,/正文已变化/);assert.ok(f.stored.inflightByPlatform.toutiao);
+ assert.equal(f.actions.filter(a=>a==='fill'||a==='submit'||a==='new-tab').length,0);
+});
+
+
+test('Toutiao restart recovers through same-tab list navigation, without refilling blank original',async t=>{
+ const f=await fixture(t,{platform:'toutiao',inflight:true,mode:'draft',locateDraft:true,blankOriginal:true,sameTabDraft:true});
+ await f.send('reconcile','toutiao');assert.equal(f.stored.inflightByPlatform.toutiao,undefined);
+ assert.equal(f.actions.filter(a=>a==='draft-list-tab').length,1);assert.equal(f.actions.filter(a=>a==='draft-list-open').length,1);
+ assert.equal(f.actions.filter(a=>a==='fill'||a==='submit'||a==='new-tab').length,0);
+});
+
+test('Toutiao list account mismatch never opens or reports a saved draft',async t=>{
+ const f=await fixture(t,{platform:'toutiao',inflight:true,mode:'draft',locateDraft:true,wrongListAccount:true});
+ await f.send('reconcile','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);
+ assert.equal(f.actions.filter(a=>a==='draft-list-open'||a==='fill'||a==='submit').length,0);
 });

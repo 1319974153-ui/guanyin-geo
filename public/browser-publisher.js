@@ -52,7 +52,7 @@ async function browserPublisherAction(name,el){
  if(action==='help'){openDrawer('找到观引连接器',`<ol><li>打开电脑上的 Chrome 浏览器，点击右上角拼图形状的“扩展程序”图标。</li><li>选择“观引发布连接器（验收版）”；可以点图钉固定到工具栏。</li><li>在弹窗的“发布平台”选择对应平台。</li><li>需要恢复结果时，点击底部的“核对上次回执”。这会检查原任务，不会新建或公开发布文章。</li></ol><p>已安装时无需重新安装或配对；找不到扩展时再按交付包说明安装。连接器弹窗和观引网页是两个入口。</p>`);return true;}
  if(action==='copy'){const value=document.querySelector('[aria-label="一次性配对信息"]')?.value;if(!value)throw Error('配对信息已关闭，请重新连接');await navigator.clipboard.writeText(value);toast('已复制，请粘贴到观引连接器');return true;}
  if(action==='refresh'){await refreshBrowserPublisher();return true}
- if(action==='desktop-open'){await window.guanyinDesktop.openAccount(el.dataset.session);toast('请在平台窗口登录，完成后自动连接');await refreshBrowserPublisher();return true;}
+ if(action==='desktop-open'){await window.guanyinDesktop.openAccount(el.dataset.session);toast('已打开平台窗口；已有任务会回到原稿');await refreshBrowserPublisher();return true;}
  if(action==='pair'&&desktopPublisherAvailable()){
   startDesktopAccountWatch();await runtimeFlush();await window.guanyinDesktop.connect({brandId:brand().id,platform:el?.dataset?.platform||document.getElementById('browser-publisher-platform')?.value||'csdn'});toast('已打开登录窗口，登录完成后自动识别账号');await refreshBrowserPublisher();return true;
  }
@@ -76,7 +76,7 @@ document.addEventListener('submit',async e=>{
 
 function desktopAccountPanel(d){
  startDesktopAccountWatch();
- return `<section class="panel"><div class="panel-head"><div><h2>发布账号</h2><p>登录一次，之后勾选平台即可发送。账号和结果由观引自动检查。</p></div><label class="field">平台<select id="browser-publisher-platform"><option value="toutiao">头条</option><option value="zhihu">知乎</option><option value="csdn">CSDN</option></select></label>${btn('添加账号','browser-publisher-pair','primary small')}</div><div class="panel-body">${browserPublisherError?'<p class="form-error">'+esc(browserPublisherError)+'</p>':''}<div id="desktop-account-table">${desktopAccountTable(d)}</div><p class="helper">无需浏览器插件。登录信息仅保存在本机；平台要求扫码或验证码时由你本人完成。公开发布仅对已通过验收的渠道开放。</p></div></section>`;
+ return `<section class="panel"><div class="panel-head"><div><h2>发布账号</h2><p>登录一次，之后勾选平台即可发送。账号和结果由观引自动检查。</p></div><label class="field">平台<select id="browser-publisher-platform"><option value="toutiao">头条</option><option value="zhihu">知乎</option><option value="csdn">CSDN</option><option value="douyin">抖音图文（填稿验收）</option></select></label>${btn('添加账号','browser-publisher-pair','primary small')}</div><div class="panel-body">${browserPublisherError?'<p class="form-error">'+esc(browserPublisherError)+'</p>':''}<div id="desktop-account-table">${desktopAccountTable(d)}</div><p class="helper">无需浏览器插件。登录信息仅保存在本机；平台要求扫码或验证码时由你本人完成。公开发布仅对已通过验收的渠道开放。</p></div></section>`;
 }
 
 function desktopAccountTable(d){const labels={awaiting_login:'等待登录',checking:'正在连接',connected:'已连接',needs_login:'需要登录',error:'连接异常'};return d?table(['平台与账号','连接状态','操作'],d.accounts.filter(a=>a.transport==='desktop').map(a=>[esc(browserPlatformNames[a.platform])+'<span class="sub">'+esc(a.account?.name||'登录后自动识别')+'</span>',esc(labels[a.connectionState]||'等待登录')+(a.connectionError?'<span class="sub">'+esc(a.connectionError)+'</span>':''),btn(a.account?'打开账号':'去登录','browser-publisher-desktop-open','small',`data-session="${esc(a.id)}"`)+(a.account?btn('写文章','browser-publisher-compose','small'):'')+btn('断开连接','browser-publisher-revoke','small',`data-session="${esc(a.id)}"`)]),'还没有账号。点击添加账号，在平台自己的窗口登录即可。'):'<p>正在读取账号…</p>'}

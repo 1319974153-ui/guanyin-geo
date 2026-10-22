@@ -48,23 +48,24 @@ async function locateToutiaoDraft(job,tabId){
  const article={...job.snapshot,tags:job.tags};
  if(entry.lookup?.resolved)return entry.tabId;
  if(!entry.lookup){
-  const hint=await page(tabId,'draft-location',article,job.accountId,'toutiao');
-  if(!hint)return tabId;
-  if(hint.accountId!==job.accountId||hint.contentVerified!==true||hint.url!=='https://mp.toutiao.com/profile_v4/manage/draft')throw new Error('草稿定位依据不匹配');
-  const list=await chrome.tabs.create({url:hint.url,active:false});
+  // A restart may reopen a blank unnumbered editor. Read-only list recovery
+  // does not require that transient page to survive: the destination itself
+  // must still prove account + unique title + full content + saved ID.
+  const list=await chrome.tabs.create({url:'https://mp.toutiao.com/profile_v4/manage/draft',active:false});
   entry.lookup={tabId:list.id,openAttempted:false};await saveJournal('toutiao',entry);
  }
  const lookup=entry.lookup;
  if(!lookup.openAttempted){
   let ready=false;
-  for(let i=0;i<10;i++){try{await page(lookup.tabId,'draft-list-inspect',article,job.accountId,'toutiao');ready=true;break}catch{await delay(500)}}
+  for(let i=0;i<10;i++){try{const found=await page(lookup.tabId,'draft-list-inspect',article,job.accountId,'toutiao');if(found.accountId!==job.accountId||found.matched!==true)throw new Error('草稿身份不匹配');ready=true;break}catch{await delay(500)}}
   if(!ready)throw new Error('草稿箱没有唯一匹配原稿，请核对；未重复建稿');
   lookup.openAttempted=true;await saveJournal('toutiao',entry);
   await page(lookup.tabId,'draft-list-open',article,job.accountId,'toutiao');
  }
  for(let i=0;i<10;i++){
   const children=(await chrome.tabs.query({url:'https://mp.toutiao.com/profile_v4/graphic/publish*'})).filter(t=>t.openerTabId===lookup.tabId);
-  const candidates=children.filter(t=>{try{const u=new URL(t.url);return u.origin==='https://mp.toutiao.com'&&u.pathname==='/profile_v4/graphic/publish'&&!u.username&&!u.password&&!u.hash&&u.searchParams.getAll('pgc_id').length===1&&/^[1-9]\d{0,29}$/.test(u.searchParams.get('pgc_id'))}catch{return false}});
+  const sameTab=await chrome.tabs.get(lookup.tabId);
+  const candidates=[sameTab,...children].filter(t=>{try{const u=new URL(t.url);return u.origin==='https://mp.toutiao.com'&&u.pathname==='/profile_v4/graphic/publish'&&!u.username&&!u.password&&!u.hash&&u.searchParams.getAll('pgc_id').length===1&&/^[1-9]\d{0,29}$/.test(u.searchParams.get('pgc_id'))}catch{return false}});
   if(candidates.length>1)throw new Error('打开了多个原稿候选，请手动核对；未再次点击');
   if(candidates.length===1){entry.tabId=candidates[0].id;entry.lookup.resolved=true;await saveJournal('toutiao',entry);return entry.tabId;}
   await delay(500);
@@ -94,12 +95,15 @@ async function locateCsdnDraft(job){
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
- const article={...job.snapshot,tags:job.tags};let previous=null;
+ const article={...job.snapshot,tags:job.tags};let previous=null,toutiaoLocated=false;
  for(let i=0;i<20;i++){
   await delay(1000);
-  if(platform==='toutiao'&&i===3){tabId=await locateToutiaoDraft(job,tabId);}
+  if(platform==='toutiao'&&i>=3&&!toutiaoLocated){
+   let ready=false;try{ready=!!await page(tabId,'draft-location',article,job.accountId,platform)}catch{ready=true}
+   if(ready){tabId=await locateToutiaoDraft(job,tabId);toutiaoLocated=true;}
+  }
   if(platform==='csdn'&&i>=3){try{const found=await locateCsdnDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw new Error('草稿箱原稿定位待确认，未重复保存');continue}}
-  let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if(platform==='csdn'&&!article.verifiedDraftList&&i<3)continue;throw e;}
+  let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if((platform==='csdn'&&!article.verifiedDraftList||platform==='toutiao')&&i<3)continue;throw e;}
   const receipt=draftEvidence(platform,raw);
   if(receipt&&receipt.accountId!==job.accountId)throw new Error('草稿回执账号不匹配');
   if(receipt&&previous===receipt.articleId){
@@ -169,7 +173,13 @@ async function reconcileJob(platform='csdn'){
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
   if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
-  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch{await setStatus('上次任务中断，平台结果待核对；不会自动重发')}
+  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
+   const message=String(e.message||'平台结果待核对').slice(0,240);
+   // Recovery is read-only. Surface a newly observed error to the same job;
+   // never create a second task or silently hide the platform failure.
+   if(inflight.job.mode==='draft'&&inflight.lastRecoveryError!==message){try{await call('report',{id:inflight.job.id,lease:inflight.job.lease,state:'needs_attention',editorRetained:true,error:message});const latest=await journal(platform);if(latest?.job.id===inflight.job.id){latest.lastRecoveryError=message;await saveJournal(platform,latest)}}catch{}}
+   await setStatus(message+'；不会自动重发');
+  }
 }
 async function command(message){
   await requireStorage();const platform=message.platform||'csdn';platformConfig(platform);

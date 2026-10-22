@@ -74,3 +74,10 @@ test('failed content progress retains independent receipt results and offers rec
 });
 
  test('failed batch is shown as stopped rather than offering an automatic retry',()=>{const {ctx}=ui();ctx.GEO_KNOWLEDGE={factUsable:()=>true};vm.runInContext("simpleFlowScope=simpleScope();simpleFlows=[{id:'failed',stage:'writing',issues:[{status:'failed',error:'限流'}]}]",ctx);const html=vm.runInContext('simpleFlowCards()',ctx);assert.match(html,/本批已停止/);assert.doesNotMatch(html,/simple-tick/);assert.match(vm.runInContext('simpleNextWork().text',ctx),/不会自动重试/);});
+
+
+test('workbench shows failures alongside successful drafts instead of only the latest success',()=>{
+ const {ctx}=ui();ctx.own=k=>k==='contents'?[{id:'c',status:'已审核'}]:[];ctx.browserPublisherStates={draft:'草稿已保存',needs_attention:'需要处理'};
+ vm.runInContext("simplePublishingScope=simpleScope();simplePublishing={jobs:[{contentId:'c',state:'needs_attention',currentRevision:true,created:1},{contentId:'c',state:'draft',currentRevision:true,created:2},{contentId:'c',state:'draft',currentRevision:true,created:3}]}",ctx);
+ const result=vm.runInContext('simpleNextWork()',ctx);assert.match(result.text,/需要处理 1 个/);assert.match(result.text,/草稿已保存 2 个/);assert.equal(result.action,'distribute-article');
+});

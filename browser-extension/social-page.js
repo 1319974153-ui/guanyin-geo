@@ -27,6 +27,7 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
  };
  const buttons=names=>many('button,[role="button"]').filter(e=>names.includes(text(e))&&!e.disabled&&e.getAttribute('aria-disabled')!=='true');
  const verifyChallenge=()=>{if(many('iframe[src*="captcha"],.geetest_panel,.yidun_modal,[class*="captcha"]').length||many('input[placeholder*="验证码"]').length)fail('平台要求本人验证，请处理后核对状态；不会自动发送验证码')};
+ const saveFailure=()=>many('[role="alert"],[role="status"],[class*="message"],[class*="toast"]').some(e=>!e.closest('[contenteditable],article,aside')&&text(e)==='保存失败');
  if(location.origin!==cfg.origin)fail('页面已跳转，请先完成本人登录');
  if(action==='receipt'){
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
@@ -91,6 +92,7 @@ export async function socialPage({platform,action,article,accountId,media=[]}){
   return {accountId:me.accountId,url:list.origin+list.pathname,contentVerified:true};
  }
  if(action==='draft-receipt'){
+  if(platform==='toutiao'&&saveFailure())fail('头条提示保存失败，尚未取得草稿编号；原稿已保留，不会重复发送');
   if(!['zhihu','toutiao'].includes(platform))fail('此平台尚未支持草稿回执');
   if(!matches())fail('草稿正文或标题与已确认版本不同');
   if(platform==='toutiao'){

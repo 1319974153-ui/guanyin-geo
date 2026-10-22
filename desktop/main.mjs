@@ -30,7 +30,7 @@ async function start(){
  main.webContents.on('will-navigate',(e,url)=>{try{if(new URL(url).origin!==origin)e.preventDefault()}catch{e.preventDefault()}});main.webContents.on('will-attach-webview',e=>e.preventDefault());main.webContents.setWindowOpenHandler(({url})=>{try{const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password)void shell.openExternal(u.href)}catch{}return {action:'deny'}});main.webContents.session.setPermissionRequestHandler((_wc,_p,cb)=>cb(false));
  const bind=(name,fn)=>ipcMain.handle('guanyin:'+name,(event,value)=>{if(!trustedFrame(event,main.webContents,origin))throw new Error('仅观引主窗口可执行此操作');return fn(value)});
  bind('connect',async input=>{const c=await rpc('desktop-connect',connectionInput(input)),controller=await control(c);await controller.login();return {sessionId:c.sessionId,waitingForLogin:true}});
- bind('open-account',async id=>{const c=await getConnection(id),controller=await control(c);await controller.login();return {ok:true}});
+ bind('open-account',async id=>{const c=await getConnection(id),controller=await control(c);if(!controller.driver.showOriginal())await controller.login();return {ok:true}});
  bind('prepare',async input=>{for(const t of targetInput(input)){const c=await getConnection(t.sessionId),controller=await control(c);await controller.verify(t.accountId)}return {ok:true}});
  bind('wake',async()=>{void poll();return {ok:true}});
  main.on('closed',()=>app.quit());await main.loadURL(origin+'/#today');

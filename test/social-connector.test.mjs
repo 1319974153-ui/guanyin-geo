@@ -12,6 +12,7 @@ function fixture(platform,options={}){
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
  const button=element(platform==='toutiao'?'预览并发布':'发布',{click:()=>clicks++});
  const doc={querySelectorAll(s){
+  if(s==='[role="alert"],[role="status"],[class*="message"],[class*="toast"]')return options.saveFailure?[element('保存失败',{closest:()=>options.failureInBody?bodyEl:null})]:[];
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
@@ -168,4 +169,10 @@ test('Toutiao list opens only one exact title after current account check; never
 test('Zhihu generic profile link uses visible accessible name without changing account identity',async()=>{
  const f=fixture('zhihu',{profileName:'我的主页',profileLabels:['点击打开温舒的主页','点击打开温舒的主页']});const me=await f.run('identity');assert.equal(me.name,'温舒');assert.equal(me.accountId,'author');
  const ambiguous=fixture('zhihu',{profileName:'我的主页',profileLabels:['点击打开甲的主页','点击打开乙的主页']});assert.equal((await ambiguous.run('identity')).name,'author');
+});
+
+
+test('Toutiao visible save failure is reported without inventing a draft receipt',async()=>{
+ const f=fixture('toutiao',{saveFailure:true});assert.match((await f.run('draft-receipt')).connectorError,/头条提示保存失败/);assert.equal(f.clicks,0);
+ const spoof=fixture('toutiao',{saveFailure:true,failureInBody:true});assert.equal(await spoof.run('draft-receipt'),null);
 });
