@@ -21,10 +21,10 @@ export function publishingCatalog(){
   const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
   return {
    id,name,group,referenceIncluded:referencePlatformIds.includes(id),
-   implementation:id==='cnblogs'?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
-   contentTypes:wp||browser||id==='cnblogs'?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
+   implementation:['cnblogs','typecho'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
+   contentTypes:wp||browser||['cnblogs','typecho'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:id==='cnblogs'?'metaweblog_token':wp?'application_password':browser?'local_browser_extension':null,
+   connectionMethod:id==='typecho'?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':browser?'local_browser_extension':null,
    acceptance:id==='cnblogs'?'live_acceptance_pending':wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,

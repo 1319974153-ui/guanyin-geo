@@ -101,3 +101,9 @@ test('automatic writing recommends an uncovered question without treating demo c
  contents[0].demo=true;await vm.runInContext("simpleAction('simple-prepare',{})",ctx);assert.equal(seen.request.body.questionId,'target');
  contents=[{questionId:'target'},{questionId:'old'}];assert.equal(vm.runInContext('simpleWritingQuestion().id',ctx),'target');
 });
+
+test('continue from model connection uses the selected saved provider, without a paid call',async()=>{
+ const {ctx,seen}=ui();ctx.serverConnections.push({provider:'runninghub',model:'customer-model'});
+ await vm.runInContext("simpleAction('simple-prepare',{dataset:{provider:'runninghub'}})",ctx);
+ assert.equal(seen.request.body.provider,'runninghub');assert.equal(seen.request.path,'/api/simple/prepare-preview');
+});

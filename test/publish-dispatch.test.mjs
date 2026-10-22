@@ -120,3 +120,18 @@ test('official API records recover server-authoritative draft after local journa
  let writes=0;await dispatchArticle({article,targets:[target],mode:'draft',journal,request:async()=>{writes++},persist:async()=>{},assertScope:()=>{}});assert.equal(writes,0);
  assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,currentRevision:false}],journal:{}}),{});
 });
+
+
+test('Typecho one-click publishes the durable draft and recovers without duplicating it',async()=>{
+ const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');
+ const target={key:'typecho:tc',platform:'typecho',accountId:'tc',name:'站点作者',modes:['draft','publish']},calls=[],journal={};
+ const request=async(path,opts)=>{calls.push({path,body:opts?.body});return path.includes('/preview')?{previewHash:'hash'}:{record:{id:'original-typecho',state:path.endsWith('/publish')?'submitted':'draft',remote:{postId:'23'}}}};
+ const params={article,targets:[target],mode:'publish',journal,request,persist:async()=>{},assertScope:()=>{}};
+ await dispatchArticle(params);await dispatchArticle(params);
+ assert.equal(calls.filter(c=>c.path==='/api/typecho/draft').length,1);assert.equal(calls.filter(c=>c.path==='/api/typecho/publish').length,1);
+ assert.equal(journal[target.key].state,'submitted');
+ const job={id:'original-typecho',platform:'typecho',accountId:'tc',brandId:article.brandId,contentId:article.id,state:'draft',currentRevision:true,receipt:{postId:'23'}};
+ const recovered=await recoverDispatchJournal({article,targets:[target],jobs:[job],journal:{}});assert.equal(recovered[target.key].id,'original-typecho');
+ let writes=0;await dispatchArticle({...params,mode:'draft',journal:recovered,request:async()=>{writes++}});assert.equal(writes,0);
+ assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,accountId:'someone-else'}],journal:{}}),{});
+});

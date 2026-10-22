@@ -4,7 +4,7 @@ export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入�
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(id),wp=id==='wordpress';
+ const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(id),wp=['wordpress','typecho'].includes(id);
  const tested=['csdn','toutiao','zhihu'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
   const implemented=id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn'].includes(id));
@@ -19,6 +19,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='zhihu')return {stage:'草稿与公开提交已实测',note:'已提交真实文章并人工核对公开正文；产品自动公开核验尚待完善，未核对时显示已提交'};
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；本次公开提交遇平台当日额度上限，未重试或付费'};
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
+ if(id==='typecho')return {stage:'接口已接入 · 待实测',note:'网站连接、草稿、原稿发布与恢复已实现；真实 Typecho 网站尚待验收，不能以自动测试代替'};
  if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};
  if(actions.draft.liveAcceptance==='passed')return {stage:'平台草稿已实测',note:'账号、填稿与平台草稿已验收；公开提交仍待验收'};
  if(actions.prepare.liveAcceptance==='passed')return {stage:'已实测填稿',note:actions.draft.implemented?'账号与填稿已验收；平台草稿已实现待实机验收，公开提交待实机验收':'账号与填稿已验收；平台草稿待接入，公开提交待实机验收'};
