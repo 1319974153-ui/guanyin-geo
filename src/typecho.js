@@ -38,6 +38,14 @@ function postId(value){const id=String(value??'');if(!/^[1-9]\d{0,19}$/.test(id)
 function normalize(s){return String(s||'').replace(/\r\n?/g,'\n').trim()}
 function matches(post,r){return post?.title===r.snapshot.title&&normalize(post.description)===normalize(r.html)&&!post.mt_text_more&&String(post.userid)===String(r.userId)}
 function remote(post,r){const id=postId(post?.postid);if(r.remote?.postId&&r.remote.postId!==id)reject(502,'返回的文章编号与原任务不同');if(!matches(post,r))reject(409,'远端标题或正文不同，未覆盖原稿');if(post.post_status!=='draft')reject(409,'远端未确认草稿状态，请到网站核对');return {postId:id,status:'draft',checkedAt:now(),evidence:'newPost(publish=false) 与 getPost 标题正文一致'}}
+// Typecho getPost exposes storage status, while recent posts maps post_draft to draft.
+// Confirm both complete original content and the list's explicit draft state before publishing.
+async function draftReceipt(env,ctx,h,cfg,r,post){
+ const id=postId(post?.postid),posts=await rpc(env,ctx,h,cfg,'metaWeblog.getRecentPosts',[]);
+ const found=Array.isArray(posts)?posts.filter(p=>String(p.postid)===id&&matches(p,r)):[];
+ if(found.length!==1||found[0].post_status!=='draft')reject(409,'平台草稿列表未确认唯一原稿；请核对原任务，不会重新创建');
+ return remote({...post,post_status:'draft'},r);
+}
 // Publication is confirmed only by an anonymous public page, never by an RPC success alone.
 function pageText(node){if(['script','style','noscript'].includes(node?.tagName))return '';return node?.nodeName==='#text'?node.value:(node?.childNodes||[]).map(pageText).join(' ')}
 const compact=s=>String(s).replace(/\s+/g,' ').trim();
@@ -136,9 +144,9 @@ export async function typechoApi(req,env,ctx,h){
   const inserted=retryRecord?{meta:{changes:1}}:await env.DB.prepare("INSERT OR IGNORE INTO runs(owner,id,kind,state,created,result) SELECT ?,?,'typecho','sending',?,? WHERE NOT EXISTS (SELECT 1 FROM runs WHERE owner=? AND kind='typecho' AND json_extract(result,'$.fingerprint')=?) AND (SELECT count(*) FROM runs WHERE owner=? AND kind='typecho')<1000").bind(ctx.owner,b.id,at,JSON.stringify(r),ctx.owner,fingerprint,ctx.owner).run();
   if(!inserted.meta.changes)reject(409,'原任务已存在或任务数达到上限，请刷新');
   try{
-   const id=postId(await rpc(env,ctx,h,cfg,'metaWeblog.newPost',[{title:r.snapshot.title,description:r.html,dateCreated:new Date(r.created),categories:[]}],{beforeWrite:async()=>{await claimWrite(env,ctx,r,'writeAttemptedAt','sending')}}))
+   const id=postId(await rpc(env,ctx,h,cfg,'metaWeblog.newPost',[{title:r.snapshot.title,description:r.html,categories:[]}],{beforeWrite:async()=>{await claimWrite(env,ctx,r,'writeAttemptedAt','sending')}}))
    r.remote={postId:id,status:'unconfirmed'};await save(env,ctx,r,'sending');
-   r.remote=remote(await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[id]),r);return h.json({record:await save(env,ctx,r,'draft')});
+   r.remote=await draftReceipt(env,ctx,h,cfg,r,await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[id]));return h.json({record:await save(env,ctx,r,'draft')});
   }catch(e){if(e.writeClaimConflict)throw e;r.error=e.status?e.message:'博客写入结果未知，请核对原任务';await (r.writeAttemptedAt?save(env,ctx,r,'uncertain'):saveUnsent(env,ctx,r,'not_queued','writeAttemptedAt'));throw e}
  }
  if(path==='/api/typecho/publish'){
@@ -149,10 +157,10 @@ export async function typechoApi(req,env,ctx,h){
   if(r.publishAttemptedAt||['publishing','submitted','published'].includes(r.state))return h.json({record:r,existing:true});
   if(r.state!=='draft'||!r.remote?.postId)reject(409,'需要先取得原稿保存回执；结果不明时只核对，不重发');
   const original=await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[r.remote.postId]);
-  remote(original,r); // Exact original only; never overwrite another or externally edited draft.
+  await draftReceipt(env,ctx,h,cfg,r,original); // Exact original only; never overwrite another or externally edited draft.
   r.error='';
   try{
-   const accepted=await rpc(env,ctx,h,cfg,'metaWeblog.editPost',[r.remote.postId,{title:r.snapshot.title,description:r.html,dateCreated:new Date(r.created),categories:Array.isArray(original.categories)?original.categories:[]}],{beforeWrite:async()=>{await claimWrite(env,ctx,r,'publishAttemptedAt','publishing')}});
+   const accepted=await rpc(env,ctx,h,cfg,'metaWeblog.editPost',[r.remote.postId,{title:r.snapshot.title,description:r.html,categories:Array.isArray(original.categories)?original.categories:[]}],{beforeWrite:async()=>{await claimWrite(env,ctx,r,'publishAttemptedAt','publishing')}});
    if(String(accepted)!==r.remote.postId)reject(502,'未取得明确提交回执，请核对原稿；不会自动重发');
    r.publishAcceptedAt=now();await save(env,ctx,r,'submitted');
    return h.json({record:await checkPublication(env,ctx,h,cfg,r)});
@@ -164,7 +172,7 @@ export async function typechoApi(req,env,ctx,h){
   try{
    if(r.publishAttemptedAt)return h.json({record:await checkPublication(env,ctx,h,cfg,r)});
    let post;if(r.remote?.postId)post=await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[r.remote.postId]);else{const posts=await rpc(env,ctx,h,cfg,'metaWeblog.getRecentPosts',[]),found=Array.isArray(posts)?posts.filter(x=>matches(x,r)):[];if(found.length!==1)reject(409,'近期稿件中没有唯一匹配原稿；不会重新创建');post=await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[postId(found[0].postid)])}
-   r.remote=remote(post,r);r.error='';return h.json({record:await save(env,ctx,r,'draft')});
+   r.remote=await draftReceipt(env,ctx,h,cfg,r,post);r.error='';return h.json({record:await save(env,ctx,r,'draft')});
   }catch(e){if(e.writeClaimConflict)throw e;r.error=e.status?e.message:'暂未取得原稿回执';await save(env,ctx,r,r.publishAcceptedAt?'submitted':'uncertain');throw e}
  }
  reject(404,'Typecho接口不存在');

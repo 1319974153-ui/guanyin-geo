@@ -119,7 +119,7 @@ test('legacy accepted receipt remains submitted; ambiguous attempts remain uncer
 });
 
 test('Typecho draft ownership and explicit status are required, and integer edit IDs must match',async()=>{
- for(const change of [{userid:8},{post_status:'publish'},{post_status:'pending'}]){const e=environment();await seed(e);await fixture(async()=>{await connect(e);assert.equal((await create(e)).status,409)},{handler:({method,posts,values})=>method==='metaWeblog.getPost'?reply({...posts.get(String(values[0])),...change}):null});e.db.close()}
+ for(const change of [{userid:8},{post_status:'publish'},{post_status:'pending'}]){const e=environment();await seed(e);await fixture(async()=>{await connect(e);assert.equal((await create(e)).status,409)},{handler:({method,posts})=>method==='metaWeblog.getRecentPosts'?reply([...posts.values()].map(p=>({...p,...change}))):null});e.db.close()}
  const e=environment();await seed(e);await fixture(async()=>{await connect(e);const r=(await create(e)).data.record;assert.equal((await run(e,'publish',r.id)).status,502)},{handler:({method})=>method==='metaWeblog.editPost'?reply(true):null});e.db.close();
 });
 
@@ -131,4 +131,9 @@ test('Typecho site/endpoint change cannot reuse old credentials and model settin
 test('private DNS and unsafe integer identities never persist or forward credentials',async()=>{
  const e=environment();await seed(e);await fixture(async({calls})=>{assert.notEqual((await connect(e)).status,200);assert.equal(calls.length,0);assert.equal(e.db.prepare('SELECT count(*) n FROM connections').get().n,0)},{privateDNS:true});
  await fixture(async()=>{assert.notEqual((await connect(e)).status,200);assert.equal(e.db.prepare('SELECT count(*) n FROM connections').get().n,0)},{handler:({method})=>method==='blogger.getUserInfo'?reply({userid:'9007199254740993'}):null});e.db.close();
+});
+
+
+test('Typecho storage publish status on a draft requires an exact explicit draft-list receipt',async()=>{
+ const e=environment();await seed(e);await fixture(async({calls})=>{await connect(e);const r=await create(e);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.data.record.state,'draft');assert.equal((await run(e,'publish',r.data.record.id)).data.record.state,'published');assert.equal(calls.filter(c=>c.method==='metaWeblog.newPost').length,1)},{handler:({method,posts,values})=>method==='metaWeblog.getPost'?reply({...posts.get(String(values[0])),post_status:'publish'}):null});e.db.close();
 });
