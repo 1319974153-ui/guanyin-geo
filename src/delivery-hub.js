@@ -44,6 +44,7 @@ export async function deliveryHubApi(req,env,ctx,h){
   for(const f of c.factSnapshots||[]){const current=w.state.facts.find(x=>x.id===f.id&&x.brandId===c.brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))reject(409,'依据已变化或失效，请重新审核');}
   const snapshot={contentId:c.id,brandId:c.brandId,title:c.title,text:c.text,factSnapshots:c.factSnapshots||[],reviewedAt:c.reviewedAt||null};
   return h.json({format:'guanyin-publication-package-v1',snapshot,hash:await digest(JSON.stringify(snapshot)),createdAt:new Date().toISOString(),channels:[
+   {id:'csdn',name:'CSDN',entryUrl:'https://editor.csdn.net/md/',mode:'manual_editor_handoff'},
    {id:'zhihu',name:'知乎',entryUrl:'https://zhuanlan.zhihu.com/write',mode:'browser_assisted'},
    {id:'toutiao',name:'头条号',entryUrl:'https://mp.toutiao.com/',mode:'browser_assisted'},
    {id:'baijiahao',name:'百家号',entryUrl:'https://baijiahao.baidu.com/',mode:'browser_assisted'},

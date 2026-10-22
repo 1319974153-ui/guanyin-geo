@@ -34,3 +34,6 @@ public/assistant/guanyin-geo.zip
 /public/schema-core.js
 /public/knowledge-core.js
 /public/document-parser-worker.js
+
+/public/article-format.js
+/public/article-editor-core.js

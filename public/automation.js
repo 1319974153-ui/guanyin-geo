@@ -1,4 +1,4 @@
-const CHANNEL_ENTRIES = {'知乎':'https://zhuanlan.zhihu.com/write','今日头条':'https://mp.toutiao.com/','抖音':'https://creator.douyin.com/','小红书':'https://creator.xiaohongshu.com/','百家号':'https://baijiahao.baidu.com/','搜狐号':'https://mp.sohu.com/','微信公众号':'https://mp.weixin.qq.com/','B站':'https://member.bilibili.com/'};
+const CHANNEL_ENTRIES = {'CSDN':'https://editor.csdn.net/md/','知乎':'https://zhuanlan.zhihu.com/write','今日头条':'https://mp.toutiao.com/','抖音':'https://creator.douyin.com/','小红书':'https://creator.xiaohongshu.com/','百家号':'https://baijiahao.baidu.com/','搜狐号':'https://mp.sohu.com/','微信公众号':'https://mp.weixin.qq.com/','B站':'https://member.bilibili.com/'};
 function channelEntry(channel) {return brand().channelUrls?.[channel] || CHANNEL_ENTRIES[channel] || (channel==='官网'?brand().site:'') || '';}
 function inferChannel(value) {
   let host;try{host=new URL(value).hostname.toLowerCase()}catch{return ''}
