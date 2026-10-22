@@ -19,7 +19,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
   if(target.platform!=='wordpress'&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
   if(row&&['sending','uncertain','needs_attention','queued','preparing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
-  row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,name:target.name,state:'ready'};
+  row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
   try{
    if(target.platform==='wordpress'){
@@ -35,7 +35,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
     }
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
-    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,tags:article.tags,media:['douyin','xiaohongshu'].includes(target.platform)?article.media||[]:[],mode});
+    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
    }else throw new Error('平台尚未接入');
   }catch(e){row.state=wrote?'uncertain':'needs_attention';row.error=e.message;}

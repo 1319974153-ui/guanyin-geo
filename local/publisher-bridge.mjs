@@ -42,7 +42,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   if(j.state==='submitting'&&j.leaseExpires<clock()){j.state='uncertain';j.error='提交结果未知，请核对平台回执；不会重复提交';save('publisher_jobs',j)}
  }}
  // Restart never renews old authority or replays an interrupted click.
- for(const s of sessions())if(s.origin!==origin){s.revoked=true;save('publisher_sessions',s)}
+ for(const s of sessions())if(s.origin!==origin){if(s.transport==='desktop')s.origin=origin;else s.revoked=true;save('publisher_sessions',s)}
  for(const j of jobs())if(['queued','preparing','submitting'].includes(j.state)){
   const revoked=sessions().find(s=>s.id===j.sessionId)?.revoked;
   j.state=j.state==='submitting'?'uncertain':revoked?'cancelled':'needs_attention';
@@ -68,7 +68,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   pairing=null;for(const s of sessions()){s.revoked=true;save('publisher_sessions',s)}
   for(const j of jobs())if(['queued','preparing','submitting'].includes(j.state)){j.state=j.state==='submitting'?'uncertain':'cancelled';j.error=reason;save('publisher_jobs',j)}
  }
- async function handle(req){
+ async function handleRequest(req,desktopSession=null){
   const u=new URL(req.url),extension=u.pathname.startsWith('/bridge/publisher/');
   if(!extension&&!u.pathname.startsWith('/api/local-publisher/'))return null;
   const requestOrigin=req.headers.get('origin'),cors={};
@@ -77,8 +77,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(u.origin!==origin||req.headers.has('x-geo-workspace'))fail(403,'浏览器连接仅限当前本机工作区');
    const action=u.pathname.split('/').pop();
    if(extension){
-    if(!EXT.test(requestOrigin||''))fail(403,'只接受已配对 Chrome 扩展');
-    if(action!=='pair'&&!sessions().some(s=>!s.revoked&&s.extensionOrigin===requestOrigin))fail(403,'扩展尚未配对或已撤销');
+    if(!desktopSession&&!EXT.test(requestOrigin||''))fail(403,'只接受已配对 Chrome 扩展');
+    if(!desktopSession&&action!=='pair'&&!sessions().some(s=>!s.revoked&&s.extensionOrigin===requestOrigin))fail(403,'扩展尚未配对或已撤销');
     cors['access-control-allow-origin']=requestOrigin;cors.vary='Origin';
     if(req.method==='OPTIONS'){cors['access-control-allow-methods']='POST';cors['access-control-allow-headers']='authorization,content-type';return new Response(null,{status:204,headers:cors})}
    }else if(!csrf(req)||(requestOrigin&&requestOrigin!==origin))fail(403,'请从本机观引操作');
@@ -88,7 +88,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!extension){
     if(action==='status'){
      const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;
-     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
+     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform])fail(400,'不支持的发布平台');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}
     if(action==='revoke'){
@@ -105,6 +105,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     }
     if(action==='enqueue'){
      const s=sessions().find(s=>s.id===b.sessionId&&!s.revoked&&s.brandId===b.brandId);if(!s?.account)fail(409,'请先核验真实发布账号');
+     if(s.transport==='desktop'&&b.expectedAccountId!==s.account.accountId)fail(409,'账号已变化，请重新选择当前账号');
      if(!['prepare','publish','draft'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');
      if(b.mode==='draft'&&!supportsDraftProtocol(s.platform||'csdn',s.draftProtocol))fail(409,'请重载支持草稿的连接器并重新核验对应平台账号');
      const tags=Array.isArray(b.tags)?b.tags.map(t=>String(t).trim()):[];
@@ -141,7 +142,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s));pairing=null;return respond({token,sessionId:s.id,brandId:s.brandId,platform:s.platform,instance});
    }
    const auth=req.headers.get('authorization')||''; // Token is accepted only in the header.
-   const session=sessions().find(s=>!s.revoked&&s.origin===origin&&s.extensionOrigin===requestOrigin&&s.tokenHash===hash(auth.replace(/^Bearer /,''))&&auth.startsWith('Bearer '));
+   const session=desktopSession||sessions().find(s=>s.transport!=='desktop'&&!s.revoked&&s.origin===origin&&s.extensionOrigin===requestOrigin&&s.tokenHash===hash(auth.replace(/^Bearer /,''))&&auth.startsWith('Bearer '));
    if(!session||b.instance!==instance)fail(403,'连接凭据或本机实例不匹配');
    brand(session.brandId);session.lastSeen=clock();save('publisher_sessions',session);
    if(action==='account'){
@@ -153,6 +154,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(invalid.length)fail(409,'没有取得完整的登录身份和编辑器证据：'+invalid.join('、'));
     session.draftProtocol=supportsDraftProtocol(session.platform||'csdn',b.draftProtocol)?b.draftProtocol:0;
     const previous=session.account;
+    session.connectionState='connected';session.connectionError='';
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
    }
@@ -211,5 +213,23 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    fail(404,'接口不存在');
   }catch(e){return respond({error:e.status?e.message:'本机发布连接处理失败'},e.status||500)}
  }
- return {handle,invalidate};
+ // Private process API. Never exported through an HTTP route or renderer IPC directly.
+ function connectDesktop({brandId,platform}){
+  brand(brandId);if(!['csdn','toutiao','zhihu'].includes(platform))fail(400,'该平台桌面登录尚未接入');
+  let s=sessions().find(s=>!s.revoked&&s.transport==='desktop'&&s.brandId===brandId&&s.platform===platform);
+  if(!s){s={id:randomUUID(),transport:'desktop',platform,brandId,origin,created:clock(),connectionState:'awaiting_login'};db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s))}
+  return {sessionId:s.id,brandId,platform,origin,instance};
+ }
+ function desktopConnections(){return sessions().filter(s=>!s.revoked&&s.transport==='desktop').map(s=>({sessionId:s.id,brandId:s.brandId,platform:s.platform,origin,instance,accountId:s.account?.accountId||null}))}
+ async function desktopRequest({sessionId,action,data={}}){
+  const s=sessions().find(s=>s.id===sessionId&&!s.revoked&&s.transport==='desktop');if(!s)fail(403,'桌面连接已失效，请重新登录');brand(s.brandId);
+  if(action==='connection-state'){
+   if(!['awaiting_login','checking','needs_login','error'].includes(data.state))fail(400,'不支持的账号状态');
+   s.connectionState=data.state;s.connectionError=String(data.error||'').slice(0,250);save('publisher_sessions',s);return {ok:true};
+  }
+  if(!['account','pending','claim','job-state','report','resume','commit'].includes(action))fail(400,'不支持的桌面操作');
+  const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
+  const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
+ }
+ return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest};
 }

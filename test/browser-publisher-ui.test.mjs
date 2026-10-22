@@ -33,3 +33,12 @@ test('result page watches only pending jobs in its current scope without write o
  await options.refresh();assert.equal(started,1);
  selected.id='b';assert.equal(options.valid(),false);
 });
+
+test('desktop status polling updates only account rows and never replaces the selected platform or buttons',async()=>{
+ const {ctx}=ui();let renders=0,updates=0;const table={set innerHTML(v){updates++;this.value=v}};
+ ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;ctx.render=()=>renders++;ctx.document.getElementById=id=>id==='desktop-account-table'?table:null;
+ ctx.apiRequest=async()=>({jobs:[],accounts:[{id:'desktop-one',platform:'toutiao',transport:'desktop',connectionState:'awaiting_login'}]});
+ await vm.runInContext('refreshDesktopAccounts()',ctx);assert.equal(updates,1);assert.equal(renders,0);assert.match(table.value,/等待登录/);
+ await vm.runInContext('refreshDesktopAccounts()',ctx);assert.equal(updates,1);
+ assert.doesNotMatch(vm.runInContext('renderBrowserPublisher()',ctx),/配对信息|核验当前账号|安装连接器/);
+});

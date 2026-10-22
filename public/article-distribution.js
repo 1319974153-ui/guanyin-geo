@@ -7,13 +7,13 @@ function distributionPlatformRows(platforms,targets){
  const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
  return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
 }
-function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?'未连接':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?(window.guanyinDesktop?.available&&['douyin','xiaohongshu'].includes(t.platform)?'桌面版待接入':'未连接'):!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
 function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
  const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
  f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
-  const connect=!planned&&(t.placeholder||!t.accountId)&&(['wordpress','csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(t.platform));
+  const connect=!planned&&(t.placeholder||!t.accountId)&&((window.guanyinDesktop?.available?['wordpress','csdn','toutiao','zhihu']:['wordpress','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
   return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
  }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
@@ -46,7 +46,7 @@ async function distributionLoad(f){
  results.forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
   for(const a of r.value.accounts||[]){
    if(i===0&&a.platform==='wordpress')targets.push({key:'wp:'+a.accountId,platform:'wordpress',accountId:a.accountId,name:a.username,detail:a.site,modes:a.status==='verified'?['draft','publish']:a.status==='permission_limited'?['draft']:[],status:publishingAccountStates[a.status]||a.status});
-   if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):'请在连接器核验身份'});
+   if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,transport:a.transport,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):a.transport==='desktop'?'请先登录账号':'请在连接器核验身份'});
   }
  });f.distributionTargets=targets;f.distributionRemoteJobs=results[1].status==='fulfilled'?results[1].value.jobs||[]:[];
  f.distributionCatalog=results[0].status==='fulfilled'?results[0].value.platforms||[]:[];f.distributionLoadErrors=errors;
@@ -117,7 +117,9 @@ async function distributionSend(f,mode){
   const persist=async value=>localStorage.setItem(key,JSON.stringify(value));
   assertScope();await persist(journal);f.distributionJournal=journal;f.distributionKey=key;
   runtimeLock(true);f.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=true);
+  const desktopTargets=targets.filter(t=>t.transport==='desktop');if(desktopTargets.length){if(!window.guanyinDesktop)throw new Error('请在观引桌面版打开此稿件');await window.guanyinDesktop.prepare(desktopTargets.map(t=>({sessionId:t.sessionId,accountId:t.accountId})));assertScope();}
   await GEO_DISPATCH.dispatchArticle({article:{...c,tags},targets,mode,journal,request:apiRequest,persist,assertScope,changed:()=>distributionResults(f)});
+  if(desktopTargets.length)void window.guanyinDesktop.wake();
   // WordPress publication registers server-owned receipt data. Reload before the next workspace write.
   try{const fresh=await apiRequest('/api/state');state=fresh.state;serverRevision=fresh.revision;}catch{saveBlocked=true;throw new Error('发送记录已保留，但工作区刷新失败。请刷新页面后再编辑，避免覆盖回执。')}
   toast('发送流程已结束，请查看每个账号的实际结果');
