@@ -75,7 +75,7 @@ async function checkPublication(env,ctx,h,cfg,r){
  r.error=accepted?'':'提交结果仍未知，请到平台核对原稿';
  return save(env,ctx,r,accepted?'submitted':'uncertain');
 }
-export const cnblogsRunState=(r,state)=>!r.remote&&!r.writeAttemptedAt&&r.error==='域名检查暂不可用，请稍后重试'?'not_queued':state;
+export const cnblogsRunState=(r,state)=>state==='uncertain'&&r.publishAcceptedAt?'submitted':!r.remote&&!r.writeAttemptedAt&&r.error==='域名检查暂不可用，请稍后重试'?'not_queued':state;
 async function record(env,ctx,b){const row=await env.DB.prepare("SELECT * FROM runs WHERE owner=? AND id=? AND kind='cnblogs'").bind(ctx.owner,b.id).first();if(!row)reject(404,'找不到博客园原任务');const r=JSON.parse(row.result);if(r.brandId!==b.brandId||r.accountId!==b.accountId)reject(404,'找不到此账号的任务');return {...r,state:cnblogsRunState(r,row.state)}}
 async function claimWrite(env,ctx,r,field,state){
  const next={...r,[field]:now(),error:''};delete next.state;

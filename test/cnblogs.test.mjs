@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {d1Adapter} from '../local/d1-adapter.mjs';
 import worker from '../src/worker.js';
-import {cnblogsPublicMatches} from '../src/cnblogs.js';
+import {cnblogsPublicMatches,cnblogsRunState} from '../src/cnblogs.js';
 import {rpcValue,rpcRequest,parseRpc} from '../src/metaweblog-rpc.js';
 
 function environment(){const db=new DatabaseSync(':memory:');for(const f of fs.readdirSync(new URL('../drizzle',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(fs.readFileSync(new URL('../drizzle/'+f,import.meta.url),'utf8'));return {DB:d1Adapter(db),db,GEO_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')}}
@@ -110,4 +110,9 @@ test('accepted publication remains submitted when later DNS lookup fails, and pu
  opts.dnsDown=false;opts.publicUnavailable=false;opts.handler=({method})=>method==='metaWeblog.getPost'?new Response('down',{status:503}):null;
  assert.equal((await run(e,'reconcile',r.id)).data.record.state,'published');assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,1);
  },opts);e.db.close();
+});
+
+test('legacy accepted receipt remains submitted; ambiguous attempts remain uncertain',()=>{
+ assert.equal(cnblogsRunState({publishAcceptedAt:'2026-10-22T08:37:20Z'},'uncertain'),'submitted');
+ assert.equal(cnblogsRunState({publishAttemptedAt:'2026-10-22T08:37:20Z'},'uncertain'),'uncertain');
 });
