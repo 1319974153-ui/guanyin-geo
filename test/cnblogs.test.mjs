@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {d1Adapter} from '../local/d1-adapter.mjs';
 import worker from '../src/worker.js';
+import {cnblogsPublicMatches} from '../src/cnblogs.js';
 import {rpcValue,rpcRequest,parseRpc} from '../src/metaweblog-rpc.js';
 
 function environment(){const db=new DatabaseSync(':memory:');for(const f of fs.readdirSync(new URL('../drizzle',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(fs.readFileSync(new URL('../drizzle/'+f,import.meta.url),'utf8'));return {DB:d1Adapter(db),db,GEO_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64')}}
@@ -17,12 +18,14 @@ async function fixture(fn,opts={}){
  const original=globalThis.fetch,posts=new Map(),calls=[];
  globalThis.fetch=async(url,o={})=>{
   const u=new URL(url);if(u.hostname.includes('dns'))return Response.json({Status:0,Answer:[{type:u.searchParams.get('type')==='AAAA'?28:1,data:u.searchParams.get('type')==='AAAA'?'2606:4700:4700::1111':'1.1.1.1'}]});
+  if(u.hostname==='www.cnblogs.com'){assert.equal(o.headers.cookie,undefined);const post=[...posts.values()].find(p=>u.pathname==='/test-blog/p/'+p.postid);return new Response(opts.publicHtml??(post?.public?'<a id="cb_post_title_url">'+post.title+'</a><div id="cnblogs_post_body">'+post.description+'</div>':'not public'),{status:opts.publicUnavailable?403:200,headers:{'content-type':'text/html'}})}
   assert.equal(u.href,'https://rpc.cnblogs.com/metaweblog/test-blog');assert.equal(o.redirect,'manual');
   const method=o.body.match(/<methodName>(.*?)<\/methodName>/)[1];
   const values=[...o.body.matchAll(/<param>([\s\S]*?)<\/param>/g)].map(x=>parseRpc('<methodResponse><params><param>'+x[1]+'</param></params></methodResponse>'));
   calls.push({method,values});if(opts.handler){const r=await opts.handler({method,values,posts,calls});if(r)return r;}
   if(method==='blogger.getUsersBlogs')return reply([{blogid:'blog-7',url:'https://www.cnblogs.com/test-blog/',blogName:'测试博客'}]);
   if(method==='metaWeblog.newPost'){assert.equal(values.at(-1),false);const post={...values[3],postid:String(100+posts.size)};posts.set(post.postid,post);if(opts.lost)throw Error('lost');return reply(post.postid)}
+  if(method==='metaWeblog.editPost'){assert.equal(values[4],true);const old=posts.get(values[0]);posts.set(values[0],{...old,...values[3],public:true});if(opts.publishLost)throw Error('lost');return reply(true)}
   if(method==='metaWeblog.getRecentPosts')return reply([...posts.values()]);
   if(method==='metaWeblog.getPost')return reply(posts.get(values[0]));
   throw Error('Unexpected method '+method);
@@ -44,7 +47,7 @@ test('XML-RPC handles escaped unicode, booleans, dates and arrays; rejects DTD, 
  const fault='<methodResponse><fault>'+rpcValue({faultCode:401,faultString:config.token})+'</fault></methodResponse>';assert.throws(()=>parseRpc(fault),e=>e.message.includes('401')&&!e.message.includes(config.token));
 });
 test('connecting verifies ownership immediately; encrypts token and never exposes it or publishes',async()=>{
- const e=environment();await seed(e);await fixture(async({calls})=>{const c=await connect(e);assert.equal(c.status,200,JSON.stringify(c));assert.ok(c.data.connection.verifiedAt);assert.equal(calls.length,1);assert.equal(calls[0].method,'blogger.getUsersBlogs');assert.ok(!e.db.prepare('SELECT secret FROM connections').get().secret.includes(config.token));assert.equal((await call(e,'/api/state')).data.connections.length,0);const center=(await call(e,'/api/publishing-center?brandId=b1')).data;assert.equal(center.accounts[0].capabilities.createDraft,true);assert.equal(center.accounts[0].capabilities.publish,false);assert.ok(!JSON.stringify(center).includes(config.token));});e.db.close();
+ const e=environment();await seed(e);await fixture(async({calls})=>{const c=await connect(e);assert.equal(c.status,200,JSON.stringify(c));assert.ok(c.data.connection.verifiedAt);assert.equal(calls.length,1);assert.equal(calls[0].method,'blogger.getUsersBlogs');assert.ok(!e.db.prepare('SELECT secret FROM connections').get().secret.includes(config.token));assert.equal((await call(e,'/api/state')).data.connections.length,0);const center=(await call(e,'/api/publishing-center?brandId=b1')).data;assert.equal(center.accounts[0].capabilities.createDraft,true);assert.equal(center.accounts[0].capabilities.publish,true);assert.ok(!JSON.stringify(center).includes(config.token));});e.db.close();
 });
 test('wrong blog identity and redirects cannot save credentials or leak them to another host',async()=>{
  for(const response of [()=>reply([{blogid:'7',url:'https://www.cnblogs.com/someone-else/'}]),()=>new Response(null,{status:302,headers:{location:'https://evil.example/'}})]){
@@ -54,7 +57,7 @@ test('unsafe blog path, missing token, unauthorized brand and empty username fai
  const e=environment();await seed(e);await fixture(async({calls})=>{for(const change of [{blog:'../../evil'},{blog:'https://evil'},{token:'123'},{username:''},{brandId:'other'}])assert.notEqual((await call(e,'/api/cnblogs/connection','POST',{...config,...change})).status,200);assert.equal(calls.length,0)});e.db.close();
 });
 test('draft verifies complete remote content and creates only once even with a new request id',async()=>{
- const e=environment();await seed(e);await fixture(async({calls,posts})=>{await connect(e);const r=await create(e);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.data.record.state,'draft');assert.equal(r.data.record.remote.postId,'100');const same=await create(e);assert.equal(same.data.existing,true);assert.equal(same.data.record.id,r.data.record.id);assert.equal(posts.size,1);assert.equal(calls.filter(x=>x.method==='metaWeblog.newPost').length,1);assert.equal((await call(e,'/api/state')).data.state.publications.length,0);assert.equal((await run(e,'publish',r.data.record.id)).status,404);});e.db.close();
+ const e=environment();await seed(e);await fixture(async({calls,posts})=>{await connect(e);const r=await create(e);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.data.record.state,'draft');assert.equal(r.data.record.remote.postId,'100');const same=await create(e);assert.equal(same.data.existing,true);assert.equal(same.data.record.id,r.data.record.id);assert.equal(posts.size,1);assert.equal(calls.filter(x=>x.method==='metaWeblog.newPost').length,1);assert.equal((await call(e,'/api/state')).data.state.publications.length,0);assert.equal(calls.filter(x=>x.method==='metaWeblog.editPost').length,0);});e.db.close();
 });
 test('lost creation response can only recover unique exact original, never repeats write',async()=>{
  const e=environment();await seed(e);await fixture(async({calls})=>{await connect(e);const id=crypto.randomUUID();assert.equal((await create(e,id)).status,502);assert.equal((await create(e)).data.record.state,'uncertain');const r=await run(e,'reconcile',id);assert.equal(r.status,200,JSON.stringify(r));assert.equal(r.data.record.state,'draft');assert.equal(calls.filter(x=>x.method==='metaWeblog.newPost').length,1)},{lost:true});e.db.close();
@@ -70,4 +73,23 @@ test('stale preview and changed facts do not start a write; foreign owners canno
 });
 test('backup restore pauses blog credentials; deleting brand removes only its connections',async()=>{
  const e=environment();await seed(e);await fixture(async()=>{await connect(e);await call(e,'/api/cnblogs/connection','POST',{...config,brandId:'b2'});const backup=(await call(e,'/api/manage/backups','POST',{label:'blog'})).data,w=(await call(e,'/api/state')).data;assert.equal((await call(e,'/api/manage/backups/restore','POST',{id:backup.id,revision:w.revision})).status,200);assert.equal((await create(e)).status,400);assert.equal((await call(e,'/api/manage/brands/delete','POST',{brandId:'b1',confirmName:'品牌甲'})).status,200);assert.equal(e.db.prepare("SELECT count(*) n FROM connections WHERE provider LIKE 'cnblogs:b1:%'").get().n,0);assert.equal(e.db.prepare("SELECT count(*) n FROM connections WHERE provider LIKE 'cnblogs:b2:%'").get().n,1)});e.db.close();
+});
+
+test('public publish promotes exactly the existing draft; anonymous whole-body evidence is required and repeat is read only',async()=>{
+ const e=environment();await seed(e);await fixture(async({calls,posts})=>{await connect(e);const r=(await create(e)).data.record;const p=await run(e,'publish',r.id);assert.equal(p.status,200,JSON.stringify(p));assert.equal(p.data.record.state,'published');assert.equal(p.data.record.remote.publicVerified,true);assert.equal(p.data.record.remote.postId,r.remote.postId);assert.equal((await run(e,'publish',r.id)).data.existing,true);assert.equal(posts.size,1);assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,1)});e.db.close();
+});
+test('accepted but inaccessible public page is submitted, not published; reconcile never resends',async()=>{
+ const e=environment();await seed(e);await fixture(async({calls})=>{await connect(e);const r=(await create(e)).data.record;assert.equal((await run(e,'publish',r.id)).data.record.state,'submitted');assert.equal((await run(e,'publish',r.id)).data.existing,true);assert.equal((await run(e,'reconcile',r.id)).data.record.state,'submitted');assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,1)},{publicUnavailable:true});e.db.close();
+});
+test('lost public response never writes twice; only a matching public page resolves uncertainty',async()=>{
+ for(const inaccessible of [true,false]){const e=environment();await seed(e);await fixture(async({calls})=>{await connect(e);const r=(await create(e)).data.record;assert.equal((await run(e,'publish',r.id)).status,502);assert.equal((await run(e,'publish',r.id)).data.record.state,'uncertain');assert.equal((await run(e,'reconcile',r.id)).data.record.state,inaccessible?'uncertain':'published');assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,1)},{publishLost:true,publicUnavailable:inaccessible});e.db.close();}
+});
+test('edited remote or revised local article prevents public write before touching original',async()=>{
+ for(const remoteChange of [true,false]){const e=environment();await seed(e);await fixture(async({calls,posts})=>{await connect(e);const r=(await create(e)).data.record;if(remoteChange)posts.get('100').description+='external';else{const w=(await call(e,'/api/state')).data;w.state.contents[0].text+='modified';await call(e,'/api/state','PUT',w)}assert.equal((await run(e,'publish',r.id)).status,409);assert.equal(calls.filter(c=>c.method==='metaWeblog.editPost').length,0)});e.db.close();}
+});
+test('public evidence rejects a search snippet, title-only page, login page and altered content',()=>{
+ const r={snapshot:{title:'中文 & 回执'},html:'<p>完整正文</p><p>AI 声明</p>'};
+ const valid='<a id="cb_post_title_url">中文 &amp; 回执</a><div id="cnblogs_post_body">'+r.html+'</div>';
+ assert.equal(cnblogsPublicMatches(valid,r),true);
+ for(const page of ['<h1>中文 &amp; 回执</h1>'+r.html,valid.replace('完整正文','部分正文'),valid.replace('<p>AI 声明</p>',''),'<title>登录</title>'])assert.equal(cnblogsPublicMatches(page,r),false);
 });

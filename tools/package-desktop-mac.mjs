@@ -20,6 +20,6 @@ const files=[];function walk(dir){for(const entry of fs.readdirSync(dir,{withFil
 for(const file of files){if(/(?:^|\/)(?:\.env(?:\..*)?|Cookies|executor\.json|port\.json|workspaces\.sqlite(?:-\w+)?|publisher\.sqlite(?:-\w+)?)$/.test(file))throw Error('构建混入运行数据');}
 for(const name of ['main.mjs','server.mjs','preload.cjs'])if(fs.readFileSync(path.join(target,name),'utf8').includes('/Users/keke/'))throw Error('构建包含开发者绝对路径');
 const hashes=Object.fromEntries(['main.mjs','server.mjs','preload.cjs'].map(name=>[name,createHash('sha256').update(fs.readFileSync(path.join(target,name))).digest('hex')]));
-fs.writeFileSync(path.join(root,'构建校验.json'),JSON.stringify({preview:true,publicPublishingEnabled:false,files:hashes},null,2));
+fs.writeFileSync(path.join(root,'构建校验.json'),JSON.stringify({preview:true,publicPublishingEnabled:true,publicPublishingPlatforms:['cnblogs','wordpress','csdn','zhihu'],publicPublishingLiveAcceptance:'pending',files:hashes},null,2));
 const zip=root+'.zip';if(fs.existsSync(zip))throw Error('压缩包已存在');execFileSync('/usr/bin/ditto',['-c','-k','--keepParent',root,zip]);
 const sha256=createHash('sha256').update(fs.readFileSync(zip)).digest('hex');fs.writeFileSync(zip+'.sha256',sha256+'  '+path.basename(zip)+'\n');console.log(JSON.stringify({zip,bytes:fs.statSync(zip).size,sha256}));

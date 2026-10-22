@@ -120,11 +120,25 @@ async function run(platform='csdn'){
   const connection=await settings(platform);if(!connection)return;
   const call=(action,data)=>api(action,data,connection);
   const pending=await call('pending');if(!pending.count)return;
-  const tabId=await freshEditor(platform),me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));
+  let tabId;
+  if(pending.originalDraft){
+   const proof=draftEvidence(platform,{...pending.originalDraft,accountId:'pending',contentVerified:true});
+   if(!['csdn','zhihu'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
+   tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;
+  }else tabId=await freshEditor(platform);
+  const me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));
   job=(await call('claim')).job;if(!job)return;
   // Persist enough to reconcile after MV3 suspension; never replay a submit from this journal.
   await saveJournal(platform,{job,tabId});
-  const article={...job.snapshot,tags:job.tags};editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
+  const article={...job.snapshot,tags:job.tags};
+  if(job.originalDraft){
+   if(job.mode!=='publish'||!pending.originalDraft||job.originalDraft.url!==pending.originalDraft.url||job.originalDraft.articleId!==pending.originalDraft.articleId)throw new Error('原稿任务已变化，未覆盖或提交');
+   editorTouched=true; // Keep the original editor available for recovery; never refill it.
+   await page(tabId,'prepared',article,job.accountId,platform,job.media||[]);
+   await page(tabId,'preflight',article,job.accountId,platform,job.media||[]);
+   await submitPrepared(platform,job,tabId,article,call);return;
+  }
+  editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   if(job.mode==='draft'){if(platform==='csdn')await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   await page(tabId,'preflight',article,job.accountId,platform,job.media);

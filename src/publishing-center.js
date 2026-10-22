@@ -37,9 +37,11 @@ export async function publishingCenterApi(req,env,ctx,h){
  for(const row of cbRows){let m;try{m=JSON.parse(row.model)}catch{reject(409,'博客园连接记录无法读取')}
   if(m.brandId!==brandId||cnblogsProvider(brandId,m.accountId)!==row.provider)reject(409,'博客园连接品牌或账号不匹配');
   const usable=m.enabled&&m.verifiedAt&&m.blogId;
-  accounts.push({id:row.provider,platform:'cnblogs',brandId,accountId:m.accountId,username:m.username,site:m.site,blog:m.blog,connectionRevision:m.revision,status:!m.enabled?'disabled':usable?'draft_only':'unverified',verifiedAt:m.verifiedAt,capabilities:{createDraft:!!usable&&['owner','admin','editor'].includes(ctx.role),publish:false}});
+  accounts.push({id:row.provider,platform:'cnblogs',brandId,accountId:m.accountId,username:m.username,site:m.site,blog:m.blog,connectionRevision:m.revision,status:!m.enabled?'disabled':usable?'verified':'unverified',verifiedAt:m.verifiedAt,capabilities:{createDraft:!!usable&&['owner','admin','editor'].includes(ctx.role),publish:!!usable&&['owner','admin','editor'].includes(ctx.role)}});
  }
- return h.json({brandId,platforms:publishingCatalog(),accounts,
+ const receiptRows=(await env.DB.prepare("SELECT id,state,created,result FROM runs WHERE owner=? AND kind='cnblogs' AND json_extract(result,'$.brandId')=? ORDER BY created DESC LIMIT 1000").bind(ctx.owner,brandId).all()).results;
+ const receipts=receiptRows.map(row=>{const r=JSON.parse(row.result),c=w.state.contents.find(c=>c.brandId===brandId&&c.id===r.snapshot.contentId);return {id:row.id,brandId,platform:'cnblogs',accountId:r.accountId,contentId:r.snapshot.contentId,title:r.snapshot.title,state:row.state,mode:r.publishAttemptedAt?'publish':'draft',created:Date.parse(row.created),error:r.error||'',receipt:r.remote,currentRevision:!!c&&!c.demo&&c.status==='已审核'&&c.title===r.snapshot.title&&c.text===r.snapshot.text&&!!c.ai===r.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(r.snapshot.facts||[])}});
+ return h.json({brandId,platforms:publishingCatalog(),accounts,receipts,
   batchPublishingAvailable:false,
   connectionLimit:'支持同一品牌多个 WordPress 账号；旧连接保留为默认账号',
   exports:[{id:'markdown',name:'Markdown',kind:'local_export'},{id:'pdf',name:'PDF',kind:'local_export'}]});

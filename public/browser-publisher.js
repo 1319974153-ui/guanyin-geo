@@ -3,7 +3,7 @@ let desktopAccountTimer=null;
 function desktopPublisherAvailable(){return !!window.guanyinDesktop?.available&&browserPublisherAvailable()}
 let browserPublisherData=null,browserPublisherScope='',browserPublisherLoading=false,browserPublisherError='';
 let browserPublisherWatcher=null,browserPublisherWatchScope='';
-const browserPublisherStates={draft:'平台草稿已保存 · 未公开',queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
+const browserPublisherStates={published:'发布成功 · 公开正文已核验',publishing:'提交中',sending:'正在发送',draft:'平台草稿已保存 · 未公开',queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
 function browserPublisherAvailable(){return isLocalRuntime()&&isManager()&&!sessionStorage.getItem('geo.workspace')&&location.hostname==='127.0.0.1'}
 function browserPublisherContext(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand()?.id].join('|')}
 async function refreshBrowserPublisher(){

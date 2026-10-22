@@ -16,17 +16,24 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
  const post=(path,data)=>request(path,{method:'POST',body:JSON.stringify(data)});
  for(const target of targets){
   assertScope();let row=journal[target.key];
-  if(target.platform!=='wordpress'&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
-  if(row&&['sending','uncertain','needs_attention','queued','preparing','submitting','submitted','prepared','published'].includes(row.state))continue;
+  if(!['wordpress','cnblogs'].includes(target.platform)&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
+  if(row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
   try{
    if(target.platform==='cnblogs'){
-    const preview=await request('/api/cnblogs/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
-    row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
-    const d=await post('/api/cnblogs/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
-    row.id=d.record.id;row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';
+    if(row.state!=='draft'){
+     const preview=await request('/api/cnblogs/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
+     row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
+     const d=await post('/api/cnblogs/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
+     row.id=d.record.id;row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';await persist(journal);changed();
+    }
+    if(mode==='publish'&&row.state==='draft'){
+     assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
+     const d=await post('/api/cnblogs/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});
+     row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';
+    }
    }else if(target.platform==='wordpress'){
     if(row.state!=='draft'){
      const preview=await request('/api/wordpress/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
@@ -56,7 +63,9 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
   assertScope();
   try{
    if(row.platform==='cnblogs'){
-    const data=await request('/api/cnblogs/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));assertScope();row.state=data.record.state;row.remote=data.record.remote;row.error=data.record.error||'';
+    let data=await request('/api/cnblogs/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));assertScope();
+    if(data.record.state==='submitted'&&Date.now()-Date.parse(data.record.remote?.checkedAt||data.record.publishAcceptedAt)>=60000){data=await request('/api/cnblogs/reconcile',{method:'POST',body:JSON.stringify({brandId:article.brandId,id:row.id,accountId:row.accountId})});assertScope();}
+    row.state=data.record.state;row.remote=data.record.remote;row.error=data.record.error||'';
    }else if(row.platform==='wordpress'){
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
@@ -88,6 +97,13 @@ export async function recoverDispatchJournal({article,targets,jobs,journal}){
  const next=structuredClone(journal);
  const latest=[...(jobs||[])].sort((a,b)=>b.created-a.created);
  for(const job of latest){
+  if(job.platform==='cnblogs'){
+   if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id)continue;
+   const target=targets.find(t=>t.platform===job.platform&&t.accountId===job.accountId);if(!target)continue;
+   const key=target.key;
+   if(!next[key]||next[key].id===job.id)next[key]={...target,id:job.id,state:job.state,stage:job.mode,error:job.error||'',remote:job.receipt||null};
+   continue;
+  }
   if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id||!job.sessionId||job.state==='cancelled')continue;
   if(['douyin','xiaohongshu'].includes(job.platform)&&JSON.stringify(job.mediaHashes||[])!==JSON.stringify((article.media||[]).map(m=>m.sha256)))continue;
   const key=job.platform+':'+job.sessionId;if(next[key])continue;

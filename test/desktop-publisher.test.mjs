@@ -9,7 +9,7 @@ function setup(t){const db=new DatabaseSync(':memory:');t.after(()=>db.close());
 const identity=(platform='csdn',accountId='author')=>({accountId,name:'验收账号',editorReady:true,evidenceUrl:PLATFORMS[platform].editor,draftProtocol:PLATFORMS[platform].draftProtocol});
 test('desktop connection is private IPC-only, brand isolated and has no browser token',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'csdn'});assert.equal(c.sessionId,e.bridge.connectDesktop({brandId:'a',platform:'csdn'}).sessionId);assert.notEqual(c.sessionId,e.bridge.connectDesktop({brandId:'b',platform:'csdn'}).sessionId);
- assert.throws(()=>e.bridge.connectDesktop({brandId:'missing',platform:'csdn'}));assert.throws(()=>e.bridge.connectDesktop({brandId:'a',platform:'xiaohongshu'}));assert.ok(!JSON.stringify(c).includes('token'));
+ assert.throws(()=>e.bridge.connectDesktop({brandId:'missing',platform:'csdn'}));assert.throws(()=>e.bridge.connectDesktop({brandId:'a',platform:'unknown'}));assert.ok(!JSON.stringify(c).includes('token'));
  for(const fakeOrigin of ['guanyin-desktop://main','chrome-extension://'+'a'.repeat(32)]){const r=await e.bridge.handle(new Request(origin+'/bridge/publisher/account',{method:'POST',headers:{origin:fakeOrigin},body:JSON.stringify({...identity(),sessionId:c.sessionId,instance:c.instance,transport:'desktop'})}));assert.equal(r.status,403)}
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity()});assert.equal(e.bridge.desktopConnections()[0].accountId,'author');
 });
@@ -44,4 +44,13 @@ test('Douyin desktop connection exposes preparation only until draft and publish
  assert.notEqual(r.status,200);
  assert.equal(navigationAllowed('douyin','https://creator.douyin.com/creator-micro/home'),true);
  assert.equal(navigationAllowed('douyin','https://evil.douyin.com.example/'),false);
+});
+
+test('Xiaohongshu desktop connection uses isolated own login and remains preparation only',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'xiaohongshu'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('xiaohongshu')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'xiaohongshu');
+ assert.equal(navigationAllowed('xiaohongshu','https://creator.xiaohongshu.com/new/home'),true);
+ for(const url of ['https://xiaohongshu.com.evil.test/','https://creator.douyin.com/'])assert.equal(navigationAllowed('xiaohongshu',url),false);
+ for(const mode of ['publish','draft'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });

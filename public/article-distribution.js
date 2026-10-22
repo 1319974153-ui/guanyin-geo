@@ -7,13 +7,13 @@ function distributionPlatformRows(platforms,targets){
  const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
  return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
 }
-function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?(window.guanyinDesktop?.available&&['xiaohongshu'].includes(t.platform)?'桌面版待接入':'未连接'):!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?'未连接':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
 function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
  const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
  f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
-  const connect=!planned&&(t.placeholder||!t.accountId)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','csdn','toutiao','zhihu','douyin']:['wordpress','cnblogs','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
+  const connect=!planned&&(t.placeholder||!t.accountId)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','csdn','toutiao','zhihu','douyin','xiaohongshu']:['wordpress','cnblogs','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
   return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
  }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
@@ -45,11 +45,11 @@ async function distributionLoad(f){
  const targets=[],errors=[];
  results.forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
   for(const a of r.value.accounts||[]){
-   if(i===0&&a.platform==='cnblogs')targets.push({key:'cnblogs:'+a.accountId,platform:'cnblogs',accountId:a.accountId,name:a.username,detail:a.site,modes:a.capabilities?.createDraft?['draft']:[],status:publishingAccountStates[a.status]||a.status});
+   if(i===0&&a.platform==='cnblogs')targets.push({key:'cnblogs:'+a.accountId,platform:'cnblogs',accountId:a.accountId,name:a.username,detail:a.site,modes:[...(a.capabilities?.createDraft?['draft']:[]),...(a.capabilities?.publish?['publish']:[])],status:publishingAccountStates[a.status]||a.status});
    if(i===0&&a.platform==='wordpress')targets.push({key:'wp:'+a.accountId,platform:'wordpress',accountId:a.accountId,name:a.username,detail:a.site,modes:a.status==='verified'?['draft','publish']:a.status==='permission_limited'?['draft']:[],status:publishingAccountStates[a.status]||a.status});
    if(i===1)targets.push({key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,transport:a.transport,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):a.transport==='desktop'?'请先登录账号':'请在连接器核验身份'});
   }
- });f.distributionTargets=targets;f.distributionRemoteJobs=results[1].status==='fulfilled'?results[1].value.jobs||[]:[];
+ });f.distributionTargets=targets;f.distributionRemoteJobs=[...(results[1].status==='fulfilled'?results[1].value.jobs||[]:[]),...(results[0].status==='fulfilled'?results[0].value.receipts||[]:[])];
  f.distributionCatalog=results[0].status==='fulfilled'?results[0].value.platforms||[]:[];f.distributionLoadErrors=errors;
  distributionRenderTargets(f,selected);
  distributionUpdate(f);await distributionRestore(f);

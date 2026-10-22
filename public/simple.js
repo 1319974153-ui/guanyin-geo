@@ -88,11 +88,12 @@ function renderSimpleResults(){
 async function refreshSimple(){
  if(simpleLoading||!brand().id)return;const scope=simpleScope(),id=brand().id;simpleLoading=true;
  try{
-  const results=await Promise.allSettled([apiRequest('/api/simple/flows?brandId='+encodeURIComponent(id)),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?brandId='+encodeURIComponent(id)):Promise.resolve(null)]);
+  const results=await Promise.allSettled([apiRequest('/api/simple/flows?brandId='+encodeURIComponent(id)),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?brandId='+encodeURIComponent(id)):Promise.resolve(null),apiRequest('/api/publishing-center?brandId='+encodeURIComponent(id))]);
   if(scope!==simpleScope())return;
   simpleFlowScope=scope;simpleFlows=results[0].status==='fulfilled'?results[0].value.flows:[];
-  simplePublishing=results[1].status==='fulfilled'?results[1].value:null;simplePublishingScope=scope;
-  simpleError=[results[0].status==='rejected'?'内容进度暂时无法读取，请刷新重试。':'',results[1].status==='rejected'?'发布状态暂时无法读取，可在发布账号页重试。':''].filter(Boolean).join(' ');
+  const browser=results[1].status==='fulfilled'?results[1].value:null,api=results[2].status==='fulfilled'?results[2].value:null;
+  simplePublishing={accounts:[...(browser?.accounts||[]),...(api?.accounts||[]).map(a=>({...a,account:a.verifiedAt?{accountId:a.accountId}:null}))],jobs:[...(browser?.jobs||[]),...(api?.receipts||[])]};simplePublishingScope=scope;
+  simpleError=[results[0].status==='rejected'?'内容进度暂时无法读取，请刷新重试。':'',(results[1].status==='rejected'||results[2].status==='rejected')?'发布状态暂时无法读取，可在发布账号页重试。':''].filter(Boolean).join(' ');
  }catch(e){if(scope===simpleScope()){simpleError=e.message;simpleFlowScope=scope;}}
  finally{
   simpleLoading=false;

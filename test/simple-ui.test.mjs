@@ -60,7 +60,7 @@ test('active flow is continued instead of prompting to create another paid task'
 
 test('switching brands during progress loading discards the old result and loads the selected brand',async()=>{
  const {ctx}=ui();const selected={id:'a'},requests=[],pauses=[];ctx.brand=()=>selected;ctx.route='today';ctx.browserPublisherAvailable=()=>false;ctx.render=()=>{};
- ctx.apiRequest=path=>{requests.push(path);return new Promise(resolve=>pauses.push(resolve))};
+ ctx.apiRequest=path=>{if(path.includes('/publishing-center'))return Promise.resolve({accounts:[],receipts:[]});requests.push(path);return new Promise(resolve=>pauses.push(resolve))};
  const first=vm.runInContext('refreshSimple()',ctx);selected.id='b';pauses.shift()({flows:[{id:'old'}]});await first;
  assert.equal(requests.length,2);assert.match(requests[1],/brandId=b/);assert.notEqual(vm.runInContext('simpleFlowScope',ctx),'owner||a');
  pauses.shift()({flows:[{id:'new'}]});await new Promise(r=>setImmediate(r));
@@ -80,4 +80,11 @@ test('workbench shows failures alongside successful drafts instead of only the l
  const {ctx}=ui();ctx.own=k=>k==='contents'?[{id:'c',status:'已审核'}]:[];ctx.browserPublisherStates={draft:'草稿已保存',needs_attention:'需要处理'};
  vm.runInContext("simplePublishingScope=simpleScope();simplePublishing={jobs:[{contentId:'c',state:'needs_attention',currentRevision:true,created:1},{contentId:'c',state:'draft',currentRevision:true,created:2},{contentId:'c',state:'draft',currentRevision:true,created:3}]}",ctx);
  const result=vm.runInContext('simpleNextWork()',ctx);assert.match(result.text,/需要处理 1 个/);assert.match(result.text,/草稿已保存 2 个/);assert.equal(result.action,'distribute-article');
+});
+
+test('home merges official API receipts and accounts with browser channels',async()=>{
+ const {ctx}=ui();ctx.route='today';ctx.render=()=>{};ctx.browserPublisherAvailable=()=>true;
+ ctx.apiRequest=async path=>path.includes('/simple/flows')?{flows:[]}:path.includes('/publishing-center')?{accounts:[{accountId:'cb',verifiedAt:'2026-10-22'}],receipts:[{id:'cb1',contentId:'c',currentRevision:true,state:'draft'}]}:{accounts:[{account:{accountId:'browser'}}],jobs:[{id:'j1',state:'draft'}]};
+ await vm.runInContext('refreshSimple()',ctx);
+ assert.equal(vm.runInContext('simplePublishing.jobs.length',ctx),2);assert.equal(vm.runInContext('simplePublishing.accounts.filter(a=>a.account).length',ctx),2);
 });

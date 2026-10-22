@@ -40,3 +40,9 @@ test('an existing attention job can recover automatically without sending again'
  f.watcher.start();await f.next();assert.equal(reads,1);assert.equal(f.watcher.active,false);assert.equal(f.events.at(-1).state,'complete');
  assert.equal(dispatchNeedsRefresh({one:{state:'needs_attention'}}),false);
 });
+
+test('submitted API publication remains monitored until public verification while other submitted platforms stop',async()=>{
+ const journal={one:{platform:'cnblogs',state:'submitted'}};const f=fixture({pending:()=>dispatchNeedsRefresh(journal),refresh:async()=>{journal.one.state='published';return true}});
+ assert.equal(dispatchNeedsRefresh(journal),true);assert.equal(dispatchNeedsRefresh({one:{platform:'csdn',state:'submitted'}}),false);
+ f.watcher.start();await f.next();assert.equal(f.watcher.active,false);assert.equal(f.events.at(-1).state,'complete');
+});

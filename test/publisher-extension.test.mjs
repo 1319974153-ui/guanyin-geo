@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
+ let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],opened=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  if(options.platform){stored.connections={[options.platform]:stored.connection};if(options.inflight)stored.inflightByPlatform={[options.platform]:stored.inflight};}
- globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return options.sameTabDraft&&id===2?{id:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}:{id}},async create({url}){actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:options.csdnLookup?(url.includes('/manage/article')?2:url.endsWith('/123')?3:1):1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.sameTabDraft?[]:options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
+ globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return options.sameTabDraft&&id===2?{id:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}:{id}},async create({url}){opened.push(url);actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:options.csdnLookup?(url.includes('/manage/article')?2:url.endsWith('/123')?3:1):1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.sameTabDraft?[]:options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
   if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
@@ -29,13 +29,13 @@ async function fixture(t,options={}){
   if(action==='report'&&['prepared','draft'].includes(body.state)&&options.lostReport&&!lostReport){lostReport=true;throw new Error('填稿回执响应丢失')}
   if(action==='commit')committed=true;
   if(action==='commit'&&options.lostCommit)throw new Error('提交许可响应丢失');
-  const result=action==='job-state'?{journalActive:!options.cancelled,canResume:!options.cancelled&&!committed&&options.canResume===true}:action==='pending'?{count:1}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish'}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
+  const result=action==='job-state'?{journalActive:!options.cancelled,canResume:!options.cancelled&&!committed&&options.canResume===true}:action==='pending'?{count:1,originalDraft:options.originalDraft}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish',originalDraft:options.originalDraft}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
   return new Response(JSON.stringify(result));
  };
  await import('../browser-extension/background.js?fixture='+Math.random());
  t.after(()=>{globalThis.chrome=originalChrome;globalThis.fetch=originalFetch});
  const send=(action,platform='csdn')=>new Promise(resolve=>handler({action,platform},{id:'extension',url:'chrome-extension://extension/popup.html'},resolve));
- return{send,actions,requests,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler,get alarmCreates(){return alarmCreates},installed:()=>installed(),startup:()=>startup()};
+ return{send,actions,requests,opened,stored,get clicks(){return clicks},alarm:()=>alarm({name:'publisher'}),handler,get alarmCreates(){return alarmCreates},installed:()=>installed(),startup:()=>startup()};
 }
 test('extension prepares, checks, commits once, then reports only actual success-page evidence',async t=>{
  const f=await fixture(t,{receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}});await f.send('run');
@@ -197,4 +197,14 @@ test('Toutiao list account mismatch never opens or reports a saved draft',async 
  const f=await fixture(t,{platform:'toutiao',inflight:true,mode:'draft',locateDraft:true,wrongListAccount:true});
  await f.send('reconcile','toutiao');assert.ok(f.stored.inflightByPlatform.toutiao);
  assert.equal(f.actions.filter(a=>a==='draft-list-open'||a==='fill'||a==='submit').length,0);
+});
+
+test('promoting a saved draft validates original without filling and commits once',async t=>{
+ const originalDraft={url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',savedVerified:true};
+ const f=await fixture(t,{originalDraft,receipt:{state:'submitted',articleId:'123',url:'https://mp.csdn.net/mp_blog/creation/success/123'}});await f.send('run');
+ assert.deepEqual(f.opened,[originalDraft.url]);assert.equal(f.actions.includes('fill'),false);assert.ok(f.actions.includes('prepared'));assert.equal(f.clicks,1);assert.equal(f.requests.filter(x=>x==='commit').length,1);
+});
+test('changed saved draft cannot be overwritten or published on promotion',async t=>{
+ const f=await fixture(t,{originalDraft:{url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',savedVerified:true},preparedError:true});await f.send('run');
+ assert.equal(f.actions.includes('fill'),false);assert.equal(f.clicks,0);assert.equal(f.requests.includes('commit'),false);assert.ok(f.stored.inflight);
 });

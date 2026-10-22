@@ -290,3 +290,19 @@ test('legacy CSDN pairing accepts current draft protocol without re-pairing or o
  assert.equal(r.status,200);assert.equal(r.data.job.state,'draft');assert.equal(r.data.job.receipt.publicVerified,false);
  e.restart();assert.equal((await e.enqueue({mode:'draft'})).data.existing,true);
 });
+
+test('CSDN and Zhihu verified drafts promote the same task and retain original editor; duplicate click never queues a second article',async t=>{
+ for(const platform of ['csdn','zhihu']){
+  const e=setup(t,false,[platform]);await e.pair(platform);
+  await e.ext('account',{accountId:'author',name:'测试作者',editorReady:true,evidenceUrl:PLATFORMS[platform].editor,draftProtocol:PLATFORMS[platform].draftProtocol});
+  await e.enqueue({mode:'draft'});const j=(await e.ext('claim')).data.job;
+  const url=platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':'https://zhuanlan.zhihu.com/p/123/edit';
+  assert.equal((await e.ext('report',{id:j.id,lease:j.lease,state:'draft',draft:{url,articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true}})).status,200);
+  const promoted=await e.enqueue({mode:'publish'});assert.equal(promoted.status,200,JSON.stringify(promoted));assert.equal(promoted.data.promoted,true);assert.equal(promoted.data.job.id,j.id);
+  assert.equal((await e.enqueue({mode:'publish'})).data.existing,true);assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);
+  assert.equal((await e.ext('pending')).data.originalDraft.url,url);
+  const claimed=(await e.ext('claim')).data.job;assert.equal(claimed.originalDraft.url,url);assert.equal(claimed.mode,'publish');
+  const commit={id:claimed.id,lease:claimed.lease,accountId:'author',sourceHash:claimed.sourceHash};assert.equal((await e.ext('commit',commit)).status,200);assert.equal((await e.ext('commit',commit)).status,409);
+  const receipt=platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/success/123':'https://zhuanlan.zhihu.com/p/123';assert.equal((await e.ext('report',{id:claimed.id,lease:claimed.lease,state:'submitted',url:receipt,articleId:'123'})).data.job.state,'submitted');
+ }
+});

@@ -60,9 +60,9 @@ test('multiple accounts on the same platform retain separate identities and resu
  x.g.distributionRenderTargets(x.f,new Set());assert.match(x.html(),/账号 A/);assert.match(x.html(),/账号 B/);assert.match(x.html(),/发布成功/);assert.match(x.html(),/草稿已保存/);
 });
 
-test('desktop offers Douyin login but keeps the unintegrated Xiaohongshu entry disabled',()=>{
+test('desktop offers Douyin and Xiaohongshu login without implying publication support',()=>{
  const x=fixture();x.g.window.guanyinDesktop={available:true};x.g.distributionRenderTargets(x.f,new Set());
- assert.match(x.html(),/data-distribution-connect="douyin"/);assert.doesNotMatch(x.html(),/data-distribution-connect="xiaohongshu"/);assert.match(x.html(),/桌面版待接入/);assert.match(x.html(),/data-distribution-connect="toutiao"/);
+ assert.match(x.html(),/data-distribution-connect="douyin"/);assert.match(x.html(),/data-distribution-connect="xiaohongshu"/);assert.doesNotMatch(x.html(),/桌面版待接入/);assert.match(x.html(),/data-distribution-connect="toutiao"/);
 });
 
 test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{

@@ -67,7 +67,7 @@ test('missing enqueue response is resolved with authoritative lookup before any 
 });
 
 test('browser draft dispatch uses draft mode and never silently promotes existing preparation',async()=>{
- const f=fixture(),target={key:'zhihu',platform:'zhihu',accountId:'author',sessionId:'s',modes:['prepare','draft','publish']};
+ const f=fixture(),target={key:'zhihu',platform:'toutiao',accountId:'author',sessionId:'s',modes:['prepare','draft','publish']};
  await f.run({targets:[target],mode:'draft'});assert.equal(f.calls[0][1].mode,'draft');assert.equal(f.journal.zhihu.stage,'draft');
  for(const [state,mode] of [['prepared','draft'],['draft','publish']]){
   f.journal.zhihu.state=state;const count=f.calls.length;await f.run({targets:[target],mode});assert.equal(f.calls.length,count);assert.match(f.journal.zhihu.error,/原稿/);
@@ -103,4 +103,20 @@ test('receipt recovery refuses a different image revision',async()=>{
  const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');
  const jobs=[{id:'j',brandId:article.brandId,contentId:article.id,currentRevision:true,platform:'douyin',sessionId:'s',state:'prepared',mediaHashes:['original']}];
  assert.deepEqual(await recoverDispatchJournal({article:{...article,media:[{sha256:'changed'}]},targets:[],jobs,journal:{}}),{});
+});
+
+test('cnblogs one click publish creates and publishes one original; existing draft is promoted without newPost',async()=>{
+ const target={key:'cnblogs:account',platform:'cnblogs',accountId:'account',name:'author',modes:['draft','publish']},journal={},calls=[];
+ const request=async(path,opts)=>{calls.push(path);return path.includes('/preview')?{previewHash:'h'}:{record:{id:'durable-id',state:path.endsWith('/publish')?'submitted':'draft',remote:{postId:'100'}}}};
+ const params={article,targets:[target],mode:'draft',journal,request,persist:async()=>{},assertScope:()=>{}};
+ await dispatchArticle(params);await dispatchArticle({...params,mode:'publish'});await dispatchArticle({...params,mode:'publish'});
+ assert.equal(calls.filter(x=>x.endsWith('/draft')).length,1);assert.equal(calls.filter(x=>x.endsWith('/publish')).length,1);assert.equal(journal[target.key].state,'submitted');
+});
+
+test('official API records recover server-authoritative draft after local journal loss',async()=>{
+ const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');const target={key:'cnblogs:cb',platform:'cnblogs',accountId:'cb',modes:['draft','publish']};
+ const job={id:'durable',platform:'cnblogs',accountId:'cb',brandId:article.brandId,contentId:article.id,state:'draft',currentRevision:true,receipt:{postId:'100'}};
+ const journal=await recoverDispatchJournal({article,targets:[target],jobs:[job],journal:{}});assert.equal(journal[target.key].id,'durable');
+ let writes=0;await dispatchArticle({article,targets:[target],mode:'draft',journal,request:async()=>{writes++},persist:async()=>{},assertScope:()=>{}});assert.equal(writes,0);
+ assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,currentRevision:false}],journal:{}}),{});
 });

@@ -12,7 +12,7 @@ export function rpcValue(v){
  throw Error('不支持的 XML-RPC 参数');
 }
 export function rpcRequest(method,params){
- if(!['blogger.getUsersBlogs','metaWeblog.newPost','metaWeblog.getPost','metaWeblog.getRecentPosts'].includes(method))throw Error('未开放此博客操作');
+ if(!['blogger.getUsersBlogs','metaWeblog.newPost','metaWeblog.editPost','metaWeblog.getPost','metaWeblog.getRecentPosts'].includes(method))throw Error('未开放此博客操作');
  return '<?xml version="1.0" encoding="utf-8"?><methodCall><methodName>'+method+'</methodName><params>'+params.map(v=>'<param>'+rpcValue(v)+'</param>').join('')+'</params></methodCall>';
 }
 export function parseRpc(xml){
