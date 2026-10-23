@@ -22,7 +22,7 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
   // Resume a bounded login check after the human returns, even if the initial
   // wait expired. Only this connection's login window can signal readiness.
   const loginReady=()=>{if(id===loginTab&&!win.isDestroyed()&&!wc.isLoadingMainFrame()&&editorEvidence(connection.platform,wc.getURL()))onLoginReady()};
-  wc.on('did-finish-load',loginReady);wc.on('did-navigate-in-page',(_e,_url,main)=>{if(main)loginReady()});
+  wc.on('did-finish-load',loginReady);wc.on('did-stop-loading',loginReady);win.on('focus',loginReady);wc.on('did-navigate-in-page',(_e,_url,main)=>{if(main)loginReady()});
   wc.setWindowOpenHandler(({url})=>{if(navigationAllowed(connection.platform,url))createWindow(url,{openerTabId:id,active:true});return {action:'deny'}});
   wc.on('did-navigate',(_e,url)=>{saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{});});wc.on('did-navigate-in-page',(_e,url,main)=>{if(main){saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{})}});
   win.on('closed',()=>windows.delete(id));win.loadURL(url).catch(()=>onStatus('平台页面未加载完成，请检查网络或登录状态'));
@@ -34,7 +34,7 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
   storage:{local:{async setAccessLevel(){},async get(keys){return Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,structuredClone(state[k])]))},async set(values){Object.assign(state,structuredClone(values));persist();if(values.status)onStatus(values.status)},async remove(keys){for(const k of Array.isArray(keys)?keys:[keys])delete state[k];persist()}}},
   runtime:{id:'desktop',getURL:p=>'guanyin-desktop://'+p,onMessage:{addListener(){}},onInstalled:{addListener(){}},onStartup:{addListener(){}}},
   alarms:{async get(){return {name:'publisher'}},async create(){},onAlarm:{addListener(){}}},
-  tabs:{async create(options){return createWindow(options.url,options)},async get(id){const win=ensureWindow(id);return {...savedTabs[id],url:win.webContents.getURL()||savedTabs[id].url}},async query({url}){const prefix=url.replace(/\*$/,'');return [...windows].filter(([,w])=>!w.isDestroyed()&&w.webContents.getURL().startsWith(prefix)).map(([id,w])=>({...savedTabs[id],id,url:w.webContents.getURL()}))}},
+  tabs:{async reload(id){const win=ensureWindow(id);win.webContents.reload();},async create(options){return createWindow(options.url,options)},async get(id){const win=ensureWindow(id);return {...savedTabs[id],url:win.webContents.getURL()||savedTabs[id].url}},async query({url}){const prefix=url.replace(/\*$/,'');return [...windows].filter(([,w])=>!w.isDestroyed()&&w.webContents.getURL().startsWith(prefix)).map(([id,w])=>({...savedTabs[id],id,url:w.webContents.getURL()}))}},
   scripting:{async executeScript({target,func,args}){
    const win=ensureWindow(target.tabId);await ready(win);const url=win.webContents.getURL();
    if(!platformConfig(connection.platform).hosts.some(pattern=>new URL(url).origin===new URL(pattern.replace('*','')).origin))throw new Error('请在平台登录完成后继续');

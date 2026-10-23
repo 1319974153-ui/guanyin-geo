@@ -38,13 +38,24 @@ export async function tencentcloudPage({action,article,accountId}){
  for(let i=0;i<10&&!matches();i++)await wait(200);
  if(!matches())fail('腾讯云标题或完整正文与确认稿不一致，未继续');
  if(action==='prepared')return {...evidence,contentVerified:true};
- if(action==='save-draft'){button('存草稿').click();return {saveAttempted:true};}
+ if(action==='save-draft'){
+  // CodeMirror can render before the platform enables its save button.
+  // Wait for readiness without triggering any write, then recheck content.
+  for(let i=0;i<30;i++){
+   const candidates=all('button').filter(b=>text(b)==='存草稿'&&!b.disabled&&!b.classList.contains('is-disabled'));
+   if(candidates.length>1)fail('存草稿按钮不唯一，未保存');
+   if(candidates.length===1){if(!matches())fail('等待保存时正文已变化，未保存');candidates[0].click();return {saveAttempted:true};}
+   challenge();await wait(200);
+  }
+  fail('腾讯云保存按钮尚未就绪，原稿已保留，未点击保存');
+ }
  if(action==='draft-receipt'){
   const actual=safeUrl(location.href,true),proof=article.verifiedDraftList;
   if(!actual||!proof?.draftListed||proof.accountId!==ids[0]||proof.url!==actual.url||proof.articleId!==actual.articleId)return null;
-  const saved=all('.cdc-article-editor__header-info .header-info').filter(e=>/保存到草稿/.test(text(e))&&e.querySelector('time[datetime]'));
-  if(saved.length!==1)return null;
-  return {...actual,accountId:ids[0],savedVerified:true,contentVerified:true};
+  // Reopened persisted drafts do not show the transient "刚刚保存" banner.
+  // Same-account list evidence plus the stable ID and full reopened content
+  // above establish persistence without another save or a public submission.
+  return {...actual,accountId:ids[0],savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};
  }
  if(action==='preflight'){
   if(!all('.editor-publish-drawer__textarea-main').length){button('去发布').click();await wait(300)}

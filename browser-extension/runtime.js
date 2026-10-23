@@ -112,7 +112,7 @@ async function savedDraft(platform,job,tabId,call){
    if(ready){tabId=await locateToutiaoDraft(job,tabId);toutiaoLocated=true;}
   }
   if(platform==='csdn'&&i>=3){try{const found=await locateCsdnDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw new Error('草稿箱原稿定位待确认，未重复保存');continue}}
-  if(platform==='tencentcloud'){try{const found=await locateTencentDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw Error('腾讯云草稿回执待确认，未重复保存');continue}}
+  if(platform==='tencentcloud'){try{if(i%5===4){const entry=await journal(platform);if(entry?.tencentLookup&&!entry.tencentLookup.candidate)await chrome.tabs.reload(entry.tencentLookup.listTabId);}const found=await locateTencentDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw Error('腾讯云草稿回执待确认，未重复保存');continue}}
   let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if((platform==='csdn'&&!article.verifiedDraftList||platform==='toutiao')&&i<3)continue;throw e;}
   const receipt=draftEvidence(platform,raw);
   if(receipt&&receipt.accountId!==job.accountId)throw new Error('草稿回执账号不匹配');

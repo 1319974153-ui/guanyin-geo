@@ -55,7 +55,7 @@ export function supportsDraftProtocol(platform,version){return Number.isInteger(
 export function draftEvidence(platform,value){
  try{
   if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
-  if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true};}
+  if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};}
   if(platform==='toutiao'){
    const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
    const id=new URL(url).searchParams.get('pgc_id');if(!id||id!==String(value.articleId))return null;

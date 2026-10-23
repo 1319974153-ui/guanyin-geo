@@ -4,8 +4,8 @@ import vm from 'node:vm';
 import {tencentcloudPage} from '../browser-extension/tencentcloud.js';
 import {editorEvidence,draftEvidence,receiptEvidence,preparationEditorUrl} from '../browser-extension/platforms.js';
 import {navigationAllowed} from '../desktop/security.mjs';
-function fixture({body='第一段 第二段',title='技术稿',account='12809181',url='https://cloud.tencent.com/developer/article/write-new?draftId=123',saved=true,duplicates=false,captcha=false,modal=false}={}){
- let clicks=0;
+function fixture({body='第一段 第二段',title='技术稿',account='12809181',url='https://cloud.tencent.com/developer/article/write-new?draftId=123',saved=true,duplicates=false,captcha=false,modal=false,saveReadyAfter=0}={}){
+ let clicks=0,buttonReads=0;
  const el=(innerText,extra={})=>({innerText,textContent:innerText,getClientRects:()=>[{}],querySelector:()=>null,querySelectorAll:()=>[],focus(){},...extra});
  const preview=el(body),editor=el('仅显示第二段');
  const titleEl=el('',{value:title,tagName:'TEXTAREA'});
@@ -18,7 +18,7 @@ function fixture({body='第一段 第二段',title='技术稿',account='12809181
  if(s==='.cherry-markdown')return [preview];
  if(s==='.cdc-article-editor__header-info .header-info')return saved?[el('文章已保存到草稿',{querySelector:()=>({})})]:[];
  if(s==='h3 a[href]')return Array.from({length:duplicates?2:1},()=>el(title,{href:'https://cloud.tencent.com/developer/article/write-new?draftId=123'}));
- if(s==='button')return [el('存草稿',{disabled:false,classList:{contains:()=>false},click(){clicks++}})];
+ if(s==='button')return [el('存草稿',{disabled:buttonReads++<saveReadyAfter,classList:{contains:()=>false},click(){clicks++}})];
  if(s==='.cdc-publish-modal')return modal?[el('发布成功！审核中',{querySelectorAll:()=>[el('详情',{href:'https://cloud.tencent.com/developer/article/456'})]})]:[];
  return [];
  }};
@@ -42,6 +42,15 @@ test('Tencent draft list rejects ambiguous titles without opening or saving anyt
  const f=fixture({url:'https://cloud.tencent.com/developer/creator/article?type=draft'});assert.equal((await f.run('draft-list-inspect')).articleId,'123');
  const bad=fixture({url:'https://cloud.tencent.com/developer/creator/article?type=draft',duplicates:true});assert.match((await bad.run('draft-list-inspect')).connectorError,/唯一/);assert.equal(bad.clicks,0);
 });
+test('Tencent recovers a persisted draft without a transient save banner, but rejects wrong ID or body',async()=>{
+ const proof={draftListed:true,url:'https://cloud.tencent.com/developer/article/write-new?draftId=123',articleId:'123',accountId:'12809181'};
+ const f=fixture({saved:false});
+ const receipt=await f.run('draft-receipt',{article:{...f.article,verifiedDraftList:proof}});
+ assert.equal(receipt.savedVerified,true);assert.equal(receipt.verification,'draft_list_and_reopened_content');assert.equal(f.clicks,0);
+ assert.equal(await f.run('draft-receipt',{article:{...f.article,verifiedDraftList:{...proof,articleId:'999'}}}),null);
+ const bad=fixture({saved:false,body:'其他稿件'});
+ assert.match((await bad.run('draft-receipt',{article:{...bad.article,verifiedDraftList:proof}})).connectorError,/完整正文/);assert.equal(bad.clicks,0);
+});
 test('Tencent success requires a unique actual platform link and remains submitted',async()=>{
  assert.equal(await fixture().run('receipt'),null);const r=await fixture({modal:true}).run('receipt');assert.equal(r.state,'submitted');assert.equal(r.articleId,'456');
 });
@@ -51,4 +60,9 @@ test('Tencent URLs reject cross-origin, spoofing, extra query and unrelated draf
  for(const bad of [url+'&draftId=123',url+'&x=1',url.replace('cloud.tencent.com','cloud.tencent.com.evil.test'),url.replace('https:','http:'),url.replace('123','124')])assert.equal(draftEvidence('tencentcloud',{...proof,url:bad}),null);
  assert.ok(receiptEvidence('tencentcloud','https://cloud.tencent.com/developer/article/456','456'));assert.equal(receiptEvidence('tencentcloud','https://cloud.tencent.com/developer/article/456?x=1','456'),false);
  assert.equal(navigationAllowed('tencentcloud','https://evil.test'),false);
+});
+
+test('Tencent waits for delayed save readiness then clicks once; permanent disabled state never clicks',async()=>{
+ const f=fixture({saveReadyAfter:4});assert.equal((await f.run('save-draft')).saveAttempted,true);assert.equal(f.clicks,1);
+ const disabled=fixture({saveReadyAfter:100});assert.match((await disabled.run('save-draft')).connectorError,/未点击保存/);assert.equal(disabled.clicks,0);
 });
