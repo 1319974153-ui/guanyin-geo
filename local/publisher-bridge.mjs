@@ -29,7 +29,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin))throw new Error('Publisher requires an exact IPv4 loopback origin');
  db.exec('CREATE TABLE IF NOT EXISTS publisher_meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_jobs(id TEXT PRIMARY KEY,fingerprint TEXT UNIQUE NOT NULL,body TEXT NOT NULL)');
  db.prepare('INSERT OR IGNORE INTO publisher_meta VALUES(?,?)').run('instance',randomUUID());
- const publishing=new Set(publishPlatforms.filter(p=>PLATFORMS[p]));if(experimentalPublish)publishing.add('csdn');
+ const publishing=new Set(publishPlatforms.filter(p=>PLATFORMS[p]&&PLATFORMS[p].publishSupported!==false));if(experimentalPublish)publishing.add('csdn');
  const instance=db.prepare('SELECT v FROM publisher_meta WHERE k=?').get('instance').v;
  const rows=table=>db.prepare(`SELECT body FROM ${table}`).all().map(r=>JSON.parse(r.body));
  const save=(table,v)=>db.prepare(`UPDATE ${table} SET body=? WHERE id=?`).run(JSON.stringify(v),v.id);
@@ -251,7 +251,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  }
  // Private process API. Never exported through an HTTP route or renderer IPC directly.
  function connectDesktop({brandId,platform}){
-  brand(brandId);if(!['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto'].includes(platform))fail(400,'该平台桌面登录尚未接入');
+  brand(brandId);if(!['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun'].includes(platform))fail(400,'该平台桌面登录尚未接入');
   let s=sessions().find(s=>!s.revoked&&s.transport==='desktop'&&s.brandId===brandId&&s.platform===platform);
   if(!s){s={id:randomUUID(),transport:'desktop',platform,brandId,origin,created:clock(),connectionState:'awaiting_login'};db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s))}
   return {sessionId:s.id,brandId,platform,origin,instance};

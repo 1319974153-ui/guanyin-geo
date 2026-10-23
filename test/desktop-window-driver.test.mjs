@@ -94,3 +94,10 @@ test('51CTO native title precedes body and aborts if title acknowledgement fails
  calls=0;inserted.length=0;wc.executeJavaScript=async()=>++calls===1?{nativeInsertTitle:'图片稿标题'}:{connectorError:'标题未确认'};
  const stopped=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]});assert.equal(stopped[0].result.connectorError,'标题未确认');assert.deepEqual(inserted,['图片稿标题']);
 });
+
+test('Alibaba driver upgrades only official cleartext return and closes ephemeral profile window',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'aliyun-a',platform:'aliyun'});await d.openLogin();const w=x.windows[0];
+ let blocked=false;w.webContents.emit('will-redirect',{url:'http://developer.aliyun.com/article/new',preventDefault(){blocked=true}});assert.equal(blocked,true);assert.equal(w.webContents.url,'https://developer.aliyun.com/article/new');
+ blocked=false;w.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/pass/adding',preventDefault(){blocked=true}});assert.equal(blocked,false);
+ const p=await d.chrome.tabs.create({url:'https://developer.aliyun.com/myProfile',active:false});await d.chrome.tabs.remove(p.id);assert.equal(x.windows.at(-1).closed,true);assert.equal(d.state._tabs[p.id],undefined);
+});

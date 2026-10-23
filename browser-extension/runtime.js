@@ -1,4 +1,5 @@
 import {fiftyonePage} from './fiftyone.js';
+import {aliyunPage} from './aliyun.js';
 import {tencentcloudPage} from './tencentcloud.js';
 import {csdnPage} from './csdn.js';
 import {socialPage} from './social-page.js';
@@ -21,7 +22,15 @@ async function api(action,data={},connection){
  const result=await r.json();if(!r.ok)throw new Error(result.error||'本机观引连接失败');return result;
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
+ let profileEvidence;
+ if(platform==='aliyun'){
+  // Read /myProfile in the same isolated session before every action, rather
+  // than deriving an account ID from an article author, nickname or tracking JS.
+  const profile=await chrome.tabs.create({url:'https://developer.aliyun.com/myProfile',active:false});
+  try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'阿里云登录身份不可用');}
+  finally{await chrome.tabs.remove(profile.id)}
+ }
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
  if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
@@ -110,12 +119,33 @@ async function locateFiftyoneDraft(job){
  if(!lookup.editorTabId){const tab=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=tab.id;await saveJournal('51cto',entry);}
  return {tabId:lookup.editorTabId,candidate:lookup.candidate};
 }
+async function locateAliyunDraft(job){
+ let entry=await journal('aliyun');if(!entry||entry.job.id!==job.id)throw Error('原稿任务不匹配');
+ if(!entry.aliyunLookup){const tab=await chrome.tabs.create({url:platformConfig('aliyun').editor,active:false});entry.aliyunLookup={listTabId:tab.id};await saveJournal('aliyun',entry);}
+ const lookup=entry.aliyunLookup;
+ if(!lookup.openAttempted){
+  await page(lookup.listTabId,'draft-list-inspect',job.snapshot,job.accountId,'aliyun');
+  lookup.openAttempted=true;await saveJournal('aliyun',entry);
+  await page(lookup.listTabId,'draft-list-open',job.snapshot,job.accountId,'aliyun');
+ }
+ if(!lookup.candidate){
+  for(let i=0;i<12;i++){
+   const tab=await chrome.tabs.get(lookup.listTabId);let proof;
+   try{const u=new URL(tab.url),id=u.searchParams.get('edit');proof=draftEvidence('aliyun',{url:tab.url,articleId:id,accountId:job.accountId,savedVerified:true,contentVerified:true});}catch{}
+   if(proof){lookup.candidate={...proof,draftListed:true};await saveJournal('aliyun',entry);break}await delay(500);
+  }
+  if(!lookup.candidate)throw Error('原草稿打开结果待确认，未再次点击或保存');
+ }
+ if(!lookup.editorTabId){const tab=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=tab.id;await saveJournal('aliyun',entry);}
+ return {tabId:lookup.editorTabId,candidate:lookup.candidate};
+}
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
  const article={...job.snapshot,tags:job.tags,mediaProof:job.originalDraft?.mediaProof||(await journal(platform))?.mediaProof||[]};let previous=null,toutiaoLocated=false;
  for(let i=0;i<20;i++){
   await delay(1000);
+  if(platform==='aliyun'){const found=await locateAliyunDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}
   if(platform==='toutiao'&&i>=3&&!toutiaoLocated){
    let ready=false;try{ready=!!await page(tabId,'draft-location',article,job.accountId,platform)}catch{ready=true}
    if(ready){tabId=await locateToutiaoDraft(job,tabId);toutiaoLocated=true;}
@@ -162,7 +192,7 @@ async function run(platform='csdn'){
   editorTouched=true;if(job.media?.length&&platform!=='51cto'){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(platform==='51cto'&&job.media?.length){const result=await page(tabId,'media',article,job.accountId,platform,job.media);article.mediaProof=result.mediaProof;const entry=await journal(platform);entry.mediaProof=result.mediaProof;await saveJournal(platform,entry);}
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
-  if(job.mode==='draft'){if(['csdn','tencentcloud'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
+  if(job.mode==='draft'){if(['csdn','tencentcloud','aliyun'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   if(platform==='51cto'){
    let found,last;
    for(let i=0;i<20;i++){try{if(i%5===4){const entry=await journal(platform);if(entry?.fiftyoneLookup&&!entry.fiftyoneLookup.candidate)await chrome.tabs.reload(entry.fiftyoneLookup.listTabId);}found=await locateFiftyoneDraft(job);article.verifiedDraftList=found.candidate;const proof=await page(found.tabId,'draft-receipt',article,job.accountId,platform,job.media||[]);if(!draftEvidence(platform,proof))throw Error('原草稿回执未就绪');break}catch(e){last=e;found=null;await delay(1000)}}

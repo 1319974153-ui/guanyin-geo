@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {aliyunSecureReturn} from './platform-preview.mjs';
 import path from 'node:path';
 import {randomInt} from 'node:crypto';
 import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './security.mjs';
@@ -16,8 +17,7 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
   if(!navigationAllowed(connection.platform,url))throw new Error('已阻止离开账号平台的页面');
   const win=new BrowserWindow({width:1100,height:820,show:active,title:'观引 · '+platformConfig(connection.platform).name,webPreferences:{session:browserSession,nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
   windows.set(id,win);saveTab(id,url,openerTabId);const wc=win.webContents;
-  wc.on('will-navigate',(e,url)=>{if(!navigationAllowed(connection.platform,url))e.preventDefault()});
-  wc.on('will-redirect',(e,url)=>{if(!navigationAllowed(connection.platform,url))e.preventDefault()});
+  for(const event of ['will-navigate','will-redirect'])wc.on(event,(e,legacyUrl)=>{const url=e.url||legacyUrl,secure=connection.platform==='aliyun'?aliyunSecureReturn(url):null;if(secure){e.preventDefault();void wc.loadURL(secure).catch(()=>{})}else if(!navigationAllowed(connection.platform,url))e.preventDefault()});
   wc.on('will-attach-webview',e=>e.preventDefault());
   // Resume a bounded login check after the human returns, even if the initial
   // wait expired. Only this connection's login window can signal readiness.
@@ -34,12 +34,12 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
   storage:{local:{async setAccessLevel(){},async get(keys){return Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,structuredClone(state[k])]))},async set(values){Object.assign(state,structuredClone(values));persist();if(values.status)onStatus(values.status)},async remove(keys){for(const k of Array.isArray(keys)?keys:[keys])delete state[k];persist()}}},
   runtime:{id:'desktop',getURL:p=>'guanyin-desktop://'+p,onMessage:{addListener(){}},onInstalled:{addListener(){}},onStartup:{addListener(){}}},
   alarms:{async get(){return {name:'publisher'}},async create(){},onAlarm:{addListener(){}}},
-  tabs:{async reload(id){const win=ensureWindow(id);win.webContents.reload();},async create(options){return createWindow(options.url,options)},async get(id){const win=ensureWindow(id);return {...savedTabs[id],url:win.webContents.getURL()||savedTabs[id].url}},async query({url}){const prefix=url.replace(/\*$/,'');return [...windows].filter(([,w])=>!w.isDestroyed()&&w.webContents.getURL().startsWith(prefix)).map(([id,w])=>({...savedTabs[id],id,url:w.webContents.getURL()}))}},
+  tabs:{async remove(id){const win=windows.get(id);if(win&&!win.isDestroyed())win.destroy();delete savedTabs[id];state._tabs=savedTabs;persist()},async reload(id){const win=ensureWindow(id);win.webContents.reload();},async create(options){return createWindow(options.url,options)},async get(id){const win=ensureWindow(id);return {...savedTabs[id],url:win.webContents.getURL()||savedTabs[id].url}},async query({url}){const prefix=url.replace(/\*$/,'');return [...windows].filter(([,w])=>!w.isDestroyed()&&w.webContents.getURL().startsWith(prefix)).map(([id,w])=>({...savedTabs[id],id,url:w.webContents.getURL()}))}},
   scripting:{async executeScript({target,func,args}){
    const win=ensureWindow(target.tabId);await ready(win);const url=win.webContents.getURL();
    if(!platformConfig(connection.platform).hosts.some(pattern=>new URL(url).origin===new URL(pattern.replace('*','')).origin))throw new Error('请在平台登录完成后继续');
    // func comes solely from the bundled adapter, never from IPC, page content or a URL.
-   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(connection.platform==='51cto'&&args[0]?.action==='fill'&&typeof result?.nativeInsertTitle==='string'){
+   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(['51cto','aliyun'].includes(connection.platform)&&args[0]?.action==='fill'&&typeof result?.nativeInsertTitle==='string'){
     await win.webContents.insertText(result.nativeInsertTitle);
     const next={...args[0],action:'fill-body'},body=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);
     if(body?.connectorError)return [{result:body}];if(typeof body?.nativeInsertText!=='string')throw Error('正文输入未准备，原稿保留');

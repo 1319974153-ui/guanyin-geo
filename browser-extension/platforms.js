@@ -1,5 +1,6 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
+ aliyun:{name:'阿里云开发者社区',publishSupported:false,draftProtocol:1,editor:'https://developer.aliyun.com/article/new',hosts:['https://developer.aliyun.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
  '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:9,optionalImages:true,desktopOnly:true},
  tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
@@ -10,7 +11,8 @@ export const PLATFORMS = {
 };
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
 export function editorEvidence(platform,url){
- try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.hash)return false;
+ try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.username||u.password||u.hash&&!(platform==='aliyun'&&u.hash==='#/'))return false;
+ if(platform==='aliyun')return u.pathname==='/article/new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('edit')));
  if(platform==='51cto')return u.pathname==='/blogger/publish'&&u.search==='?old=1'||/^\/blogger\/draft\/[1-9]\d{0,19}$/.test(u.pathname)&&!u.search;
  if(platform==='tencentcloud')return u.pathname==='/developer/article/write-new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('draftId')));
  if(platform==='csdn')return /^\/mp_blog\/creation\/editor(?:\/[1-9]\d{0,29})?$/.test(u.pathname)&&!u.search;
@@ -38,6 +40,7 @@ export function preparationEditorUrl(platform,url){
  try{
   const u=new URL(url);if(u.username||u.password||!editorEvidence(platform,u.href))return null;
   const base=u.origin+u.pathname;
+  if(platform==='aliyun')return base+u.search;
   if(['tencentcloud','51cto'].includes(platform))return u.href;
   if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
   const ids=u.searchParams.getAll('pgc_id');
@@ -58,6 +61,7 @@ export function supportsDraftProtocol(platform,version){return Number.isInteger(
 export function draftEvidence(platform,value){
  try{
   if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  if(platform==='aliyun'){const u=new URL(value.url),id=u.searchParams.get('edit');if(!editorEvidence(platform,u.href)||!id||id!==String(value.articleId))return null;return {url:u.origin+u.pathname+u.search,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};}
   if(platform==='51cto'){const u=new URL(value.url),m=u.pathname.match(/^\/blogger\/draft\/([1-9]\d{0,19})$/);if(!editorEvidence(platform,u.href)||u.username||u.password||!m||m[1]!==String(value.articleId))return null;return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content',...(value.mediaProof?{mediaProof:value.mediaProof}:{})};}
   if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};}
   if(platform==='toutiao'){

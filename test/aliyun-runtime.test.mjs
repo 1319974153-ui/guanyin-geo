@@ -1,0 +1,23 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createPublisherRuntime} from '../browser-extension/runtime.js';
+function fixture({lostReport=false,wrongBody=false,duplicates=false,account='a123'}={}){
+ const state={connections:{aliyun:{platform:'aliyun',sessionId:'s'}}},tabs=[],actions=[],reports=[];let lost=false;
+ const job={id:'j',lease:'l',mode:'draft',accountId:'a123',sourceHash:'h',snapshot:{title:'新验收稿',text:'正文',html:'<p>正文</p>'}};
+ const chrome={storage:{local:{async setAccessLevel(){},async get(keys){return Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(k=>[k,structuredClone(state[k])]))},async set(v){Object.assign(state,structuredClone(v))},async remove(k){delete state[k]}}},tabs:{async create({url}){const t={id:tabs.length+1,url};tabs.push(t);return t},async get(id){return tabs.find(t=>t.id===id)},async remove(id){tabs.find(t=>t.id===id).closed=true}},scripting:{async executeScript({args,target}){const a=args[0],tab=tabs.find(t=>t.id===target.tabId);actions.push(a.action);let result={};
+ if(a.action==='account')return [{result:{accountId:account,name:'本人',profileUrl:'https://developer.aliyun.com/profile/'+account}}];
+ assert.equal(a.profileEvidence.accountId,account);
+ if(a.accountId&&a.accountId!==account)return[{result:{connectorError:'账号已变化'}}];
+ if(a.action==='identity')result={accountId:account,name:'本人',editorReady:true,evidenceUrl:tab.url};
+ if(a.action==='draft-list-inspect'||a.action==='draft-list-open'){if(duplicates)return[{result:{connectorError:'草稿箱没有唯一同标题原稿'}}];result={matched:true,draftListed:true,accountId:account};if(a.action==='draft-list-open')tab.url='https://developer.aliyun.com/article/new?edit=456#/';}
+ if(a.action==='draft-receipt'){assert.equal(tab.url,'https://developer.aliyun.com/article/new?edit=456');assert.equal(a.article.verifiedDraftList.accountId,account);result=wrongBody?{connectorError:'完整正文不一致'}:{accountId:account,url:tab.url,articleId:'456',savedVerified:true,contentVerified:true}}
+ return[{result}];}}};
+ chrome.runtime={onMessage:{addListener(){}},onInstalled:{addListener(){}},onStartup:{addListener(){}}};chrome.alarms={async get(){return{}},async create(){},onAlarm:{addListener(){}}};
+ const runtime=createPublisherRuntime(chrome,{request:async(action,data)=>{if(action==='pending')return{count:1};if(action==='claim')return{job};if(action==='job-state')return{journalActive:true};if(action==='report'){reports.push(data);if(lostReport&&!lost&&data.state==='draft'){lost=true;throw Error('回执丢失')}return {job:{state:data.state}}}if(action==='commit')throw Error('草稿不能公开');return{}}});return {state,tabs,actions,reports,runtime};
+}
+test('Alibaba saves once and recovers receipt by reading original numbered draft, closing temporary profile windows',async()=>{
+ const f=fixture({lostReport:true});await f.runtime.run('aliyun');await f.runtime.reconcile('aliyun');
+ assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.actions.filter(a=>a==='save-draft').length,1);assert.equal(f.actions.filter(a=>a==='draft-list-open').length,1);assert.equal(f.actions.includes('submit'),false);assert.equal(f.state.inflightByPlatform.aliyun,undefined);assert.equal(f.reports.at(-1).state,'draft');assert.ok(f.tabs.filter(t=>t.url.endsWith('/myProfile')).every(t=>t.closed));
+});
+test('Alibaba duplicate list or wrong reopened content never retries saving and never reports success',async()=>{
+ for(const config of [{duplicates:true},{wrongBody:true}]){const f=fixture(config);await f.runtime.run('aliyun');await f.runtime.reconcile('aliyun');assert.equal(f.actions.filter(a=>a==='fill').length,1);assert.equal(f.actions.filter(a=>a==='save-draft').length,1);assert.ok(!f.reports.some(r=>r.state==='draft'));assert.ok(f.state.inflightByPlatform.aliyun);}
+});
+test('Alibaba switched profile blocks before filling or saving',async()=>{const f=fixture({account:'other'});await f.runtime.run('aliyun');assert.equal(f.actions.includes('save-draft'),false);assert.ok(!f.reports.some(r=>r.state==='draft'));});

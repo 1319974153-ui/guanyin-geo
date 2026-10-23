@@ -1,2 +1,27 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';import {platformPreview} from '../desktop/platform-preview.mjs';
+import test from 'node:test';import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';import {platformPreview,aliyunSecureReturn,aliyunLoginRelay} from '../desktop/platform-preview.mjs';
 test('new platform acceptance reuses an isolated window without enabling publication',()=>{let created=0,window,partition;const loaded=[];class Window{constructor(options){created++;window=this;this.dead=false;this.options=options;this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=f=>this.popup=f}loadURL(u){loaded.push(u);return Promise.resolve()}isDestroyed(){return this.dead}show(){}focus(){}destroy(){this.dead=true}}const session={fromPartition(p){partition=p;return {setPermissionRequestHandler(){},setPermissionCheckHandler(){}}}};const preview=platformPreview({BrowserWindow:Window,session});preview.open();preview.open();assert.equal(created,1);assert.match(partition,/51cto/);assert.equal(window.options.webPreferences.sandbox,true);assert.equal(window.options.webPreferences.nodeIntegration,false);assert.deepEqual(loaded,['https://blog.51cto.com/']);let denied=false;window.webContents.emit('will-navigate',{preventDefault(){denied=true}},'https://evil.test');assert.equal(denied,true);window.popup({url:'https://home.51cto.com/index'});window.popup({url:'https://blog.51cto.com.evil.test'});assert.equal(loaded.length,2);preview.close();assert.equal(window.dead,true)});
+
+test('Alibaba return upgrades only the exact official HTTP host',()=>{
+ assert.equal(aliyunSecureReturn('http://developer.aliyun.com/article/new?spm=example'),'https://developer.aliyun.com/article/new?spm=example');
+ for(const value of ['http://developer.aliyun.com.evil.test/article/new','http://evil.test','http://user:secret@developer.aliyun.com/','http://developer.aliyun.com:8080/','javascript:alert(1)','https://developer.aliyun.com/'])assert.equal(aliyunSecureReturn(value),null);
+});
+test('Alibaba navigation and redirects recover securely without opening external hosts',()=>{
+ const loaded=[];let win;class Window{constructor(){win=this;this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=()=>{}}loadURL(u){loaded.push(u);return Promise.resolve()}show(){}focus(){}isDestroyed(){return false}destroy(){}}
+ const session={fromPartition(){return {setPermissionRequestHandler(){},setPermissionCheckHandler(){}}}};
+ platformPreview({BrowserWindow:Window,session}).open('aliyun');
+ for(const event of ['will-navigate','will-redirect']){let prevented=false;win.webContents.emit(event,{preventDefault(){prevented=true}},'http://developer.aliyun.com/article/new');assert.equal(prevented,true);assert.equal(loaded.at(-1),'https://developer.aliyun.com/article/new')}
+ const count=loaded.length;let blocked=false;win.webContents.emit('will-redirect',{preventDefault(){blocked=true}},'http://evil.test/');assert.equal(blocked,true);assert.equal(loaded.length,count);
+});
+
+test('Alibaba SMS relay allows only the observed HTTPS login path',()=>{
+ assert.equal(aliyunLoginRelay('https://account-s.aliyun.com/pass/adding?relay=opaque'),true);
+ for(const url of ['http://account-s.aliyun.com/pass/adding','https://account-s.aliyun.com.evil.test/pass/adding','https://account-s.aliyun.com/other','https://user:secret@account-s.aliyun.com/pass/adding','https://account-s.aliyun.com:8443/pass/adding'])assert.equal(aliyunLoginRelay(url),false);
+});
+test('Alibaba observed SMS redirect is permitted using current Electron details.url',()=>{
+ let win;class Window{constructor(){win=this;this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=()=>{}}loadURL(){return Promise.resolve()}show(){}focus(){}isDestroyed(){return false}destroy(){}}
+ const session={fromPartition(){return {setPermissionRequestHandler(){},setPermissionCheckHandler(){}}}};
+ const preview=platformPreview({BrowserWindow:Window,session});preview.open('aliyun');let blocked=false;
+ win.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/pass/adding?relay=opaque',preventDefault(){blocked=true}});assert.equal(blocked,false);
+ win.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/unknown',preventDefault(){blocked=true}});assert.equal(blocked,true);
+ preview.open('51cto');blocked=false;win.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/pass/adding',preventDefault(){blocked=true}});assert.equal(blocked,true);
+});

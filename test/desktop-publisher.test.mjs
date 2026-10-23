@@ -76,3 +76,14 @@ test('51CTO image draft preserves media, rejects missing proof and restores the 
  assert.equal((await e.app('media',{brandId:'b',contentId:'c'})).status,409);
  e.state.contents[0].text='changed';assert.equal((await e.app('media',{brandId:'a',contentId:'c'})).data.media.length,0);
 });
+
+test('Alibaba desktop connection exposes draft only and rejects public dispatch',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'aliyun'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('aliyun'));
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author'};
+ assert.equal((await e.app('enqueue',{...args,mode:'publish'})).status,409);
+ assert.equal((await e.app('enqueue',{...args,mode:'draft'})).status,200);
+ const j=(await call('claim')).job;
+ const draft={url:'https://developer.aliyun.com/article/new?edit=123',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true};
+ await call('report',{id:j.id,lease:j.lease,state:'draft',draft});
+ const duplicate=await e.app('enqueue',{...args,mode:'draft'});assert.equal(duplicate.data.existing,true);assert.equal(duplicate.data.job.receipt.publicVerified,false);
+});
