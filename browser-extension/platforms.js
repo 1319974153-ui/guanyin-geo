@@ -1,5 +1,6 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
+ tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
@@ -9,6 +10,7 @@ export const PLATFORMS = {
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
 export function editorEvidence(platform,url){
  try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.hash)return false;
+ if(platform==='tencentcloud')return u.pathname==='/developer/article/write-new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('draftId')));
  if(platform==='csdn')return /^\/mp_blog\/creation\/editor(?:\/[1-9]\d{0,29})?$/.test(u.pathname)&&!u.search;
  if(platform==='toutiao')return u.pathname==='/profile_v4/graphic/publish';
  if(platform==='zhihu')return u.pathname==='/write'||/^\/p\/\d+\/edit$/.test(u.pathname);
@@ -19,6 +21,7 @@ export function editorEvidence(platform,url){
 // Accept only observed platform-owned article URLs, never a generic dashboard/success toast.
 export function receiptEvidence(platform,url,articleId){
  try{const u=new URL(url);if(u.username||u.password||u.hash)return false;let m;
+ if(platform==='tencentcloud')return u.origin==='https://cloud.tencent.com'&&!u.search&&(m=u.pathname.match(/^\/developer\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='csdn')return u.origin==='https://mp.csdn.net'&&!u.search&&(m=u.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='toutiao')return ['https://www.toutiao.com','https://toutiao.com'].includes(u.origin)&&(m=u.pathname.match(/^\/article\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='zhihu')return u.origin==='https://zhuanlan.zhihu.com'&&(m=u.pathname.match(/^\/p\/(\d+)\/?$/))&&m[1]===String(articleId);
@@ -32,6 +35,7 @@ export function preparationEditorUrl(platform,url){
  try{
   const u=new URL(url);if(u.username||u.password||!editorEvidence(platform,u.href))return null;
   const base=u.origin+u.pathname;
+  if(platform==='tencentcloud')return u.href;
   if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
   const ids=u.searchParams.getAll('pgc_id');
   if(ids.length!==1||!/^[1-9]\d{0,29}$/.test(ids[0]))return null;
@@ -51,6 +55,7 @@ export function supportsDraftProtocol(platform,version){return Number.isInteger(
 export function draftEvidence(platform,value){
  try{
   if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true};}
   if(platform==='toutiao'){
    const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
    const id=new URL(url).searchParams.get('pgc_id');if(!id||id!==String(value.articleId))return null;

@@ -1,3 +1,4 @@
+import {tencentcloudPage} from './tencentcloud.js';
 import {csdnPage} from './csdn.js';
 import {socialPage} from './social-page.js';
 import {PLATFORMS,platformConfig,editorEvidence,preparationEvidence,draftEvidence} from './platforms.js';
@@ -19,7 +20,7 @@ async function api(action,data={},connection){
  const result=await r.json();if(!r.ok)throw new Error(result.error||'本机观引连接失败');return result;
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
  if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
@@ -92,6 +93,14 @@ async function locateCsdnDraft(job){
  if(!lookup.editorTabId){const editor=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=editor.id;await saveJournal('csdn',entry);}
  return {tabId:lookup.editorTabId,candidate:lookup.candidate};
 }
+async function locateTencentDraft(job){
+ let entry=await journal('tencentcloud');if(!entry||entry.job.id!==job.id)throw Error('原稿任务不匹配');
+ if(!entry.tencentLookup){const tab=await chrome.tabs.create({url:'https://cloud.tencent.com/developer/creator/article?type=draft',active:false});entry.tencentLookup={listTabId:tab.id};await saveJournal('tencentcloud',entry);}
+ const lookup=entry.tencentLookup;
+ if(!lookup.candidate){const candidate=await page(lookup.listTabId,'draft-list-inspect',job.snapshot,job.accountId,'tencentcloud');if(!candidate.draftListed||candidate.accountId!==job.accountId||!draftEvidence('tencentcloud',{...candidate,savedVerified:true,contentVerified:true}))throw Error('原稿候选无效');lookup.candidate=candidate;await saveJournal('tencentcloud',entry);}
+ if(!lookup.editorTabId){const tab=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=tab.id;await saveJournal('tencentcloud',entry);}
+ return {tabId:lookup.editorTabId,candidate:lookup.candidate};
+}
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
@@ -103,6 +112,7 @@ async function savedDraft(platform,job,tabId,call){
    if(ready){tabId=await locateToutiaoDraft(job,tabId);toutiaoLocated=true;}
   }
   if(platform==='csdn'&&i>=3){try{const found=await locateCsdnDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw new Error('草稿箱原稿定位待确认，未重复保存');continue}}
+  if(platform==='tencentcloud'){try{const found=await locateTencentDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw Error('腾讯云草稿回执待确认，未重复保存');continue}}
   let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if((platform==='csdn'&&!article.verifiedDraftList||platform==='toutiao')&&i<3)continue;throw e;}
   const receipt=draftEvidence(platform,raw);
   if(receipt&&receipt.accountId!==job.accountId)throw new Error('草稿回执账号不匹配');
@@ -123,7 +133,7 @@ async function run(platform='csdn'){
   let tabId;
   if(pending.originalDraft){
    const proof=draftEvidence(platform,{...pending.originalDraft,accountId:'pending',contentVerified:true});
-   if(!['csdn','zhihu'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
+   if(!['csdn','zhihu','tencentcloud'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
    tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;
   }else tabId=await freshEditor(platform);
   const me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));
@@ -140,7 +150,7 @@ async function run(platform='csdn'){
   }
   editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
-  if(job.mode==='draft'){if(platform==='csdn')await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
+  if(job.mode==='draft'){if(['csdn','tencentcloud'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   await page(tabId,'preflight',article,job.accountId,platform,job.media);
   await submitPrepared(platform,job,tabId,article,call);
  }catch(e){

@@ -77,3 +77,12 @@ test('unavailable login inspection does not invent a platform rate-limit result'
  const x=fixture(t),d=x.create();await d.openLogin();x.windows[0].webContents.executeJavaScript=async()=>{throw Error('closed')};
  assert.equal(await d.detectLoginHold(),false);assert.equal(d.loginHeld(),false);
 });
+
+
+test('Tencent native body entry is bound to the isolated owned editor and only fill action',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'tencent-1',platform:'tencentcloud'});const tab=await d.chrome.tabs.create({url:'https://cloud.tencent.com/developer/article/write-new',active:false});
+ const wc=x.windows[0].webContents;let inserted=[];wc.insertText=async text=>inserted.push(text);wc.executeJavaScript=async()=>({nativeInsertText:'确认稿件'});
+ const r=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]});assert.equal(r[0].result.filled,true);assert.deepEqual(inserted,['确认稿件']);
+ await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'receipt'}]});assert.equal(inserted.length,1);
+ wc.url='https://evil.test';await assert.rejects(d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]}),/登录完成/);assert.equal(inserted.length,1);
+});

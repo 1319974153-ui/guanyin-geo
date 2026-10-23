@@ -4,10 +4,10 @@ export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入�
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu'].includes(id),wp=['wordpress','typecho','personal-site'].includes(id);
+ const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(id),wp=['wordpress','typecho','personal-site'].includes(id);
  const tested=['csdn','toutiao','zhihu'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn'].includes(id));
+  const implemented=id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||id==='zhihu'&&action==='publish';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
@@ -15,6 +15,7 @@ export function publishingEvidence(id){
  }));
 }
 export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
+ if(id==='tencentcloud')return {stage:'桌面接入验收中',note:'账号、填稿、草稿定位与原稿提交已加入桌面适配；真实登录与平台回执尚待验收，公开发送暂未开放'};
  if(id==='cnblogs')return {stage:'草稿与公开发布已实测',note:'真实账号草稿、公开发布及匿名正文自动核验已通过；每次发送仍须取得自己的回执'};
  if(id==='zhihu')return {stage:'草稿与公开提交已实测',note:'已提交真实文章并人工核对公开正文；产品自动公开核验尚待完善，未核对时显示已提交'};
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；本次公开提交遇平台当日额度上限，未重试或付费'};
