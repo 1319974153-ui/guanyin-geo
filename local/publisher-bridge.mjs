@@ -25,7 +25,7 @@ function validateMedia(input,limits){
 
 // Dedicated local-only store. Pairing tokens and execution leases are never included in workspace exports.
 // One bridge = one local owner, one exact loopback origin. Hosted/team access is deliberately unsupported.
-export function publisherBridge({db,readState,origin,clock=Date.now,experimentalPublish=false,publishPlatforms=[]}){
+export function publisherBridge({db,readState,origin,clock=Date.now,experimentalPublish=false,publishPlatforms=[],verifyPublic=null}){
  if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin))throw new Error('Publisher requires an exact IPv4 loopback origin');
  db.exec('CREATE TABLE IF NOT EXISTS publisher_meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_jobs(id TEXT PRIMARY KEY,fingerprint TEXT UNIQUE NOT NULL,body TEXT NOT NULL)');
  db.prepare('INSERT OR IGNORE INTO publisher_meta VALUES(?,?)').run('instance',randomUUID());
@@ -35,6 +35,16 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  const save=(table,v)=>db.prepare(`UPDATE ${table} SET body=? WHERE id=?`).run(JSON.stringify(v),v.id);
  const sessions=()=>rows('publisher_sessions');const jobs=()=>rows('publisher_jobs');
  const getJob=id=>{const r=db.prepare('SELECT body FROM publisher_jobs WHERE id=?').get(id);if(!r)fail(404,'找不到发布任务');return JSON.parse(r.body)};
+ // Bounded read-only reconciliation while the user views status. A submitted
+ // receipt is never promoted by a renderer/extension assertion.
+ const checking=new Set();
+ function checkPublic(j){
+  if(!verifyPublic||j.platform!=='tencentcloud'||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<60000))return;
+  checking.add(j.id);if(j.publicCheckVersion!=='rendered-v2')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v2';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
+  Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
+   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body'};save('publisher_jobs',latest)}
+  }).catch(()=>{}).finally(()=>checking.delete(j.id));
+ }
  let pairing=null;
  function expire(){for(const j of jobs()){
   if(j.state==='queued'&&j.expires<clock()){j.state='needs_attention';j.error='授权已过期，请检查后重新授权';save('publisher_jobs',j)}
@@ -87,7 +97,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    expire();
    if(!extension){
     if(action==='status'){
-     const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;
+     const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;for(const j of jobs().filter(j=>j.brandId===brandId))checkPublic(j);
      return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform]||PLATFORMS[platform].desktopOnly)fail(400,'此平台请在免插件桌面版连接');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}

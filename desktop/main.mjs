@@ -1,4 +1,6 @@
-import {app,BrowserWindow,ipcMain,utilityProcess,session,dialog,shell} from 'electron';
+import {platformPreview} from './platform-preview.mjs';
+import {publicProof} from './public-proof.mjs';
+import {app,BrowserWindow,ipcMain,utilityProcess,session,dialog,shell,Menu,MenuItem} from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
@@ -7,11 +9,14 @@ import {createPublisherRuntime} from '../browser-extension/runtime.js';
 import {windowDriver} from './window-driver.mjs';
 import {LOGIN_RATE_LIMIT_MESSAGE} from './login-state.mjs';
 import {trustedFrame,connectionInput,targetInput} from './security.mjs';
+import {installQuitFlow} from './quit-flow.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
 const dataRoot=(!app.isPackaged&&process.env.GUANYIN_DESKTOP_DATA)?path.resolve(process.env.GUANYIN_DESKTOP_DATA):path.join(app.getPath('appData'),'GuanyinGEO-Desktop-Preview');
 fs.mkdirSync(dataRoot,{recursive:true,mode:0o700});app.setPath('userData',dataRoot);
 let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();
+const upcomingPlatform=platformPreview({BrowserWindow,session});
+const bindMainQuit=installQuitFlow({app,getMain:()=>main,confirmDiscard:win=>dialog.showMessageBoxSync(win,{type:'question',title:'退出观引',message:'当前页面有未保存的修改。',detail:'继续编辑可先保存；退出只会放弃当前页面尚未保存的修改，已保存的稿件、账号和回执保留。',buttons:['继续编辑','放弃修改并退出'],defaultId:0,cancelId:0})===1,shutdown:stopService});
 if(!app.requestSingleInstanceLock()){app.quit()}else{
  app.on('second-instance',()=>{if(main){main.show();main.focus()}});
  app.whenReady().then(start).catch(e=>{dialog.showErrorBox('观引启动失败',e.message);app.quit()});
@@ -23,10 +28,11 @@ async function start(){
  const port=await freePort(Number.isInteger(previous)&&previous>1024&&previous<65536?previous:0);origin='http://127.0.0.1:'+port;fs.writeFileSync(portFile,JSON.stringify({port}),{mode:0o600});
  const env=Object.fromEntries(['PATH','HOME','USERPROFILE','SYSTEMROOT','TEMP','TMP','TMPDIR','LANG'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
  const serverFile=fs.existsSync(path.join(here,'server.mjs'))?path.join(here,'server.mjs'):path.join(bundleRoot,'dev-server.mjs');
- service=utilityProcess.fork(serverFile,[],{cwd:fs.existsSync(path.join(here,'drizzle'))?here:bundleRoot,env:{...env,GEO_PORT:String(port),GEO_DATA_DIR:path.join(dataRoot,'business'),GEO_SOCIAL_PUBLISH_EXPERIMENTAL:'0',GEO_SOCIAL_PUBLISH_PLATFORMS:'csdn,zhihu'},stdio:'pipe',serviceName:'观引本机服务'});
+ service=utilityProcess.fork(serverFile,[],{cwd:fs.existsSync(path.join(here,'drizzle'))?here:bundleRoot,env:{...env,GEO_PORT:String(port),GEO_DATA_DIR:path.join(dataRoot,'business'),GEO_SOCIAL_PUBLISH_EXPERIMENTAL:'0',GEO_SOCIAL_PUBLISH_PLATFORMS:'csdn,zhihu,tencentcloud'},stdio:'pipe',serviceName:'观引本机服务'});
  service.stdout?.on('data',b=>process.stdout.write(b));service.stderr?.on('data',b=>process.stderr.write(b));
- const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本机服务启动超时')),30000);service.on('message',m=>{if(m.ready){clearTimeout(timer);resolve()}else if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error)):p.resolve(m.result)}});service.once('exit',()=>{clearTimeout(timer);reject(new Error('本机服务已退出'));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('服务已中断，任务未自动重发'))}pending.clear();if(!stopping&&main)dialog.showErrorBox('观引服务已停止','请退出并重新打开观引。未确认的发布不会自动重发。')})});
+ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本机服务启动超时')),30000);service.on('message',m=>{if(m.publicProofId){void publicProof({BrowserWindow,session},m.job).then(verified=>{if(!stopping)service?.postMessage({publicProofId:m.publicProofId,verified})}).catch(()=>{});return}if(m.ready){clearTimeout(timer);resolve()}else if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error)):p.resolve(m.result)}});service.once('exit',()=>{clearTimeout(timer);reject(new Error('本机服务已退出'));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('服务已中断，任务未自动重发'))}pending.clear();if(!stopping&&main)dialog.showErrorBox('观引服务已停止','请退出并重新打开观引。未确认的发布不会自动重发。')})});
  await ready;
+ const menu=Menu.getApplicationMenu();if(menu){menu.append(new MenuItem({label:'平台接入验收',submenu:[{label:'51CTO 登录与编辑器验收',click:()=>upcomingPlatform.open()}]}));Menu.setApplicationMenu(menu)}
  main=new BrowserWindow({width:1280,height:900,minWidth:800,minHeight:600,title:'观引 · 品牌工作台',webPreferences:{preload:path.join(here,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
  main.webContents.on('will-navigate',(e,url)=>{try{if(new URL(url).origin!==origin)e.preventDefault()}catch{e.preventDefault()}});main.webContents.on('will-attach-webview',e=>e.preventDefault());main.webContents.setWindowOpenHandler(({url})=>{try{const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password)void shell.openExternal(u.href)}catch{}return {action:'deny'}});main.webContents.session.setPermissionRequestHandler((_wc,_p,cb)=>cb(false));
  const bind=(name,fn)=>ipcMain.handle('guanyin:'+name,(event,value)=>{if(!trustedFrame(event,main.webContents,origin))throw new Error('仅观引主窗口可执行此操作');return fn(value)});
@@ -35,7 +41,7 @@ async function start(){
  bind('prepare',async input=>{for(const t of targetInput(input)){const c=await getConnection(t.sessionId),controller=await control(c);await controller.verify(t.accountId)}return {ok:true}});
  bind('resume',async input=>{const t=targetInput([input])[0];if(typeof input.jobId!=='string'||!/^[-\w]{1,100}$/.test(input.jobId))throw Error('原任务无效');const c=await getConnection(t.sessionId);if(c.accountId!==t.accountId)throw Error('账号已变化');const controller=await control(c);await controller.resume(input.jobId);return {ok:true}});
  bind('wake',async()=>{void poll();return {ok:true}});
- main.on('closed',()=>app.quit());await main.loadURL(origin+'/#today');
+ bindMainQuit(main);await main.loadURL(origin+'/#today');
  for(const c of await rpc('desktop-list'))await control(c);
  pollTimer=setInterval(()=>void poll(),4000);
  console.log('Guanyin desktop ready: '+origin);
@@ -54,11 +60,9 @@ async function control(connection){
  controllers.set(connection.sessionId,controller);return controller;
 }
 let polling=false;async function poll(){if(polling||stopping)return;polling=true;try{const list=await rpc('desktop-list'),active=new Set(list.map(c=>c.sessionId));for(const [id,c]of controllers)if(!active.has(id)){c.close();controllers.delete(id)}for(const c of list)await (await control(c)).tick()}catch(e){console.error('发布检查：'+e.message)}finally{polling=false}}
-let quitReady=false;
-app.on('before-quit',event=>{
- if(quitReady)return;event.preventDefault();if(stopping)return;stopping=true;clearInterval(pollTimer);
+async function stopService(){
+ if(stopping)return;stopping=true;clearInterval(pollTimer);upcomingPlatform.close();
  for(const c of controllers.values())c.close();for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('观引已退出，任务未自动重发'))}pending.clear();
- const finish=()=>{if(quitReady)return;quitReady=true;service?.kill();service=null;app.quit()};
- if(service){service.once('exit',finish);service.postMessage({id:++sequence,action:'shutdown'});setTimeout(finish,3000)}else finish();
-});
+ if(service)await new Promise(resolve=>{let done=false,timer;const finish=()=>{if(done)return;done=true;clearTimeout(timer);service?.kill();service=null;resolve()};service.once('exit',finish);timer=setTimeout(finish,3000);try{service.postMessage({id:++sequence,action:'shutdown'})}catch{finish()}});
+}
 app.on('window-all-closed',()=>app.quit());

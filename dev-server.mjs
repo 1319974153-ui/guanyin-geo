@@ -1,3 +1,4 @@
+import {verifyTencentPublic} from './local/tencentcloud-public.mjs';
 import {staticSiteBridge} from './local/static-site-bridge.mjs';
 import {publisherBridge} from './local/publisher-bridge.mjs';
 import {localControl} from './local/control.mjs';
@@ -26,9 +27,12 @@ const runner=localBackgroundRunner(root,async()=>{
 env.LOCAL_RUNTIME=runner;
 env.STATIC_SITE=staticSiteBridge(root);
 const publisherDB=new DatabaseSync(path.join(root,'publisher.sqlite'));fs.chmodSync(path.join(root,'publisher.sqlite'),0o600);
-const publisher=publisherBridge({db:publisherDB,origin:'http://127.0.0.1:'+port,experimentalPublish:process.env.GEO_SOCIAL_PUBLISH_EXPERIMENTAL==='1',publishPlatforms:(process.env.GEO_SOCIAL_PUBLISH_PLATFORMS||'').split(',').filter(Boolean),readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});
+const publicProofPending=new Map();let publicProofSequence=0;
+function desktopPublicProof(job){return new Promise(resolve=>{const id=++publicProofSequence;const timer=setTimeout(()=>{publicProofPending.delete(id);resolve(false)},20000);publicProofPending.set(id,{resolve,timer});process.parentPort.postMessage({publicProofId:id,job});});}
+const publisher=publisherBridge({verifyPublic:process.parentPort?desktopPublicProof:verifyTencentPublic,db:publisherDB,origin:'http://127.0.0.1:'+port,experimentalPublish:process.env.GEO_SOCIAL_PUBLISH_EXPERIMENTAL==='1',publishPlatforms:(process.env.GEO_SOCIAL_PUBLISH_PLATFORMS||'').split(',').filter(Boolean),readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});
 // Only a desktop utility-process parent can reach this channel. HTTP cannot call it.
 if(process.parentPort)process.parentPort.on('message',async event=>{
+ if(event.data?.publicProofId&&publicProofPending.has(event.data.publicProofId)){const p=publicProofPending.get(event.data.publicProofId);publicProofPending.delete(event.data.publicProofId);clearTimeout(p.timer);p.resolve(event.data.verified===true);return}
  const m=event.data;if(!m||!Number.isSafeInteger(m.id))return;
  try{let result;
   if(m.action==='desktop-connect')result=publisher.connectDesktop(m.data);
