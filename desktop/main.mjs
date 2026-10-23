@@ -1,3 +1,4 @@
+import {publishingPartition} from './preview-adoption.mjs';
 import {platformPreview} from './platform-preview.mjs';
 import {publicProof} from './public-proof.mjs';
 import {app,BrowserWindow,ipcMain,utilityProcess,session,dialog,shell,Menu,MenuItem} from 'electron';
@@ -28,7 +29,7 @@ async function start(){
  const port=await freePort(Number.isInteger(previous)&&previous>1024&&previous<65536?previous:0);origin='http://127.0.0.1:'+port;fs.writeFileSync(portFile,JSON.stringify({port}),{mode:0o600});
  const env=Object.fromEntries(['PATH','HOME','USERPROFILE','SYSTEMROOT','TEMP','TMP','TMPDIR','LANG'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
  const serverFile=fs.existsSync(path.join(here,'server.mjs'))?path.join(here,'server.mjs'):path.join(bundleRoot,'dev-server.mjs');
- service=utilityProcess.fork(serverFile,[],{cwd:fs.existsSync(path.join(here,'drizzle'))?here:bundleRoot,env:{...env,GEO_PORT:String(port),GEO_DATA_DIR:path.join(dataRoot,'business'),GEO_SOCIAL_PUBLISH_EXPERIMENTAL:'0',GEO_SOCIAL_PUBLISH_PLATFORMS:'csdn,zhihu,tencentcloud'},stdio:'pipe',serviceName:'观引本机服务'});
+ service=utilityProcess.fork(serverFile,[],{cwd:fs.existsSync(path.join(here,'drizzle'))?here:bundleRoot,env:{...env,GEO_PORT:String(port),GEO_DATA_DIR:path.join(dataRoot,'business'),GEO_SOCIAL_PUBLISH_EXPERIMENTAL:'0',GEO_SOCIAL_PUBLISH_PLATFORMS:'csdn,zhihu,tencentcloud,51cto'},stdio:'pipe',serviceName:'观引本机服务'});
  service.stdout?.on('data',b=>process.stdout.write(b));service.stderr?.on('data',b=>process.stderr.write(b));
  const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本机服务启动超时')),30000);service.on('message',m=>{if(m.publicProofId){void publicProof({BrowserWindow,session},m.job).then(verified=>{if(!stopping)service?.postMessage({publicProofId:m.publicProofId,verified})}).catch(()=>{});return}if(m.ready){clearTimeout(timer);resolve()}else if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error)):p.resolve(m.result)}});service.once('exit',()=>{clearTimeout(timer);reject(new Error('本机服务已退出'));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('服务已中断，任务未自动重发'))}pending.clear();if(!stopping&&main)dialog.showErrorBox('观引服务已停止','请退出并重新打开观引。未确认的发布不会自动重发。')})});
  await ready;
@@ -50,7 +51,7 @@ async function getConnection(id){if(typeof id!=='string')throw new Error('账号
 async function control(connection){
  if(controllers.has(connection.sessionId))return controllers.get(connection.sessionId);
  let controller,busy=false,loginUntil=0,paused=false,lastLoginCheck=0;
- const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,onLoginReady(){if(controller&&paused&&!busy&&!driver.loginHeld()){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();paused=driver.loginHeld();
+ const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,partition:publishingPartition(dataRoot,connection),onLoginReady(){if(controller&&paused&&!busy&&!driver.loginHeld()){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();paused=driver.loginHeld();
  const request=(action,data)=>rpc('desktop-request',{sessionId:connection.sessionId,action,data});const runtime=createPublisherRuntime(driver.chrome,{request});await runtime.ready;
  async function verify(expected){if(driver.loginHeld())throw new Error(LOGIN_RATE_LIMIT_MESSAGE);if(busy)throw new Error('该账号正在处理原任务，请等待结果');busy=true;try{await runtime.command({action:'verify',platform:connection.platform});const c=await getConnection(connection.sessionId);if(expected&&c.accountId!==expected)throw new Error('登录账号已变化，请在观引重新选择账号');paused=false;loginUntil=0;return true}catch(e){await request('connection-state',{state:'needs_login',error:e.message}).catch(()=>{});throw e}finally{busy=false}}
  controller={driver,async login(){if(busy)throw new Error('原任务正在执行，请等待结果');driver.clearLoginHold();await driver.openLogin();loginUntil=Date.now()+600000;paused=false;await request('connection-state',{state:'awaiting_login'});void controller.checkLogin()},verify,

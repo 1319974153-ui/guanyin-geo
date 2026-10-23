@@ -54,3 +54,12 @@ test('Xiaohongshu desktop connection uses isolated own login and remains prepara
  for(const url of ['https://xiaohongshu.com.evil.test/','https://creator.douyin.com/'])assert.equal(navigationAllowed('xiaohongshu',url),false);
  for(const mode of ['publish','draft'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
+
+test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};
+ await e.app('enqueue',args);const j=(await call('claim')).job;
+ await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{editorUrl:PLATFORMS['51cto'].editor,accountId:'author',contentVerified:true,sourceHash:j.sourceHash}});
+ const r=await e.app('enqueue',{...args,mode:'draft'});assert.equal(r.status,200);assert.equal(r.data.job.id,j.id);assert.equal((await call('pending')).recoverPreparation,true);assert.equal((await call('claim')).job.recoverPreparation,true);
+ assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,1);
+});

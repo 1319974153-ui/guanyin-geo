@@ -135,14 +135,18 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      }
      // Promote only a verified draft in place. Never open a new editor for this revision.
      const related=jobs().filter(j=>j.brandId===b.brandId&&j.platform===platform&&j.accountId===s.account.accountId&&j.sourceHash===sourceHash);
-     if(b.mode==='publish'&&['csdn','zhihu','tencentcloud'].includes(platform)){
+     if(platform==='51cto'&&b.mode==='draft'){
+      const prepared=related.filter(j=>j.mode==='prepare'&&j.state==='prepared'&&j.preparation&&!j.attempted);
+      if(prepared.length===1){const j=prepared[0];j.mode='draft';j.recoverPreparation=true;j.state='queued';j.sessionId=s.id;j.accountRevision=s.account.revision;j.expires=clock()+600000;j.error='';delete j.lease;checkCurrent(j,s);save('publisher_jobs',j);return respond({job:publicJob(j),promoted:true});}
+     }
+     if(b.mode==='publish'&&['csdn','zhihu','tencentcloud','51cto'].includes(platform)){
       const published=related.find(j=>j.mode==='publish'&&j.originalDraft);
       if(published)return respond({job:publicJob(published),existing:true});
       const drafts=related.filter(j=>j.mode==='draft'&&j.state==='draft'&&j.receipt?.savedVerified===true&&!j.attempted);
       if(drafts.length===1){
        const original=drafts[0],proof=draftEvidence(platform,{...original.receipt,accountId:original.accountId,contentVerified:true});
        if(!proof)fail(409,'缺少可核对的原稿地址，未重新创建');
-       original.originalDraft={...original.receipt};original.mode='publish';original.state='queued';original.sessionId=s.id;original.accountRevision=s.account.revision;original.expires=clock()+600000;original.error='';original.tags=tags;delete original.receipt;delete original.lease;
+       original.originalDraft={...original.receipt};delete original.recoverPreparation;original.mode='publish';original.state='queued';original.sessionId=s.id;original.accountRevision=s.account.revision;original.expires=clock()+600000;original.error='';original.tags=tags;delete original.receipt;delete original.lease;
        checkCurrent(original,s);save('publisher_jobs',original);return respond({job:publicJob(original),promoted:true});
       }
      }
@@ -182,13 +186,13 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     return respond({account:session.account});
    }
    if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');const active=!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state);return respond({job:publicJob(j),journalActive:active,canResume:active&&!j.attempted&&j.mode==='publish'&&publishing.has(j.platform||'csdn')&&['preparing','needs_attention'].includes(j.state)})}
-   if(action==='pending'){const queued=jobs().filter(j=>j.sessionId===session.id&&j.state==='queued');return respond({platform:session.platform||'csdn',count:queued.length,originalDraft:queued[0]?.originalDraft||null});}
+   if(action==='pending'){const queued=jobs().filter(j=>j.sessionId===session.id&&j.state==='queued');return respond({platform:session.platform||'csdn',count:queued.length,originalDraft:queued[0]?.originalDraft||null,recoverPreparation:queued[0]?.recoverPreparation===true});}
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
     const j=jobs().find(j=>j.sessionId===session.id&&j.state==='queued');if(!j)return respond({job:null});
     try{if(j.mode==='draft'&&!supportsDraftProtocol(session.platform||'csdn',session.draftProtocol))fail(409,'当前连接器不支持草稿，请重载后核对');checkCurrent(j,session)}catch(e){j.state='needs_attention';j.error=e.message;save('publisher_jobs',j);return respond({job:null})}
     j.state='preparing';if(j.mode==='draft')j.editorRetained=true;j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
-    return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],originalDraft:j.originalDraft||null,lease:j.lease}});
+    return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],originalDraft:j.originalDraft||null,recoverPreparation:j.recoverPreparation===true,lease:j.lease}});
    }
    if(['resume','commit','report'].includes(action)){
     const j=getJob(b.id);if(j.sessionId!==session.id||!j.lease||b.lease!==j.lease)fail(403,'任务租约不属于此连接');
@@ -238,7 +242,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  }
  // Private process API. Never exported through an HTTP route or renderer IPC directly.
  function connectDesktop({brandId,platform}){
-  brand(brandId);if(!['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(platform))fail(400,'该平台桌面登录尚未接入');
+  brand(brandId);if(!['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto'].includes(platform))fail(400,'该平台桌面登录尚未接入');
   let s=sessions().find(s=>!s.revoked&&s.transport==='desktop'&&s.brandId===brandId&&s.platform===platform);
   if(!s){s={id:randomUUID(),transport:'desktop',platform,brandId,origin,created:clock(),connectionState:'awaiting_login'};db.prepare('INSERT INTO publisher_sessions VALUES(?,?)').run(s.id,JSON.stringify(s))}
   return {sessionId:s.id,brandId,platform,origin,instance};

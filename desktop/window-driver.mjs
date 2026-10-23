@@ -5,10 +5,10 @@ import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './
 import {editorEvidence,platformConfig} from '../browser-extension/platforms.js';
 import {readLoginWarning} from './login-state.mjs';
 // No Chrome profiles, remote debugging port, arbitrary renderer scripts, or credential exports.
-export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=>{},onLoginReady=()=>{}}){
+export function windowDriver({BrowserWindow,session,root,connection,partition,onStatus=()=>{},onLoginReady=()=>{}}){
  fs.mkdirSync(root,{recursive:true,mode:0o700});const filename=path.join(root,'executor.json');
  let state={};if(fs.existsSync(filename)){state=JSON.parse(fs.readFileSync(filename,'utf8'));if(!state||typeof state!=='object'||Array.isArray(state))throw new Error('发布记录损坏，已停止以防重发')}
- let loginTab=null;const windows=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(connectionPartition(connection.sessionId));
+ let loginTab=null;const windows=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(partition||connectionPartition(connection.sessionId));
  browserSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));browserSession.setPermissionCheckHandler(()=>false);
  function persist(){const tmp=filename+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state),{mode:0o600});fs.renameSync(tmp,filename)}
  function saveTab(id,url,openerTabId){if(!navigationAllowed(connection.platform,url))return;savedTabs[id]={id,url,...(openerTabId?{openerTabId}:{})};state._tabs=savedTabs;persist()}
@@ -39,7 +39,7 @@ export function windowDriver({BrowserWindow,session,root,connection,onStatus=()=
    const win=ensureWindow(target.tabId);await ready(win);const url=win.webContents.getURL();
    if(!platformConfig(connection.platform).hosts.some(pattern=>new URL(url).origin===new URL(pattern.replace('*','')).origin))throw new Error('请在平台登录完成后继续');
    // func comes solely from the bundled adapter, never from IPC, page content or a URL.
-   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(connection.platform==='tencentcloud'&&args[0]?.action==='fill'&&result?.nativeInsertText){await win.webContents.insertText(result.nativeInsertText);return [{result:{filled:true}}]}if(connection.platform==='tencentcloud'&&args[0]?.action==='preflight'&&typeof result?.nativeInsertTag==='string'){await win.webContents.insertText(result.nativeInsertTag);const next={...args[0],tagInputReady:true};const verified=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);return [{result:verified}]}return [{result}]}finally{clearTimeout(timer)}
+   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(['tencentcloud','51cto'].includes(connection.platform)&&args[0]?.action==='fill'&&result?.nativeInsertText){await win.webContents.insertText(result.nativeInsertText);return [{result:{filled:true}}]}if(connection.platform==='tencentcloud'&&args[0]?.action==='preflight'&&typeof result?.nativeInsertTag==='string'){await win.webContents.insertText(result.nativeInsertTag);const next={...args[0],tagInputReady:true};const verified=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);return [{result:verified}]}return [{result}]}finally{clearTimeout(timer)}
   }}
  };
  return {chrome,loginHeld(){return state._loginHold==='rate_limited'},clearLoginHold(){delete state._loginHold;persist()},async detectLoginHold(){

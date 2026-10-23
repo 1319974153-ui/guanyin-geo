@@ -1,3 +1,4 @@
+import {fiftyonePage} from './fiftyone.js';
 import {tencentcloudPage} from './tencentcloud.js';
 import {csdnPage} from './csdn.js';
 import {socialPage} from './social-page.js';
@@ -20,7 +21,7 @@ async function api(action,data={},connection){
  const result=await r.json();if(!r.ok)throw new Error(result.error||'本机观引连接失败');return result;
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
  if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
@@ -37,7 +38,7 @@ async function submitPrepared(platform,job,tabId,article,call){
  const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
   if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
   await page(tabId,'submit',article,job.accountId,platform,job.media);
-  for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',undefined,undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
+  for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',platform==='51cto'?article:undefined,platform==='51cto'?job.accountId:undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
   throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
 }
 // Resolve a saved-but-unnumbered Toutiao editor using its visible draft list.
@@ -101,6 +102,14 @@ async function locateTencentDraft(job){
  if(!lookup.editorTabId){const tab=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=tab.id;await saveJournal('tencentcloud',entry);}
  return {tabId:lookup.editorTabId,candidate:lookup.candidate};
 }
+async function locateFiftyoneDraft(job){
+ let entry=await journal('51cto');if(!entry||entry.job.id!==job.id)throw Error('原稿任务不匹配');
+ if(!entry.fiftyoneLookup){const tab=await chrome.tabs.create({url:'https://blog.51cto.com/creative-center/draft',active:false});entry.fiftyoneLookup={listTabId:tab.id};await saveJournal('51cto',entry);}
+ const lookup=entry.fiftyoneLookup;
+ if(!lookup.candidate){const candidate=await page(lookup.listTabId,'draft-list-inspect',job.snapshot,job.accountId,'51cto');if(!candidate.draftListed||candidate.accountId!==job.accountId||!draftEvidence('51cto',{...candidate,savedVerified:true,contentVerified:true}))throw Error('原稿候选无效');lookup.candidate=candidate;await saveJournal('51cto',entry);}
+ if(!lookup.editorTabId){const tab=await chrome.tabs.create({url:lookup.candidate.url,active:false});lookup.editorTabId=tab.id;await saveJournal('51cto',entry);}
+ return {tabId:lookup.editorTabId,candidate:lookup.candidate};
+}
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
@@ -112,6 +121,7 @@ async function savedDraft(platform,job,tabId,call){
    if(ready){tabId=await locateToutiaoDraft(job,tabId);toutiaoLocated=true;}
   }
   if(platform==='csdn'&&i>=3){try{const found=await locateCsdnDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw new Error('草稿箱原稿定位待确认，未重复保存');continue}}
+  if(platform==='51cto'){try{if(i%5===4){const entry=await journal(platform);if(entry?.fiftyoneLookup&&!entry.fiftyoneLookup.candidate)await chrome.tabs.reload(entry.fiftyoneLookup.listTabId);}const found=await locateFiftyoneDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw Error('51CTO 草稿回执待确认，未重复保存');continue}}
   if(platform==='tencentcloud'){try{if(i%5===4){const entry=await journal(platform);if(entry?.tencentLookup&&!entry.tencentLookup.candidate)await chrome.tabs.reload(entry.tencentLookup.listTabId);}const found=await locateTencentDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}catch{if(i===19)throw Error('腾讯云草稿回执待确认，未重复保存');continue}}
   let raw;try{raw=await page(tabId,'draft-receipt',article,job.accountId,platform,job.media||[])}catch(e){if((platform==='csdn'&&!article.verifiedDraftList||platform==='toutiao')&&i<3)continue;throw e;}
   const receipt=draftEvidence(platform,raw);
@@ -131,9 +141,9 @@ async function run(platform='csdn'){
   const call=(action,data)=>api(action,data,connection);
   const pending=await call('pending');if(!pending.count)return;
   let tabId;
-  if(pending.originalDraft){
+  if(!pending.originalDraft&&pending.recoverPreparation&&platform==='51cto'){tabId=(await chrome.tabs.create({url:platformConfig(platform).editor,active:false})).id;}else if(pending.originalDraft){
    const proof=draftEvidence(platform,{...pending.originalDraft,accountId:'pending',contentVerified:true});
-   if(!['csdn','zhihu','tencentcloud'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
+   if(!['csdn','zhihu','tencentcloud','51cto'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
    tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;
   }else tabId=await freshEditor(platform);
   const me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));
@@ -141,6 +151,7 @@ async function run(platform='csdn'){
   // Persist enough to reconcile after MV3 suspension; never replay a submit from this journal.
   await saveJournal(platform,{job,tabId});
   const article={...job.snapshot,tags:job.tags};
+  if(job.recoverPreparation&&platform==='51cto'&&job.mode==='draft'){editorTouched=true;await savedDraft(platform,job,tabId,call);return;}
   if(job.originalDraft){
    if(job.mode!=='publish'||!pending.originalDraft||job.originalDraft.url!==pending.originalDraft.url||job.originalDraft.articleId!==pending.originalDraft.articleId)throw new Error('原稿任务已变化，未覆盖或提交');
    editorTouched=true; // Keep the original editor available for recovery; never refill it.
@@ -151,6 +162,12 @@ async function run(platform='csdn'){
   editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   if(job.mode==='draft'){if(['csdn','tencentcloud'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
+  if(platform==='51cto'){
+   let found,last;
+   for(let i=0;i<20;i++){try{found=await locateFiftyoneDraft(job);article.verifiedDraftList=found.candidate;const proof=await page(found.tabId,'draft-receipt',article,job.accountId,platform);if(!draftEvidence(platform,proof))throw Error('原草稿回执未就绪');break}catch(e){last=e;found=null;await delay(1000)}}
+   if(!found)throw last||Error('原草稿尚未保存，未提交');
+   tabId=found.tabId;const entry=await journal(platform);entry.tabId=tabId;await saveJournal(platform,entry);
+  }
   await page(tabId,'preflight',article,job.accountId,platform,job.media);
   await submitPrepared(platform,job,tabId,article,call);
  }catch(e){
@@ -167,6 +184,11 @@ async function resume(platform='csdn',expectedJobId){
   const state=await call('job-state',{id:j.id,lease:j.lease});
   if(!state.canResume)throw new Error('此任务不能继续提交；请核对上次回执，不会重复发布');
   const article={...j.snapshot,tags:j.tags};
+  if(platform==='51cto'&&j.originalDraft){
+   const proof=draftEvidence(platform,{...j.originalDraft,accountId:j.accountId,contentVerified:true});if(!proof)throw Error('原草稿地址无效，未继续');
+   const current=await chrome.tabs.get(inflight.tabId);
+   if(current.url!==proof.url){inflight.tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;await saveJournal(platform,inflight);await identity(inflight.tabId,platform);}
+  }
   const me=await page(inflight.tabId,'identity',undefined,j.accountId,platform);
   await page(inflight.tabId,'prepared',article,j.accountId,platform,j.media||[]);
   await call('account',accountEvidence(me,platform));
@@ -197,7 +219,7 @@ async function reconcileJob(platform='csdn'){
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
   if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
-  const receipt=await page(inflight.tabId,'receipt',undefined,undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
+  const receipt=await page(inflight.tabId,'receipt',platform==='51cto'?inflight.job.snapshot:undefined,platform==='51cto'?inflight.job.accountId:undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
    const message=String(e.message||'平台结果待核对').slice(0,240);
    // Recovery is read-only. Surface a newly observed error to the same job;
    // never create a second task or silently hide the platform failure.

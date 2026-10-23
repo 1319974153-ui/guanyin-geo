@@ -16,8 +16,9 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
  const post=(path,data)=>request(path,{method:'POST',body:JSON.stringify(data)});
  for(const target of targets){
   assertScope();let row=journal[target.key];
-  if(!['wordpress','cnblogs','typecho','personal-site'].includes(target.platform)&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
-  if(row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
+  const recoverPrepared=target.platform==='51cto'&&mode==='draft'&&row?.state==='prepared';
+  if(!['wordpress','cnblogs','typecho','personal-site'].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud','51cto'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
+  if(!recoverPrepared&&row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
@@ -46,7 +47,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
      assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
      const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
     }
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(target.platform)){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto'].includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
     const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
@@ -72,7 +73,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(row.platform)){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     assertScope();
     let job=browserStatus.jobs.find(j=>j.id===row.jobId);

@@ -135,3 +135,4 @@ test('Typecho one-click publishes the durable draft and recovers without duplica
  let writes=0;await dispatchArticle({...params,mode:'draft',journal:recovered,request:async()=>{writes++}});assert.equal(writes,0);
  assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,accountId:'someone-else'}],journal:{}}),{});
 });
+test('51CTO explicit draft action recovers preparation through original server job, then can publish the draft',async()=>{const f=fixture(),target={key:'51cto:s',platform:'51cto',sessionId:'s',accountId:'author',modes:['prepare','draft','publish']};f.journal[target.key]={...target,id:'old',jobId:'j',state:'prepared'};await f.run({targets:[target],mode:'draft'});assert.equal(f.calls[0][1].mode,'draft');assert.equal(f.journal[target.key].state,'queued');f.journal[target.key].state='draft';await f.run({targets:[target],mode:'publish'});assert.equal(f.calls.at(-1)[1].mode,'publish')});
