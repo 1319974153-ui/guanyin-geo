@@ -19,7 +19,7 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
  if(!me||!/^[-\w]{1,80}$/.test(me.accountId)||!me.name||me.profileUrl!=='https://developer.aliyun.com/profile/'+me.accountId)fail('缺少本次登录身份核对，未操作');
  if(accountId&&me.accountId!==accountId)fail('阿里云登录账号已变化，未继续');
  const evidence={accountId:me.accountId,name:me.name,editorReady:true,evidenceUrl:location.href};
- const title=one('input#title[placeholder="请填写标题"]','标题'),editor=one('.left-content textarea.textarea','正文编辑器'),preview=one('.markdown-body','完整正文预览');
+ const title=one('input#title[placeholder="请填写标题"]','标题'),editor=one('.left-content textarea.textarea','正文编辑器');
  if(action==='identity')return evidence;
  if(['preflight','submit','receipt'].includes(action))fail('阿里云公开发布尚未开放，未点击发布或接受声明');
  if(!article?.title||!article?.text||!article?.html)fail('缺少完整确认稿件');
@@ -28,14 +28,18 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
  const expectedText=article.text+disclosure;
  const parsed=new DOMParser().parseFromString(article.html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html');
  const expected=norm(parsed.body.textContent+disclosure);
- const matches=()=>text(title)===norm(article.title)&&text(editor)===norm(expectedText)&&text(preview)===expected;
+ // An empty Mditor has no rendered markdown body. Identity and draft-list
+ // discovery must not depend on a nonempty preview; saved content still must.
+ const previews=()=>all('.markdown-body');
+ const blankPreview=()=>{const p=previews();return p.length<=1&&p.every(e=>!text(e))};
+ const matches=()=>{const p=previews();return p.length===1&&text(title)===norm(article.title)&&text(editor)===norm(expectedText)&&text(p[0])===expected};
  const wait=ms=>new Promise(r=>setTimeout(r,ms));
  if(action==='fill'){
-  if(text(title)||text(editor)||text(preview))fail('编辑器已有内容，未覆盖');
+  if(text(title)||text(editor)||!blankPreview())fail('编辑器已有内容，未覆盖');
   title.focus();return {nativeInsertTitle:article.title};
  }
  if(action==='fill-body'){
-  if(text(title)!==norm(article.title)||text(editor)||text(preview))fail('标题或空白正文校验失败，未覆盖');
+  if(text(title)!==norm(article.title)||text(editor)||!blankPreview())fail('标题或空白正文校验失败，未覆盖');
   editor.focus();return {nativeInsertText:expectedText};
  }
  if(['draft-list-inspect','draft-list-open'].includes(action)){
