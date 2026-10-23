@@ -1,3 +1,4 @@
+import {asciiProductUserAgent} from './user-agent.mjs';
 import {publishingPartition} from './preview-adoption.mjs';
 import {platformPreview} from './platform-preview.mjs';
 import {publicProof} from './public-proof.mjs';
@@ -13,6 +14,7 @@ import {trustedFrame,connectionInput,targetInput} from './security.mjs';
 import {installQuitFlow} from './quit-flow.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
+app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
 const dataRoot=(!app.isPackaged&&process.env.GUANYIN_DESKTOP_DATA)?path.resolve(process.env.GUANYIN_DESKTOP_DATA):path.join(app.getPath('appData'),'GuanyinGEO-Desktop-Preview');
 fs.mkdirSync(dataRoot,{recursive:true,mode:0o700});app.setPath('userData',dataRoot);
 let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();
