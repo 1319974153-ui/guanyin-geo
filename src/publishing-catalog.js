@@ -7,7 +7,7 @@ export const referencePlatformIds = Object.freeze([
  'oschina','bilibili','tencentcloud','aliyun'
 ]);
 const groups = {
- self_hosted: [['wordpress','WordPress'],['typecho','Typecho'],['metaweblog','MetaWeblog API']],
+ self_hosted: [['personal-site','个人官网'],['wordpress','WordPress'],['typecho','Typecho'],['metaweblog','MetaWeblog API']],
  knowledge: [['csdn','CSDN'],['zhihu','知乎'],['juejin','掘金'],['cnblogs','博客园'],['tencentcloud','腾讯云开发者社区'],['aliyun','阿里云开发者社区'],['51cto','51CTO'],['segmentfault','思否'],['oschina','开源中国'],['yuque','语雀'],['imooc','慕课手记'],['woshipm','人人都是产品经理']],
  general: [['toutiao','头条'],['baijiahao','百家号'],['jianshu','简书'],['sohu','搜狐号'],['netease','网易号'],['dayu','大鱼号'],['yidian','一点号']],
  social: [['wechat','微信公众号'],['weibo','微博'],['douyin_article','抖音长文'],['douyin','抖音图文'],['xiaohongshu_article','小红书长文笔记'],['xiaohongshu','小红书图文笔记'],['x','X（Twitter）'],['douban','豆瓣']],
@@ -21,10 +21,10 @@ export function publishingCatalog(){
   const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
   return {
    id,name,group,referenceIncluded:referencePlatformIds.includes(id),
-   implementation:['cnblogs','typecho'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
-   contentTypes:wp||browser||['cnblogs','typecho'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
+   implementation:['cnblogs','typecho','personal-site'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
+   contentTypes:wp||browser||['cnblogs','typecho','personal-site'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:id==='typecho'?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':browser?'local_browser_extension':null,
+   connectionMethod:id==='personal-site'?'scoped_ssh':id==='typecho'?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':browser?'local_browser_extension':null,
    acceptance:id==='cnblogs'?'live_acceptance_pending':wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,

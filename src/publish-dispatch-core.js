@@ -16,13 +16,13 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
  const post=(path,data)=>request(path,{method:'POST',body:JSON.stringify(data)});
  for(const target of targets){
   assertScope();let row=journal[target.key];
-  if(!['wordpress','cnblogs','typecho'].includes(target.platform)&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
+  if(!['wordpress','cnblogs','typecho','personal-site'].includes(target.platform)&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
   if(row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
   try{
-   if(['cnblogs','typecho'].includes(target.platform)){
+   if(['cnblogs','typecho','personal-site'].includes(target.platform)){
     const endpoint='/api/'+target.platform;
     if(row.state!=='draft'){
      const preview=await request(endpoint+'/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
@@ -63,7 +63,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
  for(const row of Object.values(next)){
   assertScope();
   try{
-   if(['cnblogs','typecho'].includes(row.platform)){
+   if(['cnblogs','typecho','personal-site'].includes(row.platform)){
     const endpoint='/api/'+row.platform;
     let data=await request(endpoint+'/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));assertScope();
     if(data.record.state==='submitted'&&Date.now()-Date.parse(data.record.remote?.checkedAt||data.record.publishAcceptedAt)>=60000){data=await request(endpoint+'/reconcile',{method:'POST',body:JSON.stringify({brandId:article.brandId,id:row.id,accountId:row.accountId})});assertScope();}
@@ -99,7 +99,7 @@ export async function recoverDispatchJournal({article,targets,jobs,journal}){
  const next=structuredClone(journal);
  const latest=[...(jobs||[])].sort((a,b)=>b.created-a.created);
  for(const job of latest){
-  if(['cnblogs','typecho'].includes(job.platform)){
+  if(['cnblogs','typecho','personal-site'].includes(job.platform)){
    if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id)continue;
    const target=targets.find(t=>t.platform===job.platform&&t.accountId===job.accountId);if(!target)continue;
    const key=target.key;

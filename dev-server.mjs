@@ -1,3 +1,4 @@
+import {staticSiteBridge} from './local/static-site-bridge.mjs';
 import {publisherBridge} from './local/publisher-bridge.mjs';
 import {localControl} from './local/control.mjs';
 import {r2Adapter} from './local/r2-adapter.mjs';
@@ -23,6 +24,7 @@ const runner=localBackgroundRunner(root,async()=>{
  if(!response.ok)throw new Error('Background tick failed');
 });
 env.LOCAL_RUNTIME=runner;
+env.STATIC_SITE=staticSiteBridge(root);
 const publisherDB=new DatabaseSync(path.join(root,'publisher.sqlite'));fs.chmodSync(path.join(root,'publisher.sqlite'),0o600);
 const publisher=publisherBridge({db:publisherDB,origin:'http://127.0.0.1:'+port,experimentalPublish:process.env.GEO_SOCIAL_PUBLISH_EXPERIMENTAL==='1',publishPlatforms:(process.env.GEO_SOCIAL_PUBLISH_PLATFORMS||'').split(',').filter(Boolean),readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});
 // Only a desktop utility-process parent can reach this channel. HTTP cannot call it.

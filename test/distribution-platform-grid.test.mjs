@@ -15,9 +15,9 @@ function fixture(mode='publish'){
  vm.createContext(g);vm.runInContext(fs.readFileSync(new URL('../public/article-distribution.js',import.meta.url),'utf8'),g);
  return{g,f,get,html:()=>get('[data-distribution-accounts]').innerHTML};
 }
-test('all 35 platforms are visible while catalog-only destinations cannot be selected',()=>{
+test('all 36 platforms are visible while catalog-only destinations cannot be selected',()=>{
  const x=fixture();x.g.distributionRenderTargets(x.f,new Set());
- assert.equal((x.html().match(/data-distribution-row-key=/g)||[]).length,35);
+ assert.equal((x.html().match(/data-distribution-row-key=/g)||[]).length,36);
  assert.match(x.html(),/value="catalog:wechat"[^>]*disabled/);
  assert.match(x.html(),/value="wp:a"[^>]*>/);
  assert.doesNotMatch(x.html(),/value="wp:a"[^>]*disabled/);
@@ -55,7 +55,7 @@ test('editing article clears old success label from platform card without replac
 test('multiple accounts on the same platform retain separate identities and result slots',()=>{
  const x=fixture();x.f.distributionTargets.push({key:'wp:b',platform:'wordpress',accountId:'b',name:'账号 B',modes:['draft']});
  const rows=x.g.distributionPlatformRows(x.f.distributionCatalog,x.f.distributionTargets);
- assert.equal(rows.length,36);assert.equal(rows.filter(r=>r.platform==='wordpress').length,2);
+ assert.equal(rows.length,37);assert.equal(rows.filter(r=>r.platform==='wordpress').length,2);
  x.f.distributionJournal={'wp:a':{state:'published'},'wp:b':{state:'draft'}};
  x.g.distributionRenderTargets(x.f,new Set());assert.match(x.html(),/账号 A/);assert.match(x.html(),/账号 B/);assert.match(x.html(),/发布成功/);assert.match(x.html(),/草稿已保存/);
 });

@@ -1,5 +1,5 @@
 const activeStates=new Set(['sending','queued','preparing','publishing','submitting','uncertain']);
-export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(r.platform==='cnblogs'&&r.state==='submitted')||(r.state==='needs_attention'&&typeof r.jobId==='string'&&!!r.jobId));}
+export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(['cnblogs','typecho','personal-site'].includes(r.platform)&&r.state==='submitted')||(r.state==='needs_attention'&&typeof r.jobId==='string'&&!!r.jobId));}
 
 // The monitor owns only read scheduling. It never enqueues, retries or publishes.
 export function createDispatchWatcher({refresh,valid,pending,paused=()=>false,notify=()=>{},schedule=setTimeout,cancel=clearTimeout,now=Date.now,interval=2000,maxDelay=15000,maxDuration=300000}){

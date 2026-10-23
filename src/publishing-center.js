@@ -1,6 +1,7 @@
 import {canBrand,reject} from './access.js';
 import {wordpressAccount,wordpressProvider} from './publishing-accounts.js';
 import {cnblogsProvider,cnblogsRunState} from './cnblogs.js';
+import {personalSiteProvider,personalSiteRunState} from './personal-site.js';
 import {typechoProvider,typechoRunState} from './typecho.js';
 
 export {publishingCatalog} from './publishing-catalog.js';
@@ -34,12 +35,12 @@ export async function publishingCenterApi(req,env,ctx,h){
   });
  }
  const receipts=[];
- for(const [platform,provider,runState] of [['cnblogs',cnblogsProvider,cnblogsRunState],['typecho',typechoProvider,typechoRunState]]){
+ for(const [platform,provider,runState] of [['cnblogs',cnblogsProvider,cnblogsRunState],['typecho',typechoProvider,typechoRunState],['personal-site',personalSiteProvider,personalSiteRunState]]){
  const cbPrefix=platform+':'+brandId+':';
  const cbRows=(await env.DB.prepare('SELECT provider,model,updated FROM connections WHERE owner=? AND substr(provider,1,length(?))=? ORDER BY provider').bind(ctx.owner,cbPrefix,cbPrefix).all()).results;
  for(const row of cbRows){let m;try{m=JSON.parse(row.model)}catch{reject(409,'网站连接记录无法读取')}
   if(m.brandId!==brandId||provider(brandId,m.accountId)!==row.provider)reject(409,'网站连接品牌或账号不匹配');
-  const usable=m.enabled&&m.verifiedAt&&m.blogId&&(platform!=='typecho'||(m.userId&&m.site&&m.endpoint));
+  const usable=m.enabled&&m.verifiedAt&&m.blogId&&(platform!=='personal-site'||(env.GEO_LOCAL_MODE==='true'&&env.STATIC_SITE?.list().some(p=>p.id===m.accountId&&p.site===m.site)))&&(platform!=='typecho'||(m.userId&&m.site&&m.endpoint));
   accounts.push({id:row.provider,platform,brandId,accountId:m.accountId,username:m.username,site:m.site,blog:m.blog,endpoint:m.endpoint,connectionRevision:m.revision,status:!m.enabled?'disabled':usable?'verified':'unverified',verifiedAt:m.verifiedAt,capabilities:{createDraft:!!usable&&['owner','admin','editor'].includes(ctx.role),publish:!!usable&&['owner','admin','editor'].includes(ctx.role)}});
  }
  const receiptRows=(await env.DB.prepare("SELECT id,state,created,result FROM runs WHERE owner=? AND kind=? AND json_extract(result,'$.brandId')=? ORDER BY created DESC LIMIT 1000").bind(ctx.owner,platform,brandId).all()).results;
