@@ -53,7 +53,9 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
  if(action==='save-draft'){
   // Draft saving does not require the public-post disclaimer. Never accept it.
   const labels=all('label').filter(e=>/免责声明/.test(text(e)));
-  for(const label of labels){const checkbox=label.querySelector('input[type="checkbox"]');if(checkbox?.checked){checkbox.click();if(checkbox.checked)fail('无法取消发布声明，未保存');}}
+  const checkboxes=[...new Set(labels.map(label=>label.querySelector('input[type="checkbox"]')).filter(Boolean))];
+  if(checkboxes.length!==1)fail('无法确认发布声明控件，未保存');
+  const checkbox=checkboxes[0];if(checkbox.checked){checkbox.click();if(checkbox.checked)fail('无法取消发布声明，未保存');}
   const buttons=all('button').filter(e=>text(e)==='存为草稿'&&!e.disabled);
   if(buttons.length!==1)fail('存为草稿按钮未就绪，未点击保存');
   buttons[0].click();return {saveAttempted:true};

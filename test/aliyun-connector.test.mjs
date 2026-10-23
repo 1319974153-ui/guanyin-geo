@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {aliyunPage} from '../browser-extension/aliyun.js';
 import {editorEvidence,draftEvidence,receiptEvidence,preparationEditorUrl} from '../browser-extension/platforms.js';
 import {navigationAllowed} from '../desktop/security.mjs';
-function fixture({body='第一段 第二段',title='技术稿',account='author-123',url='https://developer.aliyun.com/article/new?edit=123#/',duplicates=false,checked=true}={}){
+function fixture({body='第一段 第二段',title='技术稿',account='author-123',url='https://developer.aliyun.com/article/new?edit=123#/',duplicates=false,checked=true,missingDisclaimer=false}={}){
  let clicks=0,opened=0;const el=(innerText,extra={})=>({innerText,textContent:innerText,getClientRects:()=>[{}],querySelector:()=>null,querySelectorAll:()=>[],focus(){},click(){},...extra});
  const editor=el('',{tagName:'TEXTAREA',value:body}),titleEl=el('',{tagName:'INPUT',value:title}),preview=el(body);
  const checkbox={checked,click(){this.checked=false}},label=el('已同意用户免责声明',{querySelector:()=>checkbox});
@@ -17,7 +17,7 @@ function fixture({body='第一段 第二段',title='技术稿',account='author-1
   if(s==='.markdown-body')return [preview];
   if(s==='.draft-list-dialog')return [el('草稿箱',{querySelectorAll:()=>Array.from({length:duplicates?2:1},row)})];
   if(s==='button')return [el('存为草稿',{click(){clicks++}}),el('发布文章',{click(){throw Error('不应点击公开发布')}})];
-  if(s==='label')return [label];return [];
+  if(s==='label')return missingDisclaimer?[]:[label];return [];
  }};
  const context=vm.createContext({URL,URLSearchParams,document:doc,location:new URL(url),getComputedStyle:()=>({visibility:'visible'}),setTimeout:f=>f(),DOMParser:class{parseFromString(s){return {body:{textContent:s.replace(/<[^>]*>/g,'')}}}}});
  const article={title:'技术稿',text:'第一段\n\n第二段',html:'<p>第一段</p><p>第二段</p>',ai:false};
@@ -56,3 +56,5 @@ test('Alibaba accepts only observed editor URLs; draft URL is never a public rec
 });
 
 test('Alibaba rejects unverified embedded media instead of calling it a text-only success',async()=>{const f=fixture();assert.match((await f.run('save-draft',{article:{...f.article,text:'![image](https://example.com/image.png)'}})).connectorError,/纯文本/);assert.equal(f.clicks,0)});
+
+test('Alibaba missing disclaimer control stops before save instead of silently accepting defaults',async()=>{const f=fixture({missingDisclaimer:true});assert.match((await f.run('save-draft')).connectorError,/声明控件/);assert.equal(f.clicks,0)});
