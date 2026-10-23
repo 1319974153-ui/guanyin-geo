@@ -11,11 +11,11 @@ export function publishingEvidence(id){
   const passed=id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||id==='zhihu'&&action==='publish';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
-   evidence:passed?{reference:id==='personal-site'?'docs/PERSONAL-SITE.md':receipt,connectorVersion:id==='zhihu'&&action==='draft'?'0.2.7':null,scope:id==='51cto'?'2026-10-23 Mac 桌面：账号17802063、原草稿2103828与完整正文已核对；同稿自动提交15031390，官方显示发布成功-待审核；非公开可见证明':id==='tencentcloud'?'2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功':id==='personal-site'?'2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网':id==='cnblogs'?'r19 真账号发布与匿名公开正文核验通过，原文 23402288':id==='zhihu'&&action==='publish'?'真实公开文章 2096634179358401344 已人工核对；产品公开正文自动核验尚未通过':id==='csdn'&&action==='draft'?'原稿 168768477 已保存并在草稿箱核对；公开提交因平台当日额度未完成':'专用非公开稿件验收'}:null}];
+   evidence:passed?{reference:id==='personal-site'?'docs/PERSONAL-SITE.md':receipt,connectorVersion:id==='zhihu'&&action==='draft'?'0.2.7':null,scope:id==='51cto'?'2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测':id==='tencentcloud'?'2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功':id==='personal-site'?'2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网':id==='cnblogs'?'r19 真账号发布与匿名公开正文核验通过，原文 23402288':id==='zhihu'&&action==='publish'?'真实公开文章 2096634179358401344 已人工核对；产品公开正文自动核验尚未通过':id==='csdn'&&action==='draft'?'原稿 168768477 已保存并在草稿箱核对；公开提交因平台当日额度未完成':'专用非公开稿件验收'}:null}];
  }));
 }
 export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
- if(id==='51cto')return {stage:'草稿与提交已实测',note:'Mac 桌面已自动填稿、恢复原草稿回执并提交同一篇文章；平台人工审核中，尚未证明公开可见。'};
+ if(id==='51cto')return {stage:'草稿与提交已实测',note:'Mac 桌面已通过全新两图草稿自动保存与回读；纯文本稿审核后已自动核对匿名全文并显示发布成功。图片稿公开提交仍待实测。'};
  if(id==='tencentcloud')return {stage:'草稿与公开发布已实测',note:'Mac 桌面已自动新建草稿并提交同一篇正式稿；后台已发布，匿名完整正文已核对；r39 已自动核对匿名完整正文并显示发布成功'};
  if(id==='cnblogs')return {stage:'草稿与公开发布已实测',note:'真实账号草稿、公开发布及匿名正文自动核验已通过；每次发送仍须取得自己的回执'};
  if(id==='zhihu')return {stage:'草稿与公开发布已实测',note:'已提交真实文章并人工核对公开正文；产品自动公开核验尚待完善，未核对时显示已提交'};

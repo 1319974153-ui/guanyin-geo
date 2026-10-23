@@ -35,7 +35,7 @@ async function identity(tabId,platform='csdn'){let last;for(let i=0;i<12;i++){tr
 async function setStatus(message){await chrome.storage.local.set({status:message})}
 async function submitPrepared(platform,job,tabId,article,call){
  const me=await page(tabId,'identity',undefined,job.accountId,platform);
- const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash});
+ const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash,mediaProof:article.mediaProof||[]});
   if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
   await page(tabId,'submit',article,job.accountId,platform,job.media);
   for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',platform==='51cto'?article:undefined,platform==='51cto'?job.accountId:undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
@@ -113,7 +113,7 @@ async function locateFiftyoneDraft(job){
 async function savedDraft(platform,job,tabId,call){
  // Observe the same saved ID twice; a bare editor URL or autosave-in-progress
  // label is not a durable draft receipt. Never click Publish in this path.
- const article={...job.snapshot,tags:job.tags};let previous=null,toutiaoLocated=false;
+ const article={...job.snapshot,tags:job.tags,mediaProof:job.originalDraft?.mediaProof||(await journal(platform))?.mediaProof||[]};let previous=null,toutiaoLocated=false;
  for(let i=0;i<20;i++){
   await delay(1000);
   if(platform==='toutiao'&&i>=3&&!toutiaoLocated){
@@ -150,7 +150,7 @@ async function run(platform='csdn'){
   job=(await call('claim')).job;if(!job)return;
   // Persist enough to reconcile after MV3 suspension; never replay a submit from this journal.
   await saveJournal(platform,{job,tabId});
-  const article={...job.snapshot,tags:job.tags};
+  const article={...job.snapshot,tags:job.tags,mediaProof:job.originalDraft?.mediaProof||(await journal(platform))?.mediaProof||[]};
   if(job.recoverPreparation&&platform==='51cto'&&job.mode==='draft'){editorTouched=true;await savedDraft(platform,job,tabId,call);return;}
   if(job.originalDraft){
    if(job.mode!=='publish'||!pending.originalDraft||job.originalDraft.url!==pending.originalDraft.url||job.originalDraft.articleId!==pending.originalDraft.articleId)throw new Error('原稿任务已变化，未覆盖或提交');
@@ -159,12 +159,13 @@ async function run(platform='csdn'){
    await page(tabId,'preflight',article,job.accountId,platform,job.media||[]);
    await submitPrepared(platform,job,tabId,article,call);return;
   }
-  editorTouched=true;if(job.media?.length){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
+  editorTouched=true;if(job.media?.length&&platform!=='51cto'){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
+  if(platform==='51cto'&&job.media?.length){const result=await page(tabId,'media',article,job.accountId,platform,job.media);article.mediaProof=result.mediaProof;const entry=await journal(platform);entry.mediaProof=result.mediaProof;await saveJournal(platform,entry);}
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   if(job.mode==='draft'){if(['csdn','tencentcloud'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   if(platform==='51cto'){
    let found,last;
-   for(let i=0;i<20;i++){try{found=await locateFiftyoneDraft(job);article.verifiedDraftList=found.candidate;const proof=await page(found.tabId,'draft-receipt',article,job.accountId,platform);if(!draftEvidence(platform,proof))throw Error('原草稿回执未就绪');break}catch(e){last=e;found=null;await delay(1000)}}
+   for(let i=0;i<20;i++){try{if(i%5===4){const entry=await journal(platform);if(entry?.fiftyoneLookup&&!entry.fiftyoneLookup.candidate)await chrome.tabs.reload(entry.fiftyoneLookup.listTabId);}found=await locateFiftyoneDraft(job);article.verifiedDraftList=found.candidate;const proof=await page(found.tabId,'draft-receipt',article,job.accountId,platform,job.media||[]);if(!draftEvidence(platform,proof))throw Error('原草稿回执未就绪');break}catch(e){last=e;found=null;await delay(1000)}}
    if(!found)throw last||Error('原草稿尚未保存，未提交');
    tabId=found.tabId;const entry=await journal(platform);entry.tabId=tabId;await saveJournal(platform,entry);
   }
@@ -183,7 +184,7 @@ async function resume(platform='csdn',expectedJobId){
   const j=inflight.job;if(expectedJobId&&j.id!==expectedJobId)throw new Error('原任务已变化，未继续提交');const connection=await settings(platform);call=(action,data)=>api(action,data,connection);
   const state=await call('job-state',{id:j.id,lease:j.lease});
   if(!state.canResume)throw new Error('此任务不能继续提交；请核对上次回执，不会重复发布');
-  const article={...j.snapshot,tags:j.tags};
+  const article={...j.snapshot,tags:j.tags,mediaProof:j.originalDraft?.mediaProof||inflight.mediaProof||[]};
   if(platform==='51cto'&&j.originalDraft){
    const proof=draftEvidence(platform,{...j.originalDraft,accountId:j.accountId,contentVerified:true});if(!proof)throw Error('原草稿地址无效，未继续');
    const current=await chrome.tabs.get(inflight.tabId);

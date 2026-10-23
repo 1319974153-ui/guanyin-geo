@@ -1,7 +1,7 @@
 // 51CTO ordinary creator editor. All evidence comes from the visible UI.
-export async function fiftyonePage({action,article,accountId}){
+export async function fiftyonePage({action,article,accountId,media=[]}){
  try{
- const fail=m=>{throw Error(m)},norm=s=>String(s||'').replace(/\s+/g,' ').trim();
+ const fail=m=>{throw Error(m)},norm=s=>String(s||'').replace(/[\u200b\ufeff]/g,'').replace(/\s+/g,' ').trim();
  const visible=e=>!!e&&!!e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden';
  const all=s=>[...document.querySelectorAll(s)].filter(visible),text=e=>norm(/^(INPUT|TEXTAREA)$/.test(e?.tagName)?e.value:e?.innerText??e?.textContent);
  const one=(s,label)=>{const a=all(s);if(a.length!==1)fail(label+'结构不明确，已保留原稿');return a[0]};
@@ -29,17 +29,30 @@ export async function fiftyonePage({action,article,accountId}){
  const matches=()=>text(title)===norm(article.title)&&text(editor)===expected;
  if(action==='fill'){
   if(text(title)||text(editor)||editor.querySelector('img,video'))fail('编辑器已有内容，未覆盖');
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(title,article.title);
-  title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true}));
+  title.focus();title.select();return {nativeInsertTitle:article.title};
+ }
+ if(action==='fill-body'){
+  if(text(title)!==norm(article.title)||text(editor)||editor.querySelector('img,video'))fail('标题输入未确认或正文已有内容，未覆盖');
   editor.focus();return {nativeInsertText:article.text+disclosure};
  }
  for(let i=0;i<10&&!matches();i++)await new Promise(r=>setTimeout(r,200));
  if(!matches())fail('51CTO 标题或完整正文与确认稿不一致，未继续');
+ const assets=()=>[...editor.querySelectorAll('img')].filter(visible).map(img=>{let u;try{u=new URL(img.currentSrc||img.src)}catch{return null}return img.complete&&img.naturalWidth>0&&u.protocol==='https:'&&/^s[12]\.51cto\.com$/.test(u.hostname)&&u.pathname.startsWith('/images/')?u.origin+u.pathname:null});
+ if(action==='media'){
+  if(editor.querySelector('img,video')||!media.length)fail('图片上传前编辑器必须没有图片，未重复上传');
+  editor.focus();const range=document.createRange();range.selectNodeContents(editor);range.collapse(false);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+  const dt=new DataTransfer();for(const m of media){const raw=atob(m.dataUrl.split(',')[1]);dt.items.add(new File([Uint8Array.from(raw,c=>c.charCodeAt(0))],m.name,{type:m.type}));}
+  editor.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true,cancelable:true}));
+  for(let i=0;i<50;i++){const urls=assets();if(urls.length===media.length&&urls.every(Boolean)&&new Set(urls).size===urls.length)return {mediaProof:urls.map((url,i)=>({url,sha256:media[i].sha256}))};await new Promise(r=>setTimeout(r,300));}
+  fail('图片上传未取得完整结果，已保留原稿，未重传');
+ }
+ if(media.length){const urls=assets(),proof=article.mediaProof;if(!Array.isArray(proof)||proof.length!==media.length||urls.length!==media.length||urls.some((u,i)=>!u||u!==proof[i].url||proof[i].sha256!==media[i].sha256))fail('原稿图片与本次确认图片不一致，未继续');}
+ else if(assets().length)fail('原稿出现额外图片，未继续');
  if(action==='prepared')return {...evidence,contentVerified:true};
  if(action==='draft-receipt'){
   const proof=article.verifiedDraftList;
   if(!draftId||!proof?.draftListed||proof.accountId!==ids[0]||proof.articleId!==draftId||proof.url!==location.href)return null;
-  return {url:location.href,articleId:draftId,accountId:ids[0],savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};
+  return {url:location.href,articleId:draftId,accountId:ids[0],savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content',mediaProof:article.mediaProof||[]};
  }
  const leaf=label=>{const a=all('*').filter(e=>text(e)===label&&![...e.children].some(c=>text(c)===label));if(a.length!==1)fail('未找到唯一的“'+label+'”选项');return a[0]};
  const button=label=>{const a=all('button').filter(e=>text(e).replace(/[\ue000-\uf8ff]/g,'').trim()===label&&!e.disabled);if(a.length!==1)fail('未找到唯一可用的“'+label+'”按钮');return a[0]};

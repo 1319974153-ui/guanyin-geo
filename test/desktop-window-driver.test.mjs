@@ -86,3 +86,11 @@ test('Tencent native body entry is bound to the isolated owned editor and only f
  await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'receipt'}]});assert.equal(inserted.length,1);
  wc.url='https://evil.test';await assert.rejects(d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]}),/登录完成/);assert.equal(inserted.length,1);
 });
+
+test('51CTO native title precedes body and aborts if title acknowledgement fails',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'fifty-title',platform:'51cto'});const tab=await d.chrome.tabs.create({url:'https://blog.51cto.com/blogger/publish?old=1',active:false});const wc=x.windows[0].webContents,inserted=[];
+ wc.insertText=async text=>inserted.push(text);let calls=0;wc.executeJavaScript=async()=>++calls===1?{nativeInsertTitle:'图片稿标题'}:{nativeInsertText:'完整正文'};
+ const r=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]});assert.equal(r[0].result.filled,true);assert.deepEqual(inserted,['图片稿标题','完整正文']);
+ calls=0;inserted.length=0;wc.executeJavaScript=async()=>++calls===1?{nativeInsertTitle:'图片稿标题'}:{connectorError:'标题未确认'};
+ const stopped=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[{action:'fill'}]});assert.equal(stopped[0].result.connectorError,'标题未确认');assert.deepEqual(inserted,['图片稿标题']);
+});

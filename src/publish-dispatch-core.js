@@ -6,7 +6,7 @@ export function availableActions(targets) {
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
 }
 export async function dispatchId(article,target){
- const fields=[article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId];if(['douyin','xiaohongshu'].includes(target.platform)&&article.media?.length)fields.push(article.media.map(m=>m.sha256||m.dataUrl));const source=JSON.stringify(fields);
+ const fields=[article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId];if(['douyin','xiaohongshu','51cto'].includes(target.platform)&&article.media?.length)fields.push(article.media.map(m=>m.sha256||m.dataUrl));const source=JSON.stringify(fields);
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
  return 'gy-'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
 }
@@ -49,7 +49,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
     }
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto'].includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
-    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu'].includes(target.platform)?article.media||[]:[],mode});
+    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu','51cto'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
    }else throw new Error('平台尚未接入');
   }catch(e){row.state=wrote?'uncertain':'needs_attention';row.error=e.message;}
@@ -82,7 +82,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
      const lookup=await request('/api/local-publisher/lookup',{method:'POST',body:JSON.stringify({brandId:article.brandId,contentId:article.id,sessionId:row.sessionId,accountId:row.accountId})});
      assertScope();
      job=lookup.job;
-     if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error='已确认未入队；重新核验账号后可再次点击填入或发布';delete row.refreshError;continue;}
+     if(!job&&lookup.notEnqueued===true){row.state='not_queued';row.error=row.error||'已确认未入队，可检查后重新发送';delete row.refreshError;continue;}
      if(job)row.jobId=job.id;
     }
     if(job){row.state=job.state;row.error=job.error||'';row.remote=job.receipt||null;row.preparation=job.preparation||null;row.resumable=job.resumable===true}
@@ -108,7 +108,7 @@ export async function recoverDispatchJournal({article,targets,jobs,journal}){
    continue;
   }
   if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id||!job.sessionId||job.state==='cancelled')continue;
-  if(['douyin','xiaohongshu'].includes(job.platform)&&JSON.stringify(job.mediaHashes||[])!==JSON.stringify((article.media||[]).map(m=>m.sha256)))continue;
+  if(['douyin','xiaohongshu','51cto'].includes(job.platform)&&JSON.stringify(job.mediaHashes||[])!==JSON.stringify((article.media||[]).map(m=>m.sha256)))continue;
   const key=job.platform+':'+job.sessionId;if(next[key])continue;
   const target=targets.find(t=>t.key===key&&t.platform===job.platform&&t.accountId===job.accountId);
   const row={key,platform:job.platform,sessionId:job.sessionId,accountId:job.accountId,name:target?.name||job.accountId};

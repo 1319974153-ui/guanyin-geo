@@ -63,3 +63,16 @@ test('51CTO prepared article upgrades to read-only draft recovery without a seco
  const r=await e.app('enqueue',{...args,mode:'draft'});assert.equal(r.status,200);assert.equal(r.data.job.id,j.id);assert.equal((await call('pending')).recoverPreparation,true);assert.equal((await call('claim')).job.recoverPreparation,true);
  assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,1);
 });
+
+test('51CTO image draft preserves media, rejects missing proof and restores the exact revision',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
+ const media=[{dataUrl:'data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,1]).toString('base64')}];
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'draft',expectedAccountId:'author',media};const r=await e.app('enqueue',args);assert.equal(r.status,200);
+ const j=(await call('claim')).job;const draft={url:'https://blog.51cto.com/blogger/draft/123',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true};
+ await assert.rejects(call('report',{id:j.id,lease:j.lease,state:'draft',draft}));
+ const proof=[{sha256:j.media[0].sha256,url:'https://s2.51cto.com/images/blog/one.png'}];await call('report',{id:j.id,lease:j.lease,state:'draft',draft:{...draft,mediaProof:proof}});
+ assert.equal((await e.app('enqueue',{...args,media:[]})).status,409);
+ const restored=await e.app('media',{brandId:'a',contentId:'c'});assert.equal(restored.status,200);assert.equal(restored.data.media[0].dataUrl,media[0].dataUrl);
+ assert.equal((await e.app('media',{brandId:'b',contentId:'c'})).status,409);
+ e.state.contents[0].text='changed';assert.equal((await e.app('media',{brandId:'a',contentId:'c'})).data.media.length,0);
+});

@@ -1,4 +1,4 @@
-import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol} from '../browser-extension/platforms.js';
+import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable} from '../src/knowledge-core.js';
@@ -14,7 +14,7 @@ const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,b
 
 function validateMedia(input,limits){
  if(!Array.isArray(input)||input.length>limits.images)fail(400,'此平台不支持当前图片数量');
- if(limits.images&&!input.length)fail(400,limits.name+'需要上传图文图片，不能只发送长文章');
+ if(limits.images&&!limits.optionalImages&&!input.length)fail(400,limits.name+'需要上传图文图片，不能只发送长文章');
  let total=0;return input.map((m,i)=>{
   const match=typeof m?.dataUrl==='string'&&m.dataUrl.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/);if(!match)fail(400,'仅支持 PNG、JPEG、WebP 图片');
   const bytes=Buffer.from(match[2],'base64');total+=bytes.length;if(bytes.length>2097152||total>8388608||!bytes.length)fail(400,'单张图片最多 2 MB，合计最多 8 MB');
@@ -39,10 +39,10 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  // receipt is never promoted by a renderer/extension assertion.
  const checking=new Set();
  function checkPublic(j){
-  if(!verifyPublic||j.platform!=='tencentcloud'||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<60000))return;
+  if(!verifyPublic||!['tencentcloud','51cto'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.platform==='tencentcloud'&&j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<(j.platform==='51cto'?Math.min(3600000,60000*2**Math.min(j.publicCheckAttempts||0,6)):60000)))return;
   checking.add(j.id);if(j.publicCheckVersion!=='rendered-v2')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v2';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
   Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
-   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body'};save('publisher_jobs',latest)}
+   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:{})};save('publisher_jobs',latest)}
   }).catch(()=>{}).finally(()=>checking.delete(j.id));
  }
  let pairing=null;
@@ -100,6 +100,12 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;for(const j of jobs().filter(j=>j.brandId===brandId))checkPublic(j);
      return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
+    if(action==='media'){
+     brand(b.brandId);const snap=snapshot(b.brandId,b.contentId,'51cto'),sourceHash=hash(snap);
+     const matches=jobs().filter(j=>j.brandId===b.brandId&&j.platform==='51cto'&&j.sourceHash===sourceHash&&j.media?.length);
+     const revisions=new Set(matches.map(j=>j.mediaHash));if(revisions.size>1)fail(409,'找到多个图片版本，请核对原任务');
+     return respond({media:matches[0]?.media||[]});
+    }
     if(action==='pairing'){brand(b.brandId);const platform=b.platform||'csdn';if(!PLATFORMS[platform]||PLATFORMS[platform].desktopOnly)fail(400,'此平台请在免插件桌面版连接');pairing={code:secret(),brandId:b.brandId,platform,expires:clock()+300000};return respond({code:pairing.code,expires:pairing.expires,platform,origin,instance})}
     if(action==='revoke'){
      const s=sessions().find(s=>s.id===b.sessionId);if(!s)fail(404,'找不到连接');s.revoked=true;save('publisher_sessions',s);
@@ -121,7 +127,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const tags=Array.isArray(b.tags)?b.tags.map(t=>String(t).trim()):[];
      const platform=s.platform||'csdn',limits=platformConfig(platform);
      if((limits.tagsRequired&&!tags.length)||tags.length>5||tags.some(t=>!t||t.length>20)||new Set(tags).size!==tags.length)fail(400,'请填写 1 至 5 个不同的文章标签');
-     const media=validateMedia(b.media||[],limits);const snap=snapshot(b.brandId,b.contentId,platform),sourceHash=hash(snap);const mediaHash=hash(media.map(m=>m.sha256));
+     const media=validateMedia(b.media||[],limits);if(platform==='51cto'&&media.length&&b.mode==='prepare')fail(400,'图片稿请选择保存草稿或发布文章，以保留完整图片回执');const snap=snapshot(b.brandId,b.contentId,platform),sourceHash=hash(snap);const mediaHash=hash(media.map(m=>m.sha256));
      const fingerprint=hash(platform==='csdn'?{brandId:b.brandId,accountId:s.account.accountId,sourceHash,mode:b.mode}:{brandId:b.brandId,platform,accountId:s.account.accountId,sourceHash,mediaHash,mode:b.mode});
      const old=db.prepare('SELECT body FROM publisher_jobs WHERE fingerprint=?').get(fingerprint);
      if(old){
@@ -134,7 +140,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
       return respond({job:publicJob(existing),existing:true});
      }
      // Promote only a verified draft in place. Never open a new editor for this revision.
-     const related=jobs().filter(j=>j.brandId===b.brandId&&j.platform===platform&&j.accountId===s.account.accountId&&j.sourceHash===sourceHash);
+     if(platform==='51cto'&&jobs().some(j=>j.brandId===b.brandId&&j.platform===platform&&j.accountId===s.account.accountId&&j.sourceHash===sourceHash&&j.mediaHash!==mediaHash))fail(409,'这份稿件已有不同图片版本的任务，请恢复原图片或另存新稿，不会重复发送');
+     const related=jobs().filter(j=>j.brandId===b.brandId&&j.platform===platform&&j.accountId===s.account.accountId&&j.sourceHash===sourceHash&&(platform!=='51cto'||j.mediaHash===mediaHash));
      if(platform==='51cto'&&b.mode==='draft'){
       const prepared=related.filter(j=>j.mode==='prepare'&&j.state==='prepared'&&j.preparation&&!j.attempted);
       if(prepared.length===1){const j=prepared[0];j.mode='draft';j.recoverPreparation=true;j.state='queued';j.sessionId=s.id;j.accountRevision=s.account.revision;j.expires=clock()+600000;j.error='';delete j.lease;checkCurrent(j,s);save('publisher_jobs',j);return respond({job:publicJob(j),promoted:true});}
@@ -207,6 +214,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     if(action==='commit'){
      if(j.mode!=='publish'||!publishing.has(j.platform||'csdn')||j.state!=='preparing'||j.attempted||j.leaseExpires<clock())fail(409,'不允许再次提交');checkCurrent(j,session);
      if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'执行账号或文章不匹配');
+     if(j.platform==='51cto'){const proof=fiftyoneMediaProof(b.mediaProof||[],j.media||[]);if(!proof)fail(409,'缺少与确认稿一致的图片回执');j.mediaProof=proof;}
      j.state='submitting';j.attempted=true;j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({permit:true,validUntil:clock()+10000});
     }
     if(b.state==='draft'){
@@ -217,7 +225,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      // never grants new writing authority. The current login must still match.
      if(session.account?.accountId!==j.accountId)fail(409,'当前账号已变化，未登记草稿');
      if(j.receipt){if(j.receipt.articleId!==draft.articleId)fail(409,'草稿编号与已有回执不同');return respond({job:publicJob(j),existing:true})}
-     j.state='draft';j.error='';j.receipt={url:draft.url,articleId:draft.articleId,observedAt:clock(),verification:draft.verification||'editor_saved_status_and_content',savedVerified:true,publicVerified:false};
+     if(j.platform==='51cto'){const proof=fiftyoneMediaProof(draft.mediaProof||[],j.media||[]);if(!proof)fail(400,'草稿图片回执不匹配');j.mediaProof=proof;}
+     j.state='draft';j.error='';j.receipt={url:draft.url,articleId:draft.articleId,observedAt:clock(),verification:draft.verification||'editor_saved_status_and_content',savedVerified:true,publicVerified:false,...(j.platform==='51cto'?{mediaProof:j.mediaProof}: {})};
      save('publisher_jobs',j);return respond({job:publicJob(j)});
     }
     let preparation;
@@ -258,5 +267,5 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
   const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
  }
- return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest};
+ return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(j.platform==='51cto'&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
 }

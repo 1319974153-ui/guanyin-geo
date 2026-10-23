@@ -1,6 +1,6 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
- '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
+ '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:9,optionalImages:true,desktopOnly:true},
  tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
@@ -58,7 +58,7 @@ export function supportsDraftProtocol(platform,version){return Number.isInteger(
 export function draftEvidence(platform,value){
  try{
   if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
-  if(platform==='51cto'){const u=new URL(value.url),m=u.pathname.match(/^\/blogger\/draft\/([1-9]\d{0,19})$/);if(!editorEvidence(platform,u.href)||u.username||u.password||!m||m[1]!==String(value.articleId))return null;return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};}
+  if(platform==='51cto'){const u=new URL(value.url),m=u.pathname.match(/^\/blogger\/draft\/([1-9]\d{0,19})$/);if(!editorEvidence(platform,u.href)||u.username||u.password||!m||m[1]!==String(value.articleId))return null;return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content',...(value.mediaProof?{mediaProof:value.mediaProof}:{})};}
   if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};}
   if(platform==='toutiao'){
    const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
@@ -75,4 +75,14 @@ export function draftEvidence(platform,value){
   if(u.origin!=='https://zhuanlan.zhihu.com'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};
  }catch{return null}
+}
+
+// Immutable upload lineage: bind ordered source hashes to the platform's uploaded assets.
+export function fiftyoneMediaProof(value,media=[]){
+ if(!Array.isArray(value)||value.length!==media.length||value.length>9)return null;
+ try{return value.map((p,i)=>{const u=new URL(p.url);if(u.protocol!=='https:'||!/^s[12]\.51cto\.com$/.test(u.hostname)||u.port||u.username||u.password||!u.pathname.startsWith('/images/')||p.sha256!==media[i].sha256||!/^[a-f0-9]{64}$/.test(p.sha256))throw Error();return {sha256:p.sha256,url:u.origin+u.pathname}})}catch{return null}
+}
+export function fiftyonePublicUrl(job){
+ if(job.platform!=='51cto'||job.mode!=='publish'||!job.attempted||!['submitted','published'].includes(job.state)||!/^[1-9]\d{0,19}$/.test(job.accountId)||!receiptEvidence('51cto',job.receipt?.url,job.receipt?.articleId))return null;
+ return 'https://blog.51cto.com/u_'+job.accountId+'/'+job.receipt.articleId;
 }
