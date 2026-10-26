@@ -6,7 +6,7 @@ export function aliyunSecureReturn(value){
  return null;
 }
 export function aliyunLoginRelay(value){
- try{const u=new URL(value);return u.protocol==='https:'&&u.hostname==='account-s.aliyun.com'&&u.pathname==='/pass/adding'&&!u.username&&!u.password&&!u.port}catch{return false}
+ try{const u=new URL(value);return u.protocol==='https:'&&['account-s.aliyun.com','account-cn-s.alibabacloud.com'].includes(u.hostname)&&u.pathname==='/pass/adding'&&!u.username&&!u.password&&!u.port}catch{return false}
 }
 export function platformPreview({BrowserWindow,session}){
  const windows=new Map();

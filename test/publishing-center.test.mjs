@@ -32,7 +32,7 @@ test('publishing directory never represents planned connectors or exports as aut
  assert.deepEqual(r.data.platforms.filter(p=>p.implementation==='browser_adapter_acceptance').map(p=>p.id).sort(),['51cto','aliyun','csdn','douyin','tencentcloud','toutiao','xiaohongshu','zhihu']);
  assert.deepEqual(r.data.platforms.filter(p=>p.referenceIncluded).map(p=>p.id).sort(),['wechat','weibo','zhihu','juejin','baijiahao','cnblogs','douyin_article','douyin','xiaohongshu_article','xiaohongshu','toutiao','51cto','jianshu','segmentfault','oschina','bilibili','tencentcloud','aliyun'].sort());
  for(const id of ['douyin_article','xiaohongshu_article'])assert.equal(r.data.platforms.find(p=>p.id===id).implementation,'planned');
- const aliyun=r.data.platforms.find(p=>p.id==='aliyun');assert.equal(aliyun.connectionMethod,'desktop_browser');assert.equal(aliyun.actionEvidence.draft.implemented,true);assert.equal(aliyun.actionEvidence.draft.liveAcceptance,'pending');assert.equal(aliyun.actionEvidence.publish.implemented,false);
+ const aliyun=r.data.platforms.find(p=>p.id==='aliyun');assert.equal(aliyun.connectionMethod,'desktop_browser');assert.equal(aliyun.actionEvidence.draft.implemented,true);assert.equal(aliyun.actionEvidence.draft.liveAcceptance,'passed');assert.equal(aliyun.actionEvidence.publish.implemented,false);
  assert.ok(r.data.platforms.every(p=>p.accountRequired&&!p.capabilities));
  assert.ok(r.data.exports.every(p=>p.kind==='local_export'));
 });

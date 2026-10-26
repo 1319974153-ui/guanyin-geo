@@ -25,3 +25,8 @@ test('Alibaba observed SMS redirect is permitted using current Electron details.
  win.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/unknown',preventDefault(){blocked=true}});assert.equal(blocked,true);
  preview.open('51cto');blocked=false;win.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/pass/adding',preventDefault(){blocked=true}});assert.equal(blocked,true);
 });
+
+test('Alibaba regional SMS relay is exact HTTPS path only, never a broad cloud allowlist',()=>{
+ assert.equal(aliyunLoginRelay('https://account-cn-s.alibabacloud.com/pass/adding?relay=opaque'),true);
+ for(const url of ['http://account-cn-s.alibabacloud.com/pass/adding','https://account-cn-s.alibabacloud.com/other','https://account-cn-s.alibabacloud.com.evil.test/pass/adding','https://user:secret@account-cn-s.alibabacloud.com/pass/adding','https://account-cn-s.alibabacloud.com:8443/pass/adding','https://other.alibabacloud.com/pass/adding'])assert.equal(aliyunLoginRelay(url),false);
+});
