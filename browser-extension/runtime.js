@@ -253,7 +253,16 @@ async function reconcileJob(platform='csdn'){
    // A human may finish the retained page while an earlier check times out.
    // Observe that exact page before offering another submit; never write here.
    if(platform==='aliyun'){
-    const j=inflight.job,receipt=await page(inflight.tabId,'receipt',j.snapshot,j.accountId,platform);
+    const j=inflight.job;let receipt=await page(inflight.tabId,'receipt',j.snapshot,j.accountId,platform);
+    if(!receipt){
+     // Login return can navigate the retained window back to an empty editor.
+     // Only inspect already-open numbered article pages in this account session.
+     const candidates=(await chrome.tabs.query({url:'https://developer.aliyun.com/article/*'})).filter(t=>{try{const u=new URL(t.url);return u.origin==='https://developer.aliyun.com'&&/^\/article\/[1-9]\d{0,19}$/.test(u.pathname)&&!u.search&&!u.hash}catch{return false}});
+     const observed=new Map();
+     for(const t of candidates){let r;try{r=await page(t.id,'receipt',j.snapshot,j.accountId,platform)}catch{continue}if(r?.contentVerified===true||r?.blocked)observed.set(t.url,r);}
+     if(observed.size>1)throw Error('多个原文回执候选，请核对；不会自动重发');
+     if(observed.size===1)receipt=[...observed.values()][0];
+    }
     if(receipt?.blocked)throw Error(receipt.error);
     if(receipt?.state==='submitted'&&receipt.contentVerified===true){
      await call('report',{id:j.id,lease:j.lease,...receipt,state:'observed_submitted',sourceHash:j.sourceHash});

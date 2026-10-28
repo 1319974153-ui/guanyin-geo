@@ -22,6 +22,12 @@ export function loginPageRequired(platform,value){
 }
 export const LOGIN_EXPIRED_MESSAGE='平台登录已失效，请在已打开的官方窗口登录；完成后观引自动继续核对，不需要重新添加账号。';
 
+// Timeouts and an incomplete editor are not evidence of an expired login.
+export function connectionFailureState(error){
+ const message=typeof error==='string'?error:error?.message;
+ return [LOGIN_EXPIRED_MESSAGE,'请在平台登录完成后继续','请在阿里云官方窗口完成登录'].includes(message)?'needs_login':'error';
+}
+
 // Only numeric network codes are retained. Redirect URLs may contain credentials.
 export function pageLoadFailure(code){
  if(!Number.isInteger(code)||code===-3||code>=0)return null;

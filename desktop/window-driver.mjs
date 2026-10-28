@@ -11,6 +11,14 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
  let state={};if(fs.existsSync(filename)){state=JSON.parse(fs.readFileSync(filename,'utf8'));if(!state||typeof state!=='object'||Array.isArray(state))throw new Error('发布记录损坏，已停止以防重发')}
  let loginTab=null;const windows=new Map(),loadFailures=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(partition||connectionPartition(connection.sessionId));
  browserSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));browserSession.setPermissionCheckHandler(()=>false);
+ async function flushSession(){
+  // Persist only Chromium's existing store. Never read/export credentials,
+  // extend cookie expiration, or turn a session cookie into a persistent one.
+  let timer;
+  try{browserSession.flushStorageData();await Promise.race([browserSession.cookies.flushStore(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('本机会话保存未完成，账号目录保留')),5000)})]);}
+  catch{throw Error('本机会话保存未完成，账号目录保留');}
+  finally{clearTimeout(timer);}
+ }
  function persist(){const tmp=filename+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state),{mode:0o600});fs.renameSync(tmp,filename)}
  function saveTab(id,url,openerTabId){if(!navigationAllowed(connection.platform,url))return;savedTabs[id]={id,url,...(openerTabId?{openerTabId}:{})};state._tabs=savedTabs;persist()}
  function createWindow(url,{id=randomInt(1,2**30),active=true,openerTabId}={}){
@@ -71,5 +79,5 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
   const tab=createWindow(LOGIN_URLS[connection.platform]);loginTab=tab.id;
   // Reuse this window for the first identity check. Never replace an in-flight original editor.
   if(!state.inflightByPlatform?.[connection.platform]&&!state.inflight)await chrome.storage.local.set({['editorTab:'+connection.platform]:tab.id});
- },loginEditorReady(){const w=windows.get(loginTab);return !!w&&!w.isDestroyed()&&!loadFailures.has(loginTab)&&!w.webContents.isLoadingMainFrame()&&editorEvidence(connection.platform,w.webContents.getURL())},async initialize(){await chrome.storage.local.set({connections:{[connection.platform]:connection},...(connection.platform==='csdn'?{connection}:{} )})},showAccount(){const id=state['editorTab:'+connection.platform];if(id){const win=ensureWindow(id);win.show();win.focus();return true}return false},hasVisibleWindow:()=>[...windows.values()].some(w=>!w.isDestroyed()&&w.isVisible()),close(){for(const w of windows.values())if(!w.isDestroyed())w.destroy()},state};
+ },loginEditorReady(){const w=windows.get(loginTab);return !!w&&!w.isDestroyed()&&!loadFailures.has(loginTab)&&!w.webContents.isLoadingMainFrame()&&editorEvidence(connection.platform,w.webContents.getURL())},async initialize(){await chrome.storage.local.set({connections:{[connection.platform]:connection},...(connection.platform==='csdn'?{connection}:{} )})},showAccount(){const id=state['editorTab:'+connection.platform];if(id){const win=ensureWindow(id);win.show();win.focus();return true}return false},hasVisibleWindow:()=>[...windows.values()].some(w=>!w.isDestroyed()&&w.isVisible()),flushSession,async close(){for(const w of windows.values())if(!w.isDestroyed())w.destroy();await flushSession()},state};
 }
