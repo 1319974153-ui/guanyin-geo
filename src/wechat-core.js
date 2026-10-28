@@ -24,7 +24,8 @@ export function wechatPackage({title,text:body,author='',digest='',sourceUrl='',
   if(u.protocol!=='https:'||u.username||u.password||new TextEncoder().encode(sourceUrl).length>1024)throw Error('阅读原文须为不含凭据的HTTPS地址');}
  const formatted=formatArticle(body),doc=parseFragment(formatted.html),warnings=[...formatted.warnings];
  // Never let arbitrary remote images silently disappear after draft upload.
- let hasImages=false;const walk=n=>{if(n.tagName==='img')hasImages=true;for(const c of n.childNodes||[])walk(c)};walk(doc);
+ let hasImages=false;const plain=[];const walk=n=>{if(n.tagName==='img')hasImages=true;if(n.nodeName==='#text')plain.push(n.value);for(const c of n.childNodes||[])walk(c)};walk(doc);
+ if(!digest.trim())digest=Array.from(plain.join('').replace(/\s+/g,' ').trim()).slice(0,120).join('');
  if(hasImages)throw Error('正文图片需要先上传到微信图文素材；当前首版仅支持文字正文与独立封面');
  let html=serialize(doc);if(ai)html+='\n<p>本文包含 AI 辅助生成或整理的内容。</p>';
  if(length(html)>=20000||new TextEncoder().encode(html).length>=1000000)throw Error('公众号正文超过接口限制');

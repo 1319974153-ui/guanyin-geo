@@ -92,3 +92,10 @@ test('token acquisition failures never expose token-provider details',async()=>{
  const c=createWechatClient({enabled:true,tokenProvider:async()=>{throw Error('PRIVATE_KEY')},fetchImpl:()=>assert.fail('network')});
  await assert.rejects(c.draftCount(),e=>e.code==='TOKEN_UNAVAILABLE'&&!e.message.includes('PRIVATE_KEY'));
 });
+
+test('summary is extracted from rendered text without model calls or invented metadata',()=>{
+ const p=wechatPackage({title:'验收',text:'## 订单交接\n\n**核对订单**，保留记录。'});
+ assert.equal(p.digest,'订单交接 核对订单，保留记录。');assert.equal(p.author,'');assert.equal(p.content_source_url,'');
+ assert.equal(wechatPackage({title:'验收',text:'正文',digest:'自定义摘要'}).digest,'自定义摘要');
+ assert.equal(Array.from(wechatPackage({title:'验收',text:'测'.repeat(160)}).digest).length,120);
+});
