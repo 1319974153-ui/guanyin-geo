@@ -307,3 +307,14 @@ test('CSDN and Zhihu verified drafts promote the same task and retain original e
   const receipt=platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/success/123':'https://zhuanlan.zhihu.com/p/123';assert.equal((await e.ext('report',{id:claimed.id,lease:claimed.lease,state:'submitted',url:receipt,articleId:'123'})).data.job.state,'submitted');
  }
 });
+
+test('uncertain CSDN can record a fully verified original draft without gaining retry authority',async t=>{
+ const e=setup(t),j=await e.ready();await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash});
+ const draft={url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',accountId:j.accountId,sourceHash:j.sourceHash,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};
+ const report=patch=>e.ext('report',{id:j.id,lease:j.lease,state:'recovered_draft',draft:{...draft,...patch}});
+ for(const patch of [{accountId:'other'},{sourceHash:'other'},{contentVerified:false},{verification:'editor_saved_status_and_content'}])assert.equal((await report(patch)).status,400);
+ const good=await report({});assert.equal(good.status,200);assert.equal(good.data.job.state,'uncertain');assert.equal(good.data.job.recoveredDraft.articleId,'123');assert.equal(good.data.job.receipt,null);
+ assert.equal((await e.app('retry',{id:j.id})).status,409);assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).data.canResume,false);
+ assert.equal((await report({url:draft.url.replace('123','124'),articleId:'124'})).status,409);
+ const again=await e.enqueue();assert.equal(again.data.job.id,j.id);assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);
+});

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {articlePublicUrl,articlePublicMatches} from '../local/article-public.mjs';
+import vm from 'node:vm';
+import {articlePublicUrl,articlePublicMatches,articlePublicExtraction} from '../local/article-public.mjs';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
 const snapshot={title:'发布恢复',html:'<p>第一段<strong>证据</strong></p><p>本文包含 AI 辅助整理。</p>',contentId:'c'};
 const job=platform=>({platform,accountId:'writer',mode:'publish',attempted:true,state:'submitted',receipt:{url:platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/success/123':'https://zhuanlan.zhihu.com/p/123',articleId:'123'},snapshot});
@@ -45,4 +46,12 @@ test('a late public proof cannot promote a changed account or changed source',as
  db.prepare('UPDATE publisher_jobs SET body=? WHERE id=?').run(JSON.stringify({...j,accountId:'changed'}),'j');
  resolve(true);await new Promise(r=>setImmediate(r));
  assert.equal(JSON.parse(db.prepare('SELECT body FROM publisher_jobs').get().body).state,'submitted');
+});
+
+test('Zhihu public extraction scopes author to the article despite repeated sidebar author cards',()=>{
+ const fragments=page('zhihu').match(/<h1[\s\S]*?<\/h1>|<div[\s\S]*?<\/div>|<span[\s\S]*?<\/span>/g).map(outerHTML=>({outerHTML}));
+ const scoped=['article.Post-Main h1.Post-Title','article.Post-Main .Post-RichText','article.Post-Main .AuthorInfo-head .AuthorInfo-name'];
+ const extract=(count=1)=>vm.runInNewContext(articlePublicExtraction('zhihu'),{document:{querySelectorAll:s=>{const i=scoped.indexOf(s);return i<0?[fragments[2],fragments[2]]:i===2?Array.from({length:count},()=>fragments[i]):[fragments[i]]}}});
+ assert.equal(articlePublicMatches(extract(),job('zhihu')),true);
+ assert.equal(extract(0),'');assert.equal(extract(2),'');
 });

@@ -173,7 +173,7 @@ async function run(platform='csdn'){
   let tabId;
   if(!pending.originalDraft&&pending.recoverPreparation&&platform==='51cto'){tabId=(await chrome.tabs.create({url:platformConfig(platform).editor,active:false})).id;}else if(pending.originalDraft){
    const proof=draftEvidence(platform,{...pending.originalDraft,accountId:'pending',contentVerified:true});
-   if(!['csdn','zhihu','tencentcloud','51cto'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
+   if(!['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
    tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;
   }else tabId=await freshEditor(platform);
   const me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));
@@ -250,7 +250,13 @@ async function reconcileJob(platform='csdn'){
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
   if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
-  const receipt=await page(inflight.tabId,'receipt',['51cto','aliyun'].includes(platform)?inflight.job.snapshot:undefined,['51cto','aliyun'].includes(platform)?inflight.job.accountId:undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
+  const receipt=await page(inflight.tabId,'receipt',['51cto','aliyun'].includes(platform)?inflight.job.snapshot:undefined,['51cto','aliyun'].includes(platform)?inflight.job.accountId:undefined,platform);if(receipt?.blocked&&platform!=='csdn')throw new Error(receipt.error);if(receipt&&!receipt.blocked){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else if(platform==='csdn'&&['uncertain','submitting'].includes(status.job?.state)){
+   const j=inflight.job,found=await locateCsdnDraft(j),article={...j.snapshot,tags:j.tags,verifiedDraftList:found.candidate};
+   const raw=await page(found.tabId,'draft-receipt',article,j.accountId,platform),proof=draftEvidence(platform,raw);
+   if(!proof||proof.accountId!==j.accountId||proof.verification!=='draft_list_and_reopened_content')throw Error('原草稿正文待核对，未重复保存');
+   await call('report',{id:j.id,lease:j.lease,state:'recovered_draft',draft:{...proof,sourceHash:j.sourceHash}});
+   await setStatus('已定位并核对原草稿；提交结果仍待核对，不会自动重发');
+  }else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
    const message=String(e.message||'平台结果待核对').slice(0,240);
    // Recovery is read-only. Surface a newly observed error to the same job;
    // never create a second task or silently hide the platform failure.

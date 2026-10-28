@@ -5,7 +5,7 @@ import {publisherBridge} from '../local/publisher-bridge.mjs';
 import {navigationAllowed,trustedFrame,connectionPartition,connectionInput,targetInput} from '../desktop/security.mjs';
 import {PLATFORMS} from '../browser-extension/platforms.js';
 const origin='http://127.0.0.1:58729';
-function setup(t){const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=10000;const state={brands:[{id:'a'},{id:'b'}],contents:[{id:'c',brandId:'a',status:'已审核',title:'测试稿',text:'测试正文'}],facts:[]};const opts={db,origin,readState:()=>state,clock:()=>time};let bridge=publisherBridge(opts);return {db,state,get bridge(){return bridge},advance:n=>time+=n,restart:(o=origin)=>bridge=publisherBridge({...opts,origin:o}),async app(action,data){const r=await bridge.handle(new Request(origin+'/api/local-publisher/'+action,{method:'POST',headers:{'x-geo-request':'1',origin},body:JSON.stringify(data)}));return {status:r.status,data:await r.json()}}}}
+function setup(t,publishPlatforms=[]){const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=10000;const state={brands:[{id:'a'},{id:'b'}],contents:[{id:'c',brandId:'a',status:'已审核',title:'测试稿',text:'测试正文'}],facts:[]};const opts={db,origin,readState:()=>state,clock:()=>time,publishPlatforms};let bridge=publisherBridge(opts);return {db,state,get bridge(){return bridge},advance:n=>time+=n,restart:(o=origin)=>bridge=publisherBridge({...opts,origin:o}),async app(action,data){const r=await bridge.handle(new Request(origin+'/api/local-publisher/'+action,{method:'POST',headers:{'x-geo-request':'1',origin},body:JSON.stringify(data)}));return {status:r.status,data:await r.json()}}}}
 const identity=(platform='csdn',accountId='author')=>({accountId,name:'验收账号',editorReady:true,evidenceUrl:PLATFORMS[platform].editor,draftProtocol:PLATFORMS[platform].draftProtocol});
 test('desktop connection is private IPC-only, brand isolated and has no browser token',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'csdn'});assert.equal(c.sessionId,e.bridge.connectDesktop({brandId:'a',platform:'csdn'}).sessionId);assert.notEqual(c.sessionId,e.bridge.connectDesktop({brandId:'b',platform:'csdn'}).sessionId);
@@ -110,4 +110,16 @@ test('expired desktop login blocks dispatch even when its old identity is still 
  const job=(await call('claim')).job;await call('connection-state',{state:'needs_login'});
  await assert.rejects(call('commit',{id:job.id,lease:job.lease,accountId:'author',sourceHash:job.sourceHash}));
  assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,1);
+});
+
+test('Alibaba enabled preview promotes the saved draft in place and still records review rather than public success',async t=>{
+ const e=setup(t,['aliyun']),c=e.bridge.connectDesktop({brandId:'a',platform:'aliyun'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('aliyun'));
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author'};
+ await e.app('enqueue',{...args,mode:'draft'});const original=(await call('claim')).job;
+ await call('report',{id:original.id,lease:original.lease,state:'draft',draft:{url:'https://developer.aliyun.com/article/new?edit=123',articleId:'123',accountId:'author',sourceHash:original.sourceHash,savedVerified:true,contentVerified:true}});
+ const promoted=await e.app('enqueue',{...args,mode:'publish'});assert.equal(promoted.data.job.id,original.id);
+ const j=(await call('claim')).job;assert.equal(j.originalDraft.articleId,'123');await call('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash});
+ const result=await call('report',{id:j.id,lease:j.lease,state:'submitted',url:'https://developer.aliyun.com/article/123',articleId:'123',reviewState:'reviewing'});
+ assert.equal(result.job.state,'submitted');assert.equal(result.job.receipt.publicVerified,false);
+ assert.equal((await e.app('enqueue',{...args,mode:'publish'})).data.job.id,j.id);assert.equal(e.db.prepare('select count(*) n from publisher_jobs').get().n,1);
 });

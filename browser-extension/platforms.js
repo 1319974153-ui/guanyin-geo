@@ -1,6 +1,6 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
- aliyun:{name:'阿里云开发者社区',publishSupported:false,draftProtocol:1,editor:'https://developer.aliyun.com/article/new',hosts:['https://developer.aliyun.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
+ aliyun:{name:'阿里云开发者社区',publishSupported:true,draftProtocol:1,editor:'https://developer.aliyun.com/article/new',hosts:['https://developer.aliyun.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
  '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:9,optionalImages:true,desktopOnly:true},
  tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},

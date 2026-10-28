@@ -10,7 +10,7 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status})};
 const EXT=/^chrome-extension:\/\/[a-p]{32}$/;
 const csrf=req=>req.headers.get('x-geo-request')==='1';
 const safeId=v=>typeof v==='string'&&/^[\w-]{1,100}$/.test(v);
-const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,resumable:j.mode==='publish'&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.state==='submitted'&&j.receipt?'':j.error||'',receipt:j.receipt||null,preparation:j.preparation||null});
+const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,resumable:j.mode==='publish'&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.state==='submitted'&&j.receipt?'':j.error||'',receipt:j.receipt||null,preparation:j.preparation||null,recoveredDraft:j.recoveredDraft||null});
 
 
 function validateMedia(input,limits){
@@ -42,8 +42,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  // receipt is never promoted by a renderer/extension assertion.
  const checking=new Set();
  function checkPublic(j){
-  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<Math.min(3600000,60000*2**Math.min(Math.max(0,(j.publicCheckAttempts||0)-1),6))))return;
-  checking.add(j.id);if(j.publicCheckVersion!=='rendered-v2')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v2';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
+  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v3'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<Math.min(3600000,60000*2**Math.min(Math.max(0,(j.publicCheckAttempts||0)-1),6))))return;
+  checking.add(j.id);if(j.publicCheckVersion!=='rendered-v3')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v3';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
   Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
    const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url&&latest.accountId===j.accountId){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:['csdn','zhihu'].includes(j.platform)?{publicUrl:articlePublicUrl(j)}:{})};save('publisher_jobs',latest)}
   }).catch(()=>{}).finally(()=>checking.delete(j.id));
@@ -151,7 +151,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
       const prepared=related.filter(j=>j.mode==='prepare'&&j.state==='prepared'&&j.preparation&&!j.attempted);
       if(prepared.length===1){const j=prepared[0];j.mode='draft';j.recoverPreparation=true;j.state='queued';j.sessionId=s.id;j.accountRevision=s.account.revision;j.expires=clock()+600000;j.error='';delete j.lease;checkCurrent(j,s);save('publisher_jobs',j);return respond({job:publicJob(j),promoted:true});}
      }
-     if(b.mode==='publish'&&['csdn','zhihu','tencentcloud','51cto'].includes(platform)){
+     if(b.mode==='publish'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(platform)){
       const published=related.find(j=>j.mode==='publish'&&j.originalDraft);
       if(published)return respond({job:publicJob(published),existing:true});
       const drafts=related.filter(j=>j.mode==='draft'&&j.state==='draft'&&j.receipt?.savedVerified===true&&!j.attempted);
@@ -222,6 +222,16 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      if(j.platform==='51cto'){const proof=fiftyoneMediaProof(b.mediaProof||[],j.media||[]);if(!proof)fail(409,'缺少与确认稿一致的图片回执');j.mediaProof=proof;}
      j.state='submitting';j.attempted=true;j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({permit:true,validUntil:clock()+10000});
     }
+    // Read-only recovery of an uncertain submit records a draft separately.
+    // A draft can coexist with a submitted article: never reset attempted,
+    // convert it to success, or grant another commit from this observation.
+    if(b.state==='recovered_draft'){
+     if(j.platform!=='csdn'||j.mode!=='publish'||!j.attempted||j.receipt||!['uncertain','submitting'].includes(j.state))fail(409,'此任务不能登记原草稿定位');
+     const proof=draftEvidence(j.platform,b.draft);
+     if(!proof||proof.verification!=='draft_list_and_reopened_content'||proof.accountId!==j.accountId||b.draft.sourceHash!==j.sourceHash||session.account?.accountId!==j.accountId)fail(400,'原草稿的账号、正文或列表证据不匹配');
+     if(j.recoveredDraft&&j.recoveredDraft.articleId!==proof.articleId)fail(409,'原草稿编号已变化，未覆盖');
+     j.recoveredDraft={...proof,observedAt:clock()};j.state='uncertain';j.error='已找到并核对原草稿；提交结果仍待核对，不会自动重发';save('publisher_jobs',j);return respond({job:publicJob(j)});
+    }
     if(b.state==='draft'){
      if(j.mode!=='draft'||j.attempted||!['preparing','needs_attention','draft'].includes(j.state))fail(409,'此任务不能登记草稿回执');
      const draft=draftEvidence(j.platform,b.draft);
@@ -268,7 +278,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!safeId(data.jobId))fail(400,'原稿编号无效');
    const j=getJob(data.jobId);if(j.sessionId!==s.id||j.brandId!==s.brandId||j.platform!==s.platform||!s.account||j.accountId!==s.account.accountId)fail(409,'原稿不属于当前账号，未打开');
    const proof=j.state==='draft'?draftEvidence(j.platform,{...j.receipt,accountId:j.accountId,contentVerified:true}):null;
-   const url=proof?.url||(['prepared','needs_attention'].includes(j.state)&&j.preparation?.sourceHash===j.sourceHash?preparationEditorUrl(j.platform,j.preparation.editorUrl):null);
+   const recovered=j.state==='uncertain'?draftEvidence(j.platform,j.recoveredDraft):null;
+   const url=proof?.url||recovered?.url||(['prepared','needs_attention'].includes(j.state)&&j.preparation?.sourceHash===j.sourceHash?preparationEditorUrl(j.platform,j.preparation.editorUrl):null);
    if(!url)fail(409,'没有已核验的原稿地址，请保留原任务');
    return {url,jobId:j.id,platform:j.platform};
   }

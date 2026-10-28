@@ -49,7 +49,15 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
     await win.webContents.insertText(result.nativeInsertTitle);
     const next={...args[0],action:'fill-body'},body=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);
     if(body?.connectorError)return [{result:body}];if(typeof body?.nativeInsertText!=='string')throw Error('正文输入未准备，原稿保留');
-    await win.webContents.insertText(body.nativeInsertText);return [{result:{filled:true}}];
+    await win.webContents.insertText(body.nativeInsertText);
+    if(connection.platform==='aliyun'){
+     const summaryArgs={...args[0],action:'fill-summary'};
+     const summary=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(summaryArgs)+')',true);
+     if(summary?.connectorError)return [{result:summary}];
+     if(typeof summary?.nativeInsertSummary==='string')await win.webContents.insertText(summary.nativeInsertSummary);
+     else if(summary?.summaryPresent!==true)throw Error('摘要未准备，原稿保留');
+    }
+    return [{result:{filled:true}}];
    }if(['tencentcloud','51cto'].includes(connection.platform)&&args[0]?.action==='fill'&&result?.nativeInsertText){await win.webContents.insertText(result.nativeInsertText);return [{result:{filled:true}}]}if(connection.platform==='tencentcloud'&&args[0]?.action==='preflight'&&typeof result?.nativeInsertTag==='string'){await win.webContents.insertText(result.nativeInsertTag);const next={...args[0],tagInputReady:true};const verified=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);return [{result:verified}]}return [{result}]}finally{clearTimeout(timer)}
   }}
  };

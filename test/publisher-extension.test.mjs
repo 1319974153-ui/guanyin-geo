@@ -15,7 +15,7 @@ async function fixture(t,options={}){
   if(action==='draft-receipt'&&options.csdnLookup)assert.equal(args[0].article.verifiedDraftList.articleId,'123');
   if(action==='draft-location')return[{result:{accountId:'author',url:'https://mp.toutiao.com/profile_v4/manage/draft',contentVerified:true}}];
   if(action==='draft-receipt'&&options.locateDraft&&target.tabId!==(options.sameTabDraft?2:3))return[{result:options.blankOriginal?{connectorError:'草稿正文或标题与已确认版本不同'}:null}];
-  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true}}];
+  if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true,...(options.csdnLookup?{verification:'draft_list_and_reopened_content'}:{})}}];
   if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
   if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
   if(action==='submit')clicks++;
@@ -29,7 +29,7 @@ async function fixture(t,options={}){
   if(action==='report'&&['prepared','draft'].includes(body.state)&&options.lostReport&&!lostReport){lostReport=true;throw new Error('填稿回执响应丢失')}
   if(action==='commit')committed=true;
   if(action==='commit'&&options.lostCommit)throw new Error('提交许可响应丢失');
-  const result=action==='job-state'?{journalActive:!options.cancelled,canResume:!options.cancelled&&!committed&&options.canResume===true}:action==='pending'?{count:1,originalDraft:options.originalDraft}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish',originalDraft:options.originalDraft}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
+  const result=action==='job-state'?{job:{state:options.jobState},journalActive:!options.cancelled,canResume:!options.cancelled&&!committed&&options.canResume===true}:action==='pending'?{count:1,originalDraft:options.originalDraft}:action==='claim'?{job:{...fixtureJob,mode:options.mode||'publish',originalDraft:options.originalDraft}}:action==='commit'?{permit:true,validUntil:Date.now()+10000}:action==='report'?{job:{state:options.lostCommit?'uncertain':body.state}}:{};
   return new Response(JSON.stringify(result));
  };
  await import('../browser-extension/background.js?fixture='+Math.random());
@@ -211,4 +211,11 @@ test('changed saved draft cannot be overwritten or published on promotion',async
 
 test('platform quota receipt stops polling and preserves original submit attempt without retry',async t=>{
  const f=await fixture(t,{receipt:{blocked:true,error:'今日发文额度已用完'}});await f.send('run');assert.equal(f.clicks,1);assert.ok(f.stored.inflight);assert.match(f.stored.status,/额度/);await f.send('reconcile');assert.equal(f.clicks,1);assert.equal(f.actions.filter(a=>a==='new-tab').length,1);
+});
+
+test('CSDN uncertain recovery only finds and reads the original draft even if quota is blocked',async t=>{
+ const f=await fixture(t,{inflight:true,platform:'csdn',jobState:'uncertain',csdnLookup:true,receipt:{blocked:true,error:'今日额度已用完'}});
+ await f.send('reconcile');assert.equal(f.clicks,0);assert.equal(f.requests.includes('commit'),false);
+ assert.equal(f.actions.includes('fill'),false);assert.equal(f.actions.includes('save-draft'),false);assert.ok(f.actions.includes('draft-receipt'));assert.ok(f.stored.inflight);
+ assert.match(f.stored.status,/已定位/);
 });

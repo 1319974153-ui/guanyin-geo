@@ -11,7 +11,7 @@ test('Aliyun reviewing and owner-visible article are receipts, never public succ
  const reviewing=await observe();assert.equal(reviewing.reviewState,'reviewing');assert.equal(reviewing.publicVerified,false);assert.equal(reviewing.articleId,'123');
  const visible=await observe({banner:''});assert.equal(visible.reviewState,'public_unverified');assert.equal(visible.publicVerified,false);
  const rejected=await observe({banner:'抱歉,您所发布的内容未能通过审核'});assert.equal(rejected.blocked,true);assert.equal(rejected.reviewState,'rejected');
- assert.equal(PLATFORMS.aliyun.publishSupported,false);
+ assert.equal(PLATFORMS.aliyun.publishSupported,true);
 });
 test('Aliyun review observation binds exact account and full original content and fails closed on new banners',async()=>{
  for(const options of [{account:'other'},{author:'other'},{body:'摘要'},{title:'其他稿'},{banner:'账号受限'},{alerts:2}])assert.ok((await observe(options)).connectorError);

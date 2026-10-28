@@ -88,7 +88,7 @@ async function distributionResumeOriginal(f,key){
  await window.guanyinDesktop.resume({sessionId:target.sessionId,accountId:target.accountId,jobId:row.jobId});await distributionReconcile(f);distributionWatch(f);
 }
 function distributionReceiptLink(row){
- const url=row.remote?.publicUrl||row.remote?.url||row.preparation?.editorUrl;
+ const url=row.remote?.publicUrl||row.remote?.url||row.preparation?.editorUrl||row.recoveredDraft?.url;
  if(!url||!/^https?:\/\//.test(url))return '';
  if(typeof browserPublisherDestination==='function')return browserPublisherDestination({id:row.jobId,sessionId:row.sessionId,state:row.state},url,row.remote?'查看平台回执':'打开平台编辑页');
  return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">查看平台回执</a>`;

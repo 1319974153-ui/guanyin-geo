@@ -44,6 +44,7 @@ export function articlePublicMatches(html,job){
 
 // Runs inside the product's anonymous, sandboxed window, never the signed-in editor.
 export function articlePublicExtraction(platform){
- const selectors=platform==='zhihu'?['h1.Post-Title','.Post-RichText','.AuthorInfo-name']:['h1#articleContentId','#content_views',null];
+ // Scope to the article: the sidebar repeats AuthorInfo-name on the real page.
+ const selectors=platform==='zhihu'?['article.Post-Main h1.Post-Title','article.Post-Main .Post-RichText','article.Post-Main .AuthorInfo-head .AuthorInfo-name']:['h1#articleContentId','#content_views',null];
  return `(()=>{const s=${JSON.stringify(selectors)},t=document.querySelectorAll(s[0]),b=document.querySelectorAll(s[1]),a=s[2]?document.querySelectorAll(s[2]):[];return t.length===1&&b.length===1&&(!s[2]||a.length===1)?t[0].outerHTML+b[0].outerHTML+(a[0]?.outerHTML||''):''})()`;
 }

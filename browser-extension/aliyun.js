@@ -34,7 +34,7 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
   const status=text(alerts[0]);
   if(/未能通过审核|审核未通过/.test(status))return {blocked:true,reviewState:'rejected',error:'阿里云审核未通过，请修改原稿后再提交'};
   if(status&&!/内容审核中.*请耐心等待/.test(status))fail('平台审核状态尚未识别，未确认公开');
-  return {url:location.href,articleId:id,accountId,contentVerified:true,publicVerified:false,reviewState:status?'reviewing':'public_unverified'};
+  return {state:'submitted',url:location.href,articleId:id,accountId,contentVerified:true,publicVerified:false,reviewState:status?'reviewing':'public_unverified'};
  }
  if(!/^\/article\/new$/.test(location.pathname)||location.hash&&!['#','#/'].includes(location.hash)||location.search&&!(new URLSearchParams(location.search).size===1&&/^[1-9]\d{0,19}$/.test(new URLSearchParams(location.search).get('edit'))))fail('当前不是阿里云文章编辑器');
  const me=profileEvidence;
@@ -43,7 +43,6 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
  const evidence={accountId:me.accountId,name:me.name,editorReady:true,evidenceUrl:location.href};
  const title=one('input#title[placeholder="请填写标题"]','标题'),editor=one('.left-content textarea.textarea','正文编辑器');
  if(action==='identity')return evidence;
- if(['submit','receipt'].includes(action))fail('阿里云公开发布尚未开放，未点击发布或接受声明');
  if(!article?.title||!article?.text||!article?.html)fail('缺少完整确认稿件');
  if(/!\[[^\]]*\]\(|<(?:img|video|audio)\b/i.test(article.text+' '+article.html))fail('阿里云当前仅验收纯文本稿，图片和音视频尚未开放');
  const disclosure=article.ai?'\n\n本文包含 AI 辅助生成或整理的内容。':'';
@@ -76,15 +75,41 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
  for(let i=0;i<10&&!matches();i++)await wait(200);
  if(!matches())fail('阿里云标题或完整正文与确认稿不一致，未继续');
  if(action==='prepared')return {...evidence,contentVerified:true};
- if(action==='preflight'){
-  // Read-only readiness check. Platform capability stays disabled until a
-  // real submission and its durable receipt have been verified end to end.
+ if(action==='fill-summary'){
+  const summary=one('textarea#abstractContent[placeholder="请填写摘要"]','摘要');
+  if(text(summary))return {summaryPresent:true};
+  summary.focus();return {nativeInsertSummary:expected.slice(0,180)};
+ }
+
+ if(['preflight','submit'].includes(action)){
+  // Both checks require the same complete article and a human-accepted declaration.
+  // Never toggle the declaration or solve platform security verification.
   const summary=one('textarea#abstractContent[placeholder="请填写摘要"]','摘要');
   if(!text(summary))fail('请在阿里云填写摘要；未点击 AI 摘要或发布');
   const disclaimer=one('input#agreeDisclaimer[type="checkbox"]','发布声明');
   if(!disclaimer.checked)fail('请本人阅读并决定是否接受阿里云发布声明；观引不会代为勾选');
   const buttons=all('button').filter(e=>text(e)==='发布文章');
   if(buttons.length!==1||buttons[0].disabled)fail('阿里云发布按钮未就绪，原稿已保留');
+  if(action==='submit'){
+   if(document.documentElement.hasAttribute('data-guanyin-submit-attempted'))fail('本页已经尝试提交，请核对原回执，未重复点击');
+   document.documentElement.setAttribute('data-guanyin-submit-attempted','1');
+   buttons[0].click();
+   // Confirm only the observed ordinary publish prompt, in this invocation.
+   // A restart may inspect the receipt, but must never replay this confirmation.
+   for(let i=0;i<12;i++){
+    await wait(250);
+    if(all('iframe[src*="captcha"],input[placeholder*="验证码"]').length)fail('阿里云需要本人验证，原提交已保留');
+    const dialogs=all('[role="dialog"]').filter(e=>/您确定发布文章[？?]/.test(text(e)));
+    if(dialogs.length>1)fail('发布确认框不唯一，未继续');
+    if(dialogs.length===1){
+     if(!matches()||!disclaimer.checked)fail('发布确认时正文或声明已变化，未继续');
+     const confirm=[...dialogs[0].querySelectorAll('button')].filter(e=>visible(e)&&text(e)==='确认'&&!e.disabled);
+     if(confirm.length!==1)fail('发布确认按钮不明确，未继续');
+     confirm[0].click();return {attempted:true};
+    }
+   }
+   fail('发布确认结果待核对，未重复点击');
+  }
   return {...evidence,contentVerified:true,summaryPresent:true,disclaimerAccepted:true,publishButtonReady:true};
  }
 
