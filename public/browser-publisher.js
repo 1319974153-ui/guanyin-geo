@@ -2,7 +2,7 @@ const browserPlatformNames={aliyun:'阿里云开发者社区','51cto':'51CTO',te
 let desktopAccountTimer=null;
 function desktopPublisherAvailable(){return !!window.guanyinDesktop?.available&&browserPublisherAvailable()}
 let browserPublisherData=null,browserPublisherScope='',browserPublisherLoading=false,browserPublisherError='';
-let browserPublisherWatcher=null,browserPublisherWatchScope='',browserPublisherRendered='';
+let browserPublisherWatcher=null,browserPublisherWatchScope='',browserPublisherRendered='',browserPublisherWatchState='';
 const browserPublisherStates={published:'发布成功 · 公开正文已核验',publishing:'提交中',sending:'正在发送',draft:'平台草稿已保存 · 未公开',queued:'等待浏览器',preparing:'填入编辑器中',prepared:'已填入 · 未提交',submitting:'提交中',submitted:'已提交 · 公开待核验',needs_attention:'需要处理',uncertain:'结果未知 · 禁止重发',cancelled:'已取消'};
 function browserPublisherAvailable(){return isLocalRuntime()&&isManager()&&!sessionStorage.getItem('geo.workspace')&&location.hostname==='127.0.0.1'}
 function browserPublisherContext(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand()?.id].join('|')}
@@ -27,25 +27,30 @@ function renderPublisherStatus(){
 function browserPublisherWatch(){
  if(!browserPublisherAvailable()||!['integrations','publish'].includes(route))return;
  const scope=browserPublisherContext();
- if(browserPublisherWatchScope!==scope){browserPublisherWatcher?.stop();browserPublisherWatcher=null;browserPublisherWatchScope=scope;}
- if(browserPublisherWatcher?.active||browserPublisherScope!==scope||!browserPublisherData?.jobs.some(j=>['queued','preparing','submitting','uncertain'].includes(j.state)))return;
+ if(browserPublisherWatchScope!==scope){browserPublisherWatcher?.stop();browserPublisherWatcher=null;browserPublisherWatchScope=scope;browserPublisherWatchState='';}
+ if(browserPublisherWatcher?.active||browserPublisherScope!==scope||!GEO_DISPATCH.dispatchNeedsRefresh(browserPublisherData?.jobs))return;
  browserPublisherWatcher=GEO_DISPATCH.createDispatchWatcher({
   valid:()=>browserPublisherAvailable()&&browserPublisherContext()===scope&&['integrations','publish'].includes(route),
-  pending:()=>browserPublisherData?.jobs.some(j=>['queued','preparing','submitting','uncertain'].includes(j.state)),
+  pending:()=>GEO_DISPATCH.dispatchNeedsRefresh(browserPublisherData?.jobs),
   paused:()=>document.hidden||navigator.onLine===false||runtimeBusy||document.querySelector('#drawer')?.open||document.activeElement?.matches('input,textarea,select,[contenteditable="true"]')||false,
-  refresh:async()=>{await refreshBrowserPublisher();return !browserPublisherError;},interval:4000
+  refresh:async()=>{await refreshBrowserPublisher();return !browserPublisherError;},
+  interval:()=>GEO_DISPATCH.dispatchRefreshInterval(browserPublisherData?.jobs),maxDelay:60000,maxDuration:1800000,
+  notify:({state})=>{browserPublisherWatchState=state;const node=document.querySelector('[data-publication-watch-status]');if(node)node.textContent=browserPublicationWatchLabel();}
  });browserPublisherWatcher.start();
 }
 window.addEventListener('hashchange',()=>{if(!['#integrations','#publish'].includes(location.hash))browserPublisherWatcher?.stop();else queueMicrotask(()=>void refreshBrowserPublisher())});
 for(const event of ['visibilitychange','online'])window.addEventListener(event,()=>browserPublisherWatcher?.wake());
+function browserPublicationWatchLabel(){
+ return ({timeout:'本页自动更新已暂停，点击“刷新发送进度”继续查看原任务。',paused:'页面在后台、正在编辑或网络不可用，恢复后继续更新。',retry_wait:'暂未取得新回执，稍后自动再查；不会重复发送。',complete:'结果已更新。'})[browserPublisherWatchState]||'发送进度自动更新；审核中的文章会保留待确认状态，直到取得公开回执。';
+}
 function renderBrowserPublicationHistory(){
  if(!browserPublisherAvailable()||!brand()?.id)return '';
  const scope=browserPublisherContext();if(browserPublisherScope!==scope&&!browserPublisherLoading)queueMicrotask(refreshBrowserPublisher);
  const data=browserPublisherScope===scope?browserPublisherData:null;
  const jobs=(data?.jobs||[]).filter(j=>j.brandId===brand().id).slice().sort((a,b)=>b.created-a.created);
- return `<section class="panel"><div class="panel-head"><div><h2>多平台发送进度</h2><p>保留每次发送的原稿与回执；刷新只查结果，不会重发。</p></div>${btn('刷新发送进度','browser-publisher-refresh','small')}</div><div class="panel-body">${browserPublisherScope===scope&&browserPublisherError?`<p class="form-error" role="alert">${esc(browserPublisherError)}；已保留上次记录。</p>`:''}${table(['内容与平台','实际进度','下一步'],jobs.map(j=>{
-  const c=own('contents').find(c=>c.id===j.contentId),url=j.receipt?.url||j.preparation?.editorUrl;
-  const advice={queued:desktopPublisherAvailable()?'观引正在自动处理，请保持应用运行。':'打开 Chrome 中的观引连接器，任务会按队列处理。',preparing:'正在处理原任务，请勿重复发送。',submitting:'正在提交原任务，请勿重复发送。',draft:'已保存在平台草稿箱，尚未公开。',prepared:'正文已填入，仍需在平台检查并提交。',submitted:'平台已接收，公开可访问状态仍待核对。',uncertain:'先到平台核对原稿，结果不明时不能重发。',needs_attention:'查看原因，在账号页核对后继续原任务。',cancelled:'本任务已取消，记录保留。'}[j.state]||'请核对平台实际结果。';
+ return `<section class="panel"><div class="panel-head"><div><h2>多平台发送进度</h2><p>保留每次发送的原稿与回执；刷新只查结果，不会重发。</p></div>${btn('刷新发送进度','browser-publisher-refresh','small')}</div><div class="panel-body"><p class="helper" role="status" data-publication-watch-status>${esc(browserPublicationWatchLabel())}</p>${browserPublisherScope===scope&&browserPublisherError?`<p class="form-error" role="alert">${esc(browserPublisherError)}；已保留上次记录。</p>`:''}${table(['内容与平台','实际进度','下一步'],jobs.map(j=>{
+  const c=own('contents').find(c=>c.id===j.contentId),url=j.receipt?.publicUrl||j.receipt?.url||j.preparation?.editorUrl;
+  const advice={published:'已核验公开正文，无需重复操作。',queued:desktopPublisherAvailable()?'观引正在自动处理，请保持应用运行。':'打开 Chrome 中的观引连接器，任务会按队列处理。',preparing:'正在处理原任务，请勿重复发送。',submitting:'正在提交原任务，请勿重复发送。',draft:'已保存在平台草稿箱，尚未公开。',prepared:'正文已填入，仍需在平台检查并提交。',submitted:GEO_DISPATCH.dispatchNeedsRefresh([j])?'平台已接收，观引会自动读取核验结果；审核期间无需重复提交。':'平台已接收，公开可访问状态仍待核对。',uncertain:'先到平台核对原稿，结果不明时不能重发。',needs_attention:'查看原因，在账号页核对后继续原任务。',cancelled:'本任务已取消，记录保留。'}[j.state]||'请核对平台实际结果。';
   return [esc(j.title)+`<span class="sub">${esc(browserPlatformNames[j.platform]||j.platform)} · ${esc(j.accountId)}</span>`+(j.currentRevision!==true?'<span class="sub">历史版本；当前稿件已变化或移除</span>':''),esc(browserPublisherStates[j.state]||j.state)+`<span class="sub">${esc(advice)}</span>`+(j.error?`<span class="sub">${esc(j.error)}</span>`:''),(url?links(url,j.receipt?'查看平台回执':'打开原编辑页'):'')+(c?btn(j.currentRevision===true?'原稿与回执':'查看当前稿件',j.currentRevision===true?'distribute-article':'edit-content','small',`data-id="${esc(c.id)}"`):'')+(['needs_attention','uncertain'].includes(j.state)?'<a class="button small" href="#integrations">检查发布账号</a>':'')];
  }))}${!data?(browserPublisherScope===scope&&browserPublisherError?'<p>记录读取失败，请刷新重试。当前发送状态未知。</p>':'<p role="status">正在读取发送记录…</p>'):!jobs.length?'<p>还没有发送任务。<a href="#inbox">打开内容，选择账号发送 →</a></p>':''}</div></section>`;
 }

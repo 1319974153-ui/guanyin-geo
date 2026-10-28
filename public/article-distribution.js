@@ -118,6 +118,7 @@ function distributionWatch(f){
   pending:()=>GEO_DISPATCH.dispatchNeedsRefresh(journal),
   paused:()=>document.hidden||navigator.onLine===false||runtimeBusy||f.distributionBusy,
   refresh:()=>distributionReconcile(f),
+  interval:()=>GEO_DISPATCH.dispatchRefreshInterval(journal),maxDelay:60000,maxDuration:1800000,
   notify:({state})=>{f.distributionWatchState=state;if(f.isConnected)distributionResults(f)}
  });f.distributionWatcher.start();
 }

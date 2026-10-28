@@ -28,3 +28,11 @@ test('switching article while response is pending cannot write the previous rece
  x.f.distributionEpoch=1;x.f.distributionJournal={};x.f.distributionKey='new-journal';finish({jobs:[{id:'job',state:'draft'}]});await tick;
  assert.equal(x.storage.size,0);assert.deepEqual(x.f.distributionJournal,{});assert.equal(x.timers.size,0);
 });
+
+for(const platform of ['51cto','tencentcloud'])test(`${platform} editor keeps review receipt until verified then renders success without resending`,async()=>{
+ const x=fixture();let state='submitted';x.f.distributionJournal.zhihu.platform=platform;
+ x.g.apiRequest=async(path,init)=>{assert.equal(init,undefined);x.calls.push(path);return {jobs:[{id:'job',state,receipt:{url:'https://example.org/original',publicVerified:state==='published'}}]}};
+ x.g.distributionWatch(x.f);await x.tick();assert.match(x.box.innerHTML,/已提交，待确认/);assert.equal(x.timers.size,1);assert.equal([...x.timers.values()][0].delay,30000);
+ state='published';await x.tick();assert.match(x.box.innerHTML,/发布成功/);assert.match(x.box.watch.textContent,/结果已更新/);assert.equal(x.timers.size,0);
+ assert.equal(JSON.parse(x.storage.get('isolated-journal')).zhihu.remote.publicVerified,true);assert.equal(x.calls.length,2);
+});

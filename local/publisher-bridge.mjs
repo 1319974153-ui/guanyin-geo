@@ -2,6 +2,7 @@ import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,pr
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable} from '../src/knowledge-core.js';
+import {articlePublicUrl} from './article-public.mjs';
 
 const hash=v=>createHash('sha256').update(typeof v==='string'?v:JSON.stringify(v)).digest('hex');
 const secret=()=>randomBytes(32).toString('hex');
@@ -39,10 +40,10 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  // receipt is never promoted by a renderer/extension assertion.
  const checking=new Set();
  function checkPublic(j){
-  if(!verifyPublic||!['tencentcloud','51cto'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.platform==='tencentcloud'&&j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<(j.platform==='51cto'?Math.min(3600000,60000*2**Math.min(j.publicCheckAttempts||0,6)):60000)))return;
+  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.platform==='tencentcloud'&&j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<(j.platform!=='tencentcloud'?Math.min(3600000,60000*2**Math.min(j.publicCheckAttempts||0,6)):60000)))return;
   checking.add(j.id);if(j.publicCheckVersion!=='rendered-v2')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v2';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
   Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
-   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:{})};save('publisher_jobs',latest)}
+   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url&&latest.accountId===j.accountId){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:['csdn','zhihu'].includes(j.platform)?{publicUrl:articlePublicUrl(j)}:{})};save('publisher_jobs',latest)}
   }).catch(()=>{}).finally(()=>checking.delete(j.id));
  }
  let pairing=null;
@@ -267,5 +268,5 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
   const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
  }
- return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(j.platform==='51cto'&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
+ return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(['51cto','csdn','zhihu'].includes(j.platform)&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
 }

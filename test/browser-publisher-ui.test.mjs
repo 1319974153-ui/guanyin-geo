@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
+import {dispatchNeedsRefresh,dispatchRefreshInterval} from '../src/dispatch-watch.js';
 function ui(){
- const selected={id:'a'},calls=[];const ctx=vm.createContext({URLSearchParams,window:{addEventListener(){}},GEO_DISPATCH:{createDispatchWatcher:()=>({start(){},stop(){},active:false})},document:{addEventListener(){},querySelector:()=>null},queueMicrotask:()=>{},isLocalRuntime:()=>true,isManager:()=>true,sessionStorage:{getItem:()=>''},location:{hostname:'127.0.0.1'},brand:()=>selected,accessInfo:{current:{owner:'local'}},route:'publish',render:()=>{},own:()=>[{id:'c'}],esc:v=>String(v??'').replaceAll('<','&lt;'),table:(h,rows)=>rows.flat().join(' '),btn:(label,action)=>`<button data-action="${action}">${label}</button>`,links:(url,label)=>label+':'+url,apiRequest:async path=>{calls.push(path);return {accounts:[],jobs:[]}}});
+ const selected={id:'a'},calls=[];const ctx=vm.createContext({URLSearchParams,window:{addEventListener(){}},GEO_DISPATCH:{dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher:()=>({start(){},stop(){},active:false})},document:{addEventListener(){},querySelector:()=>null},queueMicrotask:()=>{},isLocalRuntime:()=>true,isManager:()=>true,sessionStorage:{getItem:()=>''},location:{hostname:'127.0.0.1'},brand:()=>selected,accessInfo:{current:{owner:'local'}},route:'publish',render:()=>{},own:()=>[{id:'c'}],esc:v=>String(v??'').replaceAll('<','&lt;'),table:(h,rows)=>rows.flat().join(' '),btn:(label,action)=>`<button data-action="${action}">${label}</button>`,links:(url,label)=>label+':'+url,apiRequest:async path=>{calls.push(path);return {accounts:[],jobs:[]}}});
  vm.runInContext(fs.readFileSync(new URL('../public/browser-publisher.js',import.meta.url),'utf8'),ctx);return {ctx,selected,calls};
 }
 test('publishing result view restores original receipts, separates draft and submission, and never enqueues',async()=>{
@@ -26,7 +27,7 @@ test('unreadable receipt store is unknown, not an empty successful record; scope
 
 test('result page watches only pending jobs in its current scope without write operations',async()=>{
  const {ctx,selected}=ui();let options,started=0;ctx.navigator={onLine:true};ctx.runtimeBusy=false;
- ctx.GEO_DISPATCH={createDispatchWatcher:o=>{options=o;return {start(){started++},stop(){},active:true}}};
+ ctx.GEO_DISPATCH={dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher:o=>{options=o;return {start(){started++},stop(){},active:true}}};
  ctx.apiRequest=async()=>({accounts:[],jobs:[{id:'j',brandId:'a',state:'queued'}]});await vm.runInContext('refreshBrowserPublisher()',ctx);
  assert.equal(started,1);assert.equal(options.valid(),true);assert.equal(options.pending(),true);assert.equal(options.paused(),false);
  ctx.navigator.onLine=false;assert.equal(options.paused(),true);ctx.navigator.onLine=true;ctx.document.activeElement={matches:()=>true};assert.equal(options.paused(),true);ctx.document.activeElement=null;ctx.document.querySelector=()=>({open:true});assert.equal(options.paused(),true);ctx.document.querySelector=()=>null;
@@ -65,4 +66,30 @@ test('unchanged background status does not replace live buttons, but changed rec
  jobState='draft';await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,2);
  fail=true;await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,3);
  fail=false;await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(renders,4);
+});
+
+test('desktop submitted receipts update to public success automatically with GET-only status reads',async()=>{
+ const {ctx,calls}=ui();let options,state='submitted';
+ ctx.GEO_DISPATCH={dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher:o=>{options=o;return {start(){},stop(){},active:true}}};
+ ctx.apiRequest=async(path,init)=>{assert.equal(init,undefined);calls.push(path);return {accounts:[],jobs:[{id:'original',brandId:'a',platform:'51cto',title:'原稿',state,currentRevision:true,receipt:{url:'https://blog.51cto.com/test/123'}}]}};
+ await vm.runInContext('refreshBrowserPublisher()',ctx);assert.equal(options.pending(),true);assert.equal(options.interval(),30000);
+ assert.match(vm.runInContext('renderBrowserPublicationHistory()',ctx),/自动读取核验结果/);
+ state='published';await options.refresh();assert.equal(options.pending(),false);
+ assert.match(vm.runInContext('renderBrowserPublicationHistory()',ctx),/发布成功 · 公开正文已核验/);
+ assert.match(vm.runInContext('renderBrowserPublicationHistory()',ctx),/已核验公开正文，无需重复操作/);
+ assert.equal(calls.length,2);assert.ok(calls.every(p=>p.startsWith('/api/local-publisher/status?')));
+});
+test('bounded result polling explains timeout and refresh rechecks the original task',async()=>{
+ const {ctx}=ui();let options,starts=0,active=false;
+ ctx.GEO_DISPATCH={dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher:o=>{options=o;return {start(){starts++;active=true},stop(){active=false},get active(){return active}}}};
+ ctx.apiRequest=async()=>({accounts:[],jobs:[{id:'j',brandId:'a',platform:'tencentcloud',state:'submitted'}]});
+ await vm.runInContext('refreshBrowserPublisher()',ctx);options.notify({state:'timeout'});active=false;
+ assert.match(vm.runInContext('renderBrowserPublicationHistory()',ctx),/本页自动更新已暂停/);
+ await vm.runInContext("browserPublisherAction('browser-publisher-refresh',{})",ctx);assert.equal(starts,2);assert.equal(options.maxDuration,1800000);
+});
+
+test('verified public result opens public article instead of editor success screen',async()=>{
+ const {ctx}=ui();ctx.apiRequest=async()=>({accounts:[],jobs:[{id:'j',brandId:'a',platform:'csdn',state:'published',title:'正文',receipt:{url:'https://mp.csdn.net/mp_blog/creation/success/123',publicUrl:'https://blog.csdn.net/writer/article/details/123'}}]});
+ await vm.runInContext('refreshBrowserPublisher()',ctx);const html=vm.runInContext('renderBrowserPublicationHistory()',ctx);
+ assert.match(html,/https:\/\/blog.csdn.net\/writer\/article\/details\/123/);assert.doesNotMatch(html,/https:\/\/mp.csdn.net/);
 });

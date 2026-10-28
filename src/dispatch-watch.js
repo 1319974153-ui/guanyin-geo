@@ -1,7 +1,12 @@
 const activeStates=new Set(['sending','queued','preparing','publishing','submitting','uncertain']);
-export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(['cnblogs','typecho','personal-site'].includes(r.platform)&&r.state==='submitted')||(r.state==='needs_attention'&&typeof r.jobId==='string'&&!!r.jobId));}
+export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(['cnblogs','typecho','personal-site','tencentcloud','51cto','csdn','zhihu'].includes(r.platform)&&r.state==='submitted')||(r.state==='needs_attention'&&typeof r.jobId==='string'&&!!r.jobId));}
 
 // The monitor owns only read scheduling. It never enqueues, retries or publishes.
+export function dispatchRefreshInterval(journal){
+ const rows=Object.values(journal||{}).filter(r=>dispatchNeedsRefresh([r]));
+ return rows.length&&rows.every(r=>r.state==='submitted')?30000:4000;
+}
+
 export function createDispatchWatcher({refresh,valid,pending,paused=()=>false,notify=()=>{},schedule=setTimeout,cancel=clearTimeout,now=Date.now,interval=2000,maxDelay=15000,maxDuration=300000}){
  let timer=null,running=false,stopped=true,started=0,failures=0,generation=0;
  const status=(state)=>notify({state,failures});
@@ -18,7 +23,8 @@ export function createDispatchWatcher({refresh,valid,pending,paused=()=>false,no
   finally{running=false;}
   if(current!==generation){if(!stopped)queue(0);return}
   if(stopped)return;if(!valid()){stop();return}if(!pending()){stop('complete');return}
-  status(failures?'retry_wait':'watching');queue(Math.min(maxDelay,interval*2**Math.min(failures,4)));
+  status(failures?'retry_wait':'watching');const delay=typeof interval==='function'?interval():interval;
+  queue(Math.min(maxDelay,delay*2**Math.min(failures,4)));
  }
  function start(){if(!stopped)return;stopped=false;generation++;started=now();failures=0;status('watching');queue(0)}
  function wake(){if(stopped||running)return;if(timer!==null)cancel(timer);timer=null;queue(0)}

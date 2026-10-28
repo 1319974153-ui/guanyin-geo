@@ -1,6 +1,6 @@
 // UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
 // Journal before writes; uncertain work is reconciled, never silently replayed.
-export {dispatchNeedsRefresh,createDispatchWatcher} from './dispatch-watch.js';
+export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from './dispatch-watch.js';
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
