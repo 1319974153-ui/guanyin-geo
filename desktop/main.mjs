@@ -66,8 +66,8 @@ async function control(connection){
 }
 let polling=false;async function poll(){if(polling||stopping)return;polling=true;try{const list=await rpc('desktop-list'),active=new Set(list.map(c=>c.sessionId));for(const [id,c]of controllers)if(!active.has(id)){await c.close();controllers.delete(id)}for(const c of list)await (await control(c)).tick()}catch(e){console.error('发布检查：'+e.message)}finally{polling=false}}
 async function stopService(){
- if(stopping)return;stopping=true;clearInterval(pollTimer);upcomingPlatform.close();
- await Promise.allSettled([...controllers.values()].map(c=>c.close()));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('观引已退出，任务未自动重发'))}pending.clear();
+ if(stopping)return;stopping=true;clearInterval(pollTimer);
+ const closed=await Promise.allSettled([upcomingPlatform.close(),...[...controllers.values()].map(c=>c.close())]);if(closed.some(r=>r.status==='rejected'))console.error('部分平台会话保存未完成，账号目录保留');for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('观引已退出，任务未自动重发'))}pending.clear();
  if(service)await new Promise(resolve=>{let done=false,timer;const finish=()=>{if(done)return;done=true;clearTimeout(timer);service?.kill();service=null;resolve()};service.once('exit',finish);timer=setTimeout(finish,3000);try{service.postMessage({id:++sequence,action:'shutdown'})}catch{finish()}});
 }
 app.on('window-all-closed',()=>app.quit());

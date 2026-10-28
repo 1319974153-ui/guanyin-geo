@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {flushSessionStore} from './session-store.mjs';
 import {aliyunSecureReturn} from './platform-preview.mjs';
 import path from 'node:path';
 import {randomInt} from 'node:crypto';
@@ -11,14 +12,7 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
  let state={};if(fs.existsSync(filename)){state=JSON.parse(fs.readFileSync(filename,'utf8'));if(!state||typeof state!=='object'||Array.isArray(state))throw new Error('发布记录损坏，已停止以防重发')}
  let loginTab=null;const windows=new Map(),loadFailures=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(partition||connectionPartition(connection.sessionId));
  browserSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));browserSession.setPermissionCheckHandler(()=>false);
- async function flushSession(){
-  // Persist only Chromium's existing store. Never read/export credentials,
-  // extend cookie expiration, or turn a session cookie into a persistent one.
-  let timer;
-  try{browserSession.flushStorageData();await Promise.race([browserSession.cookies.flushStore(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('本机会话保存未完成，账号目录保留')),5000)})]);}
-  catch{throw Error('本机会话保存未完成，账号目录保留');}
-  finally{clearTimeout(timer);}
- }
+ const flushSession=()=>flushSessionStore(browserSession);
  function persist(){const tmp=filename+'.tmp';fs.writeFileSync(tmp,JSON.stringify(state),{mode:0o600});fs.renameSync(tmp,filename)}
  function saveTab(id,url,openerTabId){if(!navigationAllowed(connection.platform,url))return;savedTabs[id]={id,url,...(openerTabId?{openerTabId}:{})};state._tabs=savedTabs;persist()}
  function createWindow(url,{id=randomInt(1,2**30),active=true,openerTabId}={}){
