@@ -249,7 +249,19 @@ async function reconcileJob(platform='csdn'){
   }
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
-  if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
+  if(status.canResume){
+   // A human may finish the retained page while an earlier check times out.
+   // Observe that exact page before offering another submit; never write here.
+   if(platform==='aliyun'){
+    const j=inflight.job,receipt=await page(inflight.tabId,'receipt',j.snapshot,j.accountId,platform);
+    if(receipt?.blocked)throw Error(receipt.error);
+    if(receipt?.state==='submitted'&&receipt.contentVerified===true){
+     await call('report',{id:j.id,lease:j.lease,...receipt,state:'observed_submitted',sourceHash:j.sourceHash});
+     await saveJournal(platform,null);await setStatus('已核对原文提交回执；未再次点击发布');return;
+    }
+   }
+   await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return
+  }
   const receipt=await page(inflight.tabId,'receipt',['51cto','aliyun'].includes(platform)?inflight.job.snapshot:undefined,['51cto','aliyun'].includes(platform)?inflight.job.accountId:undefined,platform);if(receipt?.blocked&&platform!=='csdn')throw new Error(receipt.error);if(receipt&&!receipt.blocked){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else if(platform==='csdn'&&['uncertain','submitting'].includes(status.job?.state)){
    const j=inflight.job,found=await locateCsdnDraft(j),article={...j.snapshot,tags:j.tags,verifiedDraftList:found.candidate};
    const raw=await page(found.tabId,'draft-receipt',article,j.accountId,platform),proof=draftEvidence(platform,raw);
