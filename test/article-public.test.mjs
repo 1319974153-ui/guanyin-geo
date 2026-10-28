@@ -6,6 +6,12 @@ import {publisherBridge} from '../local/publisher-bridge.mjs';
 const snapshot={title:'发布恢复',html:'<p>第一段<strong>证据</strong></p><p>本文包含 AI 辅助整理。</p>',contentId:'c'};
 const job=platform=>({platform,accountId:'writer',mode:'publish',attempted:true,state:'submitted',receipt:{url:platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/success/123':'https://zhuanlan.zhihu.com/p/123',articleId:'123'},snapshot});
 const page=platform=>platform==='csdn'?`<h1 id="articleContentId">发布恢复</h1><div id="content_views">${snapshot.html}</div>`:`<h1 class="Post-Title">发布恢复</h1><div class="Post-RichText">${snapshot.html}</div><span class="AuthorInfo-name"><a class="UserLink-link" href="//www.zhihu.com/people/writer">作者</a></span>`;
+test('Zhihu automatic entity-link icons do not masquerade as article media, while real SVG stays unverified',()=>{
+ const icon='<a class="RichContent-EntityWord" href="https://zhida.zhihu.com/search?q=test">第一段<svg class="ZDI ZDI--FourPointedStar16"><path d="M0 0"/></svg></a>';
+ const html=page('zhihu').replace('第一段',icon);
+ assert.equal(articlePublicMatches(html,job('zhihu')),true);
+ for(const invalid of [html.replace('ZDI--FourPointedStar16','actual-diagram'),html.replace('https://zhida.zhihu.com','https://evil.test'),html.replace('<path d="M0 0"/>','<text>未核验图表</text>')])assert.equal(articlePublicMatches(invalid,job('zhihu')),false);
+});
 for(const platform of ['csdn','zhihu']){
  test(`${platform} exact receipt and full text required; never verify a summary or image omission`,()=>{
   const j=job(platform),html=page(platform);

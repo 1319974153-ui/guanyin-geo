@@ -19,6 +19,10 @@ function text(n){
  return ['p','div','h1','h2','h3','h4','h5','h6','li','ul','ol','pre','blockquote','br','tr','td'].includes(n?.tagName)?' '+value+' ':value;
 }
 const compact=s=>String(s||'').replace(/\s+/g,' ').trim();
+function zhihuEntityIcon(n){
+ if(n.tagName!=='svg'||!hasClass(n,'ZDI--FourPointedStar16')||n.parentNode?.tagName!=='a'||!hasClass(n.parentNode,'RichContent-EntityWord')||compact(text(n)))return false;
+ try{const u=new URL(attr(n.parentNode,'href'));return u.origin==='https://zhida.zhihu.com'&&u.pathname==='/search'}catch{return false}
+}
 // Text-only acceptance for these adapters. Images require separate upload proof;
 // do not silently ignore missing images and declare an image article verified.
 export function articlePublicMatches(html,job){
@@ -28,7 +32,7 @@ export function articlePublicMatches(html,job){
  const bodies=nodes(doc,n=>zhihu?hasClass(n,'Post-RichText'):attr(n,'id')==='content_views');
  if(titles.length!==1||bodies.length!==1)return false;
  const media=n=>['img','video','audio','iframe','object','embed','svg','canvas'].includes(n.tagName);
- if(nodes(source,media).length||nodes(bodies[0],media).length)return false;
+ if(nodes(source,media).length||nodes(bodies[0],n=>media(n)&&!(zhihu&&zhihuEntityIcon(n))).length)return false;
  if(zhihu){
   const authors=nodes(doc,n=>hasClass(n,'AuthorInfo-name')).flatMap(n=>nodes(n,a=>a.tagName==='a'&&hasClass(a,'UserLink-link')));
   if(authors.length!==1)return false;
