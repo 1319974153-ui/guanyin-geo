@@ -22,6 +22,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='zhihu')return {stage:'草稿与公开发布已实测',note:'已提交真实文章并人工核对公开正文；10月28日修复正文作者提取，原文匹配通过，匿名自动核验仍待通过，产品保持已提交'};
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；10月28日产品只读找回168768477并核对全文，保留禁止重发；当日额度已用完，公开提交仍待验收'};
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
+ if(id==='wechat')return {stage:'可准备公众号稿件',note:'支持本地排版、复制与下载；个人主体由本人发表。官方草稿与发表协议已实现，真实授权和发布尚未验收，未开放自动提交。'};
  if(id==='personal-site')return {stage:'官网草稿与发布已实测',note:'Mac 桌面已通过真实官网草稿、公开发布与匿名正文核验；需管理员先绑定受限发布端，其他网站与操作系统须单独验收。'};
  if(id==='typecho')return {stage:'接口已接入 · 待实测',note:'网站连接、草稿、原稿发布与恢复已实现；真实 Typecho 网站尚待验收，不能以自动测试代替'};
  if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};

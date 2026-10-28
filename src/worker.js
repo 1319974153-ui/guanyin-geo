@@ -11,6 +11,7 @@ import {wordpressApi,protectWordpress} from './wordpress.js';
 import {cnblogsApi} from './cnblogs.js';
 import {personalSiteApi} from './personal-site.js';
 import {typechoApi} from './typecho.js';
+import {wechatApi} from './wechat.js';
 import {publishingCenterApi} from './publishing-center.js';
 import {dsoApi} from './dso.js';
 import {questionImportsApi} from './question-imports.js';
@@ -107,6 +108,7 @@ async function apiCore(req,env,ctx){const owner=ctx.owner,path=new URL(req.url).
  const hubResponse=await deliveryHubApi(req,env,ctx,{json,body,workspace,publicUrl});if(hubResponse)return hubResponse;
  const publishingCenterResponse=await publishingCenterApi(req,env,ctx,{json,workspace});if(publishingCenterResponse)return publishingCenterResponse;
  const personalSiteResponse=await personalSiteApi(req,env,ctx,{json,body,workspace});if(personalSiteResponse)return personalSiteResponse;
+ const wechatResponse=await wechatApi(req,env,ctx,{json,workspace});if(wechatResponse)return wechatResponse;
  const typechoResponse=await typechoApi(req,env,ctx,{json,body,workspace,encrypt,decrypt,publicUrl,checkDNS});if(typechoResponse)return typechoResponse;
  const cnblogsResponse=await cnblogsApi(req,env,ctx,{json,body,workspace,encrypt,decrypt,checkDNS});if(cnblogsResponse)return cnblogsResponse;
  const ocrAsset=await ocrAssetResponse(req,env);if(ocrAsset)return ocrAsset;
