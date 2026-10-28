@@ -123,3 +123,16 @@ test('Alibaba enabled preview promotes the saved draft in place and still record
  assert.equal(result.job.state,'submitted');assert.equal(result.job.receipt.publicVerified,false);
  assert.equal((await e.app('enqueue',{...args,mode:'publish'})).data.job.id,j.id);assert.equal(e.db.prepare('select count(*) n from publisher_jobs').get().n,1);
 });
+
+test('Aliyun observed handoff requires original lease, full content and identity, then blocks another submit',async t=>{
+ const e=setup(t,['aliyun']),c=e.bridge.connectDesktop({brandId:'a',platform:'aliyun'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('aliyun'));
+ await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',expectedAccountId:'author'});const j=(await call('claim')).job;
+ const proof={id:j.id,lease:j.lease,state:'observed_submitted',accountId:j.accountId,sourceHash:j.sourceHash,url:'https://developer.aliyun.com/article/456',articleId:'456',contentVerified:true,publicVerified:false,reviewState:'reviewing'};
+ await assert.rejects(call('report',proof),/不能登记/);
+ await call('report',{id:j.id,lease:j.lease,state:'needs_attention',editorRetained:true,error:'超时'});
+ for(const patch of [{accountId:'other'},{sourceHash:'other'},{contentVerified:false},{publicVerified:true},{url:'https://evil.test/article/456'},{reviewState:'approved'}])await assert.rejects(call('report',{...proof,...patch}),/证据不匹配/);
+ await assert.rejects(call('report',{...proof,lease:'other'}));
+ const r=await call('report',proof);assert.equal(r.job.state,'submitted');assert.equal(r.job.receipt.publicVerified,false);assert.equal(r.job.receipt.submissionMethod,'observed_after_handoff');
+ await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash}),/不允许/);
+ assert.equal((await e.app('retry',{id:j.id})).status,409);
+});

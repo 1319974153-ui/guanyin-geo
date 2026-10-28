@@ -232,6 +232,14 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      if(j.recoveredDraft&&j.recoveredDraft.articleId!==proof.articleId)fail(409,'原草稿编号已变化，未覆盖');
      j.recoveredDraft={...proof,observedAt:clock()};j.state='uncertain';j.error='已找到并核对原草稿；提交结果仍待核对，不会自动重发';save('publisher_jobs',j);return respond({job:publicJob(j)});
     }
+    if(b.state==='observed_submitted'){
+     // An exact article observed after a human handoff consumes the submit
+     // opportunity, without pretending that our commit/click performed it.
+     if(j.platform!=='aliyun'||j.mode!=='publish'||j.attempted||j.receipt||!j.editorRetained||!['preparing','needs_attention'].includes(j.state))fail(409,'此任务不能登记原文观察回执');
+     if(b.accountId!==j.accountId||session.account?.accountId!==j.accountId||b.sourceHash!==j.sourceHash||b.contentVerified!==true||b.publicVerified!==false||!['reviewing','public_unverified'].includes(b.reviewState)||!receiptEvidence('aliyun',b.url,b.articleId))fail(400,'原文观察的账号、正文或网址证据不匹配');
+     j.state='submitted';j.attempted=true;j.error='';j.receipt={url:b.url,articleId:String(b.articleId),observedAt:clock(),verification:'original_page_account_and_full_content',contentVerified:true,publicVerified:false,reviewState:b.reviewState,submissionMethod:'observed_after_handoff'};
+     save('publisher_jobs',j);return respond({job:publicJob(j)});
+    }
     if(b.state==='draft'){
      if(j.mode!=='draft'||j.attempted||!['preparing','needs_attention','draft'].includes(j.state))fail(409,'此任务不能登记草稿回执');
      const draft=draftEvidence(j.platform,b.draft);

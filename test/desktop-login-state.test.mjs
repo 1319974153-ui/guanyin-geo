@@ -35,3 +35,9 @@ test('network load errors do not become login prompts or retain arbitrary URL te
  assert.equal(pageLoadFailure(-3),null);assert.equal(pageLoadFailure('https://login/?secret=1'),null);
  assert.match(pageLoadFailure(-999),/网络请求失败/);assert.doesNotMatch(pageLoadFailure(-100),/需要登录/);
 });
+
+import {connectionFailureState,LOGIN_EXPIRED_MESSAGE} from '../desktop/login-state.mjs';
+test('only explicit login evidence requests login; network or persistence failures preserve the session',()=>{
+ for(const message of ['平台加载超时，原稿已保留','平台检查未返回，原稿保留',pageLoadFailure(-118),'尚未取得本人社区身份','本机会话保存失败'])assert.equal(connectionFailureState(new Error(message)),'error');
+ for(const message of [LOGIN_EXPIRED_MESSAGE,'请在平台登录完成后继续','请在阿里云官方窗口完成登录'])assert.equal(connectionFailureState(message),'needs_login');
+});

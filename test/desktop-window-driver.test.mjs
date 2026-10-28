@@ -12,7 +12,7 @@ function fixture(t){
   constructor(options){super();this.options=options;this.visible=options.show;windows.push(this);const wc=this.webContents=new EventEmitter();wc.url='';wc.getURL=()=>wc.url;wc.isLoadingMainFrame=()=>false;wc.loadURL=u=>this.loadURL(u);wc.setWindowOpenHandler=f=>wc.open=f;wc.executeJavaScript=async s=>{wc.lastScript=s;return {accountId:'fixture'}};}
   async loadURL(url){this.webContents.url=url;queueMicrotask(()=>this.webContents.emit('did-navigate',{},url))}isDestroyed(){return !!this.closed}isVisible(){return this.visible}show(){this.visible=true}focus(){}destroy(){this.closed=true;this.emit('closed')}
  }
- const session={fromPartition:p=>{partitions.push(p);return {setPermissionRequestHandler(f){this.permission=f},setPermissionCheckHandler(f){this.check=f}}}};
+ const session={fromPartition:p=>{partitions.push(p);return {flushStorageData(){},cookies:{async flushStore(){}},setPermissionRequestHandler(f){this.permission=f},setPermissionCheckHandler(f){this.check=f}}}};
  const connection={sessionId:'session-a',platform:'toutiao'},create=(c,extra={})=>windowDriver({BrowserWindow:Window,session,root,connection:c||connection,...extra});return {root,windows,partitions,create,connection};
 }
 test('desktop login has no page privileges, returns to editor automatically, and retains its own private session',async t=>{
@@ -144,4 +144,10 @@ test('load failure while waiting for navigation rejects before any editor script
  w.webContents.emit('did-fail-load',{},-100,'ERR_CONNECTION_CLOSED','https://developer.aliyun.com/article/new',true);
  w.webContents.isLoadingMainFrame=()=>false;w.webContents.emit('did-stop-loading');
  await assert.rejects(pending,/连接被关闭/);assert.equal(w.webContents.lastScript,undefined);
+});
+
+test('verified session flushing waits for Chromium persistence without reading or extending credentials',async t=>{
+ const x=fixture(t),d=x.create();await d.openLogin();const session=x.windows[0].options.webPreferences.session,events=[];let finish;
+ session.flushStorageData=()=>events.push('dom-storage');session.cookies={flushStore:()=>{events.push('cookie-store');return new Promise(r=>finish=r)},get:()=>{throw Error('must not read cookies')},set:()=>{throw Error('must not rewrite cookies')}};
+ let done=false;const pending=d.close().then(()=>done=true);assert.equal(x.windows[0].isDestroyed(),true);assert.deepEqual(events,['dom-storage','cookie-store']);await Promise.resolve();assert.equal(done,false);finish();await pending;assert.equal(done,true);
 });

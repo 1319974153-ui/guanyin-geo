@@ -10,6 +10,7 @@ test('platform acceptance records distinguish verified publication, blocked draf
  assert.equal(rows.find(p=>p.id==='tencentcloud').actionEvidence.publish.liveAcceptance,'passed');
  assert.match(zhihu.note,/匿名自动核验仍待通过/);
  assert.match(zhihu.note,/产品保持已提交/);
+
  assert.equal(rows.find(p=>p.id==='csdn').actionEvidence.publish.liveAcceptance,'pending');
  assert.match(rows.find(p=>p.id==='toutiao').note,/完善账号信息/);
  assert.equal(rows.find(p=>p.id==='xiaohongshu').actionEvidence.prepare.liveAcceptance,'paused');
