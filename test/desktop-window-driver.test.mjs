@@ -135,3 +135,13 @@ test('network failures pause the owned login without losing session and retry on
  await d.openLogin();assert.equal(reloads,1);assert.equal(x.windows.length,1);assert.equal(d.state['editorTab:aliyun'],id);
  await w.loadURL('https://developer.aliyun.com/article/new');w.webContents.emit('did-finish-load');assert.equal(d.loginEditorReady(),true);
 });
+
+
+test('load failure while waiting for navigation rejects before any editor script',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'ali-wait',platform:'aliyun'});const tab=await d.chrome.tabs.create({url:'https://developer.aliyun.com/article/new',active:false});const w=x.windows[0];
+ w.webContents.isLoadingMainFrame=()=>true;
+ const pending=d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>null,args:[]});
+ w.webContents.emit('did-fail-load',{},-100,'ERR_CONNECTION_CLOSED','https://developer.aliyun.com/article/new',true);
+ w.webContents.isLoadingMainFrame=()=>false;w.webContents.emit('did-stop-loading');
+ await assert.rejects(pending,/连接被关闭/);assert.equal(w.webContents.lastScript,undefined);
+});
