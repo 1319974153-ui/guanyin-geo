@@ -27,3 +27,11 @@ test('expired login detection recognizes exact official routes, not redirect par
  for(const url of ['https://developer.aliyun.com/article/new?edit=123','https://account-s.aliyun.com/pass/adding','https://account.aliyun.com.evil.test/login/login.htm','https://user:secret@account.aliyun.com/login/login.htm','http://account.aliyun.com/login/login.htm','https://account.aliyun.com:8443/login/login.htm','https://account.aliyun.com/other?url=/login/login.htm'])assert.equal(loginPageRequired('aliyun',url),false);
  assert.equal(loginPageRequired('51cto','https://account.aliyun.com/login/login.htm'),false);
 });
+
+
+import {pageLoadFailure} from '../desktop/login-state.mjs';
+test('network load errors do not become login prompts or retain arbitrary URL text',()=>{
+ assert.match(pageLoadFailure(-100),/连接被关闭/);assert.match(pageLoadFailure(-105),/域名解析失败/);
+ assert.equal(pageLoadFailure(-3),null);assert.equal(pageLoadFailure('https://login/?secret=1'),null);
+ assert.match(pageLoadFailure(-999),/网络请求失败/);assert.doesNotMatch(pageLoadFailure(-100),/需要登录/);
+});

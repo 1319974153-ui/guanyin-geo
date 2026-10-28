@@ -122,3 +122,16 @@ test('opening saved draft reuses platform session without replacing active job o
  assert.equal(x.windows[0].webContents.lastScript,undefined);assert.equal(d.state['editorTab:aliyun'],undefined);
  for(const bad of ['https://evil.test','https://developer.aliyun.com/article/123','http://developer.aliyun.com/article/new?edit=123'])assert.throws(()=>d.openReceipt(bad),/编辑地址/);
 });
+
+
+test('network failures pause the owned login without losing session and retry only on explicit open',async t=>{
+ const x=fixture(t),errors=[];const d=x.create({sessionId:'ali-network',platform:'aliyun'},{onLoadError:e=>errors.push(e)});await d.openLogin();
+ const w=x.windows[0];let reloads=0;w.webContents.reload=()=>reloads++;
+ w.webContents.emit('did-fail-load',{},-100,'secret=bad','https://account.aliyun.com/login?secret=bad',false);assert.equal(errors.length,0);
+ w.webContents.emit('did-fail-load',{},-3,'ERR_ABORTED','https://developer.aliyun.com/article/new',true);assert.equal(errors.length,0);
+ w.webContents.emit('did-fail-load',{},-100,'secret=bad','https://account.aliyun.com/login?secret=bad',true);
+ w.webContents.emit('did-fail-load',{},-100,'secret=bad','https://account.aliyun.com/login?secret=bad',true);assert.equal(errors.length,1);assert.doesNotMatch(errors[0],/secret|https:/);assert.equal(d.loginEditorReady(),false);assert.equal(reloads,0);
+ const id=(await d.chrome.storage.local.get('editorTab:aliyun'))['editorTab:aliyun'];await assert.rejects(d.chrome.scripting.executeScript({target:{tabId:id},func:()=>null,args:[]}),/连接被关闭/);
+ await d.openLogin();assert.equal(reloads,1);assert.equal(x.windows.length,1);assert.equal(d.state['editorTab:aliyun'],id);
+ await w.loadURL('https://developer.aliyun.com/article/new');w.webContents.emit('did-finish-load');assert.equal(d.loginEditorReady(),true);
+});

@@ -21,3 +21,10 @@ export function loginPageRequired(platform,value){
  }catch{return false}
 }
 export const LOGIN_EXPIRED_MESSAGE='平台登录已失效，请在已打开的官方窗口登录；完成后观引自动继续核对，不需要重新添加账号。';
+
+// Only numeric network codes are retained. Redirect URLs may contain credentials.
+export function pageLoadFailure(code){
+ if(!Number.isInteger(code)||code===-3||code>=0)return null;
+ const reasons={[-100]:'连接被关闭',[-101]:'连接被重置',[-102]:'连接被拒绝',[-105]:'域名解析失败',[-106]:'网络已断开',[-118]:'连接超时',[-200]:'证书名称不匹配',[-201]:'证书已过期',[-202]:'证书不受信任'};
+ return '平台页面未加载：'+(reasons[code]||'网络请求失败')+'（'+code+'）。账号会话和原稿保留；网络恢复后点“重试连接”，无需重新发送验证码。';
+}
