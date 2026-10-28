@@ -25,7 +25,7 @@
 当前唯一保留的公开发行：**0.49.0-beta.2 · Mac 桌面预览 r63**（2026-10-28）。
 
 - **Apple Silicon Mac：**[下载安装包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.2/GuanyinGEO-0.49.0-beta.2-mac-arm64-r63.zip)，解压后打开“观引桌面预览.app”。
-- **Windows / Intel Mac / Linux：**本轮没有对应的新桌面安装包，可查看[源码运行说明](docs/LOCAL-RUNNING.md)。
+- **Windows / Intel Mac / Linux**：本轮没有对应的新桌面安装包，可查看[源码运行说明](docs/LOCAL-RUNNING.md)。
 - **先看看工作方式：**[离线演练](docs/FIRST-RUN.md)不需要模型密钥，不消耗付费调用。
 
 这是尚未公证的开发测试版，没有稳定版。下载校验、升级步骤与当前验证范围集中在[下载指南](docs/DOWNLOAD.md)。
