@@ -30,3 +30,13 @@ test('Alibaba regional SMS relay is exact HTTPS path only, never a broad cloud a
  assert.equal(aliyunLoginRelay('https://account-cn-s.alibabacloud.com/pass/adding?relay=opaque'),true);
  for(const url of ['http://account-cn-s.alibabacloud.com/pass/adding','https://account-cn-s.alibabacloud.com/other','https://account-cn-s.alibabacloud.com.evil.test/pass/adding','https://user:secret@account-cn-s.alibabacloud.com/pass/adding','https://account-cn-s.alibabacloud.com:8443/pass/adding','https://other.alibabacloud.com/pass/adding'])assert.equal(aliyunLoginRelay(url),false);
 });
+
+test('SegmentFault official login retains its own session and never grants unrelated host navigation',()=>{
+ const windows=[],partitions=[];class Window{constructor(options){this.options=options;this.loaded=[];this.webContents=new EventEmitter();this.webContents.setWindowOpenHandler=f=>this.popup=f;windows.push(this)}loadURL(u){this.loaded.push(u);return Promise.resolve()}isDestroyed(){return false}show(){}focus(){}destroy(){}}
+ const session={fromPartition(p){partitions.push(p);return {setPermissionRequestHandler(){},setPermissionCheckHandler(){}}}};
+ const preview=platformPreview({BrowserWindow:Window,session});preview.open('segmentfault');preview.open('segmentfault');preview.open('aliyun');
+ assert.equal(windows.length,2);assert.deepEqual(partitions,['persist:guanyin-platform-segmentfault-acceptance','persist:guanyin-platform-aliyun-acceptance']);
+ const win=windows[0];assert.deepEqual(win.loaded,['https://segmentfault.com/user/login']);assert.equal(win.options.webPreferences.sandbox,true);
+ for(const url of ['https://segmentfault.com.evil.test/user/login','https://sub.segmentfault.com/','http://segmentfault.com/','https://user:password@segmentfault.com/','https://segmentfault.com:8080/','https://account.aliyun.com/']){let blocked=false;win.webContents.emit('will-navigate',{url,preventDefault(){blocked=true}});assert.equal(blocked,true);win.popup({url});assert.equal(win.loaded.length,1)}
+ let blocked=false;win.webContents.emit('will-navigate',{url:'https://segmentfault.com/',preventDefault(){blocked=true}});assert.equal(blocked,false);
+});

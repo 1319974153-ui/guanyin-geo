@@ -25,6 +25,7 @@ export function editorEvidence(platform,url){
 // Accept only observed platform-owned article URLs, never a generic dashboard/success toast.
 export function receiptEvidence(platform,url,articleId){
  try{const u=new URL(url);if(u.username||u.password||u.hash)return false;let m;
+ if(platform==='aliyun')return u.origin==='https://developer.aliyun.com'&&!u.search&&(m=u.pathname.match(/^\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='51cto')return u.origin==='https://blog.51cto.com'&&!u.search&&(m=u.pathname.match(/^\/blogger\/success\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='tencentcloud')return u.origin==='https://cloud.tencent.com'&&!u.search&&(m=u.pathname.match(/^\/developer\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='csdn')return u.origin==='https://mp.csdn.net'&&!u.search&&(m=u.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/))&&m[1]===String(articleId);

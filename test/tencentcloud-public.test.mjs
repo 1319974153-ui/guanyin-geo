@@ -38,3 +38,20 @@ test('inline auto-linked URLs do not introduce phantom body spaces',()=>{
  const s={title:'测试稿',html:'<p>参考：https://example.com 。</p>',ai:false};
  assert.equal(tencentPublicMatches('<h1 class="title-text">测试稿</h1><div class="mod-content__markdown"><p>参考：<a href="https://example.com">https://example.com</a> 。</p></div>',s),true);
 });
+
+test('Tencent pending review survives three misses and restart, reconciles in background without resubmission',async t=>{
+ const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=1000000,calls=0;
+ const options={db,origin:'http://127.0.0.1:55555',clock:()=>time,readState:()=>({brands:[{id:'b'}],contents:[]}),verifyPublic:async()=>++calls>=4};
+ let bridge=publisherBridge(options);
+ db.prepare('INSERT INTO publisher_jobs VALUES(?,?,?)').run('j','fingerprint',JSON.stringify({...job,id:'j',brandId:'b',sourceHash:'original',snapshot:{...snapshot,contentId:'c'}}));
+ const check=async()=>{bridge.reconcileSubmitted();await new Promise(r=>setImmediate(r))};
+ await check();assert.equal(calls,1);
+ time+=60001;await check();assert.equal(calls,2);
+ time+=60001;await check();assert.equal(calls,2); // second delay is two minutes
+ time+=60001;await check();assert.equal(calls,3);
+ bridge=publisherBridge(options);await check();assert.equal(calls,3); // restart keeps backoff
+ time+=240001;await check();assert.equal(calls,4);
+ const saved=JSON.parse(db.prepare('SELECT body FROM publisher_jobs').get().body);
+ assert.equal(saved.state,'published');assert.equal(saved.publicCheckAttempts,4);assert.equal(saved.receipt.url,job.receipt.url);
+ assert.equal(db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);await check();assert.equal(calls,4);
+});

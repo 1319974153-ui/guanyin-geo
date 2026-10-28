@@ -10,7 +10,7 @@ export function aliyunLoginRelay(value){
 }
 export function platformPreview({BrowserWindow,session}){
  const windows=new Map();
- const sites={'51cto':{name:'51CTO',hosts:['blog.51cto.com','home.51cto.com'],url:'https://blog.51cto.com/'},aliyun:{name:'阿里云开发者社区',hosts:['developer.aliyun.com','account.aliyun.com','signin.aliyun.com','passport.aliyun.com'],url:'https://developer.aliyun.com/'}};
+ const sites={segmentfault:{name:'思否 SegmentFault',hosts:['segmentfault.com'],url:'https://segmentfault.com/user/login'},'51cto':{name:'51CTO',hosts:['blog.51cto.com','home.51cto.com'],url:'https://blog.51cto.com/'},aliyun:{name:'阿里云开发者社区',hosts:['developer.aliyun.com','account.aliyun.com','signin.aliyun.com','passport.aliyun.com'],url:'https://developer.aliyun.com/'}};
  const allowed=(platform,value)=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&(sites[platform]?.hosts.includes(u.hostname)||(platform==='aliyun'&&aliyunLoginRelay(value)))}catch{return false}};
  function open(platform='51cto'){
   if(!sites[platform])throw Error('未支持的平台');let win=windows.get(platform);

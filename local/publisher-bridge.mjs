@@ -36,11 +36,13 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  const save=(table,v)=>db.prepare(`UPDATE ${table} SET body=? WHERE id=?`).run(JSON.stringify(v),v.id);
  const sessions=()=>rows('publisher_sessions');const jobs=()=>rows('publisher_jobs');
  const getJob=id=>{const r=db.prepare('SELECT body FROM publisher_jobs WHERE id=?').get(id);if(!r)fail(404,'找不到发布任务');return JSON.parse(r.body)};
- // Bounded read-only reconciliation while the user views status. A submitted
+ // Read-only reconciliation uses persisted exponential backoff (1 min to 1 hour).
+ // Review can take days: never permanently abandon a receipt after three checks.
+ // A submitted
  // receipt is never promoted by a renderer/extension assertion.
  const checking=new Set();
  function checkPublic(j){
-  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.platform==='tencentcloud'&&j.publicCheckVersion==='rendered-v2'&&(j.publicCheckAttempts||0)>=3)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<(j.platform!=='tencentcloud'?Math.min(3600000,60000*2**Math.min(j.publicCheckAttempts||0,6)):60000)))return;
+  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v2'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<Math.min(3600000,60000*2**Math.min(Math.max(0,(j.publicCheckAttempts||0)-1),6))))return;
   checking.add(j.id);if(j.publicCheckVersion!=='rendered-v2')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v2';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
   Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
    const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url&&latest.accountId===j.accountId){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:['csdn','zhihu'].includes(j.platform)?{publicUrl:articlePublicUrl(j)}:{})};save('publisher_jobs',latest)}
@@ -245,7 +247,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     else if(b.state==='submitted'&&j.attempted){
      let url;try{url=new URL(b.url)}catch{fail(400,'缺少实际回执网址')}
      if(!receiptEvidence(j.platform||'csdn',url.href,b.articleId))fail(400,'回执不是此平台的实际文章网址');
-     j.state='submitted';j.error='';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:'extension_success_page',publicVerified:false};
+     j.state='submitted';j.error='';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:'extension_success_page',publicVerified:false,...(j.platform==='aliyun'?{reviewState:['reviewing','public_unverified'].includes(b.reviewState)?b.reviewState:'public_unverified'}:{})};
     }else if(b.state==='needs_attention'||b.state==='uncertain'){j.state=j.attempted?'uncertain':'needs_attention';if(b.editorRetained===true)j.editorRetained=true;j.error=String(b.error||'请在平台检查当前页面').slice(0,300)}else fail(400,'不支持此回执状态');
     save('publisher_jobs',j);return respond({job:publicJob(j)});
    }
@@ -278,5 +280,5 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
   const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
  }
- return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(['51cto','csdn','zhihu'].includes(j.platform)&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
+ return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(['tencentcloud','51cto','csdn','zhihu'].includes(j.platform)&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
 }

@@ -47,7 +47,7 @@ async function submitPrepared(platform,job,tabId,article,call){
  const commit=await call('commit',{id:job.id,lease:job.lease,accountId:me.accountId,sourceHash:job.sourceHash,mediaProof:article.mediaProof||[]});
   if(!commit.permit||commit.validUntil<Date.now())throw new Error('提交授权已过期');
   await page(tabId,'submit',article,job.accountId,platform,job.media);
-  for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',platform==='51cto'?article:undefined,platform==='51cto'?job.accountId:undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
+  for(let i=0;i<20;i++){await delay(1000);let receipt;try{receipt=await page(tabId,'receipt',['51cto','aliyun'].includes(platform)?article:undefined,['51cto','aliyun'].includes(platform)?job.accountId:undefined,platform)}catch{continue}if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:job.id,lease:job.lease,...receipt});await saveJournal(platform,null);await setStatus('取得平台提交回执，公开和审核状态仍需核验');return}}
   throw new Error('未取得平台成功页，结果未知；请先核对，勿重复发布');
 }
 // Resolve a saved-but-unnumbered Toutiao editor using its visible draft list.
@@ -250,7 +250,7 @@ async function reconcileJob(platform='csdn'){
   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
   if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原任务已取消或重新授权，旧记录已关闭');return}
   if(status.canResume){await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return}
-  const receipt=await page(inflight.tabId,'receipt',platform==='51cto'?inflight.job.snapshot:undefined,platform==='51cto'?inflight.job.accountId:undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
+  const receipt=await page(inflight.tabId,'receipt',['51cto','aliyun'].includes(platform)?inflight.job.snapshot:undefined,['51cto','aliyun'].includes(platform)?inflight.job.accountId:undefined,platform);if(receipt?.blocked)throw new Error(receipt.error);if(receipt){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else await setStatus('上次任务中断，请检查编辑器和观引队列；不会自动重发')}catch(e){
    const message=String(e.message||'平台结果待核对').slice(0,240);
    // Recovery is read-only. Surface a newly observed error to the same job;
    // never create a second task or silently hide the platform failure.

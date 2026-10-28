@@ -14,6 +14,28 @@ export async function aliyunPage({action,article,accountId,profileEvidence}){
   const name=text(one('span.nickname','社区昵称'));if(ids.length!==1||!name)fail('尚未取得本人社区身份');
   return {accountId:ids[0],name,profileUrl:'https://developer.aliyun.com/profile/'+ids[0]};
  }
+ // Article receipt inspection is read-only. Logged-in visibility is not proof
+ // that anonymous visitors can read it, including when no review banner exists.
+ if(action==='receipt'){
+  const id=location.pathname.match(/^\/article\/([1-9]\d{0,19})$/)?.[1];
+  if(!id||location.search||location.hash)return null;
+  const me=profileEvidence;
+  if(!me||!accountId||me.accountId!==accountId||me.profileUrl!=='https://developer.aliyun.com/profile/'+accountId)fail('阿里云登录账号已变化，未核对回执');
+  if(!article?.title||!article?.html)fail('缺少确认稿件，未核对回执');
+  if(/<(?:img|video|audio)\b/i.test(article.html))fail('媒体稿回执尚未验收');
+  const title=one('h1.article-title','文章标题'),body=one('.article-content .article-inner.markdown-body','文章正文');
+  const authors=all('.user-msg a.user-name,a.aigc-fixed-left-name');
+  if(!authors.length||authors.some(a=>a.href!==me.profileUrl))fail('文章作者与当前账号不一致');
+  const parsed=new DOMParser().parseFromString(article.html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html');
+  const expected=norm(parsed.body.textContent+(article.ai?' 本文包含 AI 辅助生成或整理的内容。':''));
+  if(text(title)!==norm(article.title)||text(body)!==expected)fail('原文标题或完整正文已变化，未核对为本次稿件');
+  const alerts=all('.content-wrapper > .sens-word-alert,.content-wrapper .sens-word-alert').filter(e=>!body.contains(e));
+  if(alerts.length>1)fail('平台审核提示不明确');
+  const status=text(alerts[0]);
+  if(/未能通过审核|审核未通过/.test(status))return {blocked:true,reviewState:'rejected',error:'阿里云审核未通过，请修改原稿后再提交'};
+  if(status&&!/内容审核中.*请耐心等待/.test(status))fail('平台审核状态尚未识别，未确认公开');
+  return {url:location.href,articleId:id,accountId,contentVerified:true,publicVerified:false,reviewState:status?'reviewing':'public_unverified'};
+ }
  if(!/^\/article\/new$/.test(location.pathname)||location.hash&&!['#','#/'].includes(location.hash)||location.search&&!(new URLSearchParams(location.search).size===1&&/^[1-9]\d{0,19}$/.test(new URLSearchParams(location.search).get('edit'))))fail('当前不是阿里云文章编辑器');
  const me=profileEvidence;
  if(!me||!/^[-\w]{1,80}$/.test(me.accountId)||!me.name||me.profileUrl!=='https://developer.aliyun.com/profile/'+me.accountId)fail('缺少本次登录身份核对，未操作');
