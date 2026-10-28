@@ -1,3 +1,4 @@
+import {juejinPage} from './juejin.js';
 import {fiftyonePage} from './fiftyone.js';
 import {aliyunPage} from './aliyun.js';
 import {tencentcloudPage} from './tencentcloud.js';
@@ -23,14 +24,14 @@ async function api(action,data={},connection){
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
  let profileEvidence;
- if(platform==='aliyun'){
+ if(['aliyun','juejin'].includes(platform)){
   // Read /myProfile in the same isolated session before every action, rather
   // than deriving an account ID from an article author, nickname or tracking JS.
-  const profile=await chrome.tabs.create({url:'https://developer.aliyun.com/myProfile',active:false});
-  try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'阿里云登录身份不可用');}
+  const profile=await chrome.tabs.create({url:platform==='juejin'?'https://juejin.cn/creator/home':'https://developer.aliyun.com/myProfile',active:false});
+  try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:platform==='juejin'?juejinPage:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'平台登录身份不可用');}
   finally{await chrome.tabs.remove(profile.id)}
  }
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence}]});
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='juejin'?juejinPage:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
  if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
@@ -145,6 +146,18 @@ async function savedDraft(platform,job,tabId,call){
  const article={...job.snapshot,tags:job.tags,mediaProof:job.originalDraft?.mediaProof||(await journal(platform))?.mediaProof||[]};let previous=null,toutiaoLocated=false;
  for(let i=0;i<20;i++){
   await delay(1000);
+  if(platform==='juejin'){
+   const entry=await journal(platform);if(!entry||entry.job.id!==job.id)throw Error('掘金原稿任务不匹配');
+   if(!entry.juejinReopen){
+    const loc=await page(tabId,'draft-location',article,job.accountId,platform);
+    if(!loc){previous=null;continue}
+    if(!draftEvidence(platform,{...loc,savedVerified:true,contentVerified:true,verification:'reopened_content'})||loc.accountId!==job.accountId)throw Error('掘金原稿编号不匹配');
+    // Save location before navigation, so resume reads the same draft and never creates another.
+    entry.juejinReopen={url:loc.url};await saveJournal(platform,entry);
+   }
+   if(!entry.juejinReopen.tabId){const reopened=await chrome.tabs.create({url:entry.juejinReopen.url,active:false});entry.juejinReopen.tabId=reopened.id;await saveJournal(platform,entry);}
+   tabId=entry.juejinReopen.tabId;article.reopenedUrl=entry.juejinReopen.url;
+  }
   if(platform==='aliyun'){const found=await locateAliyunDraft(job);tabId=found.tabId;article.verifiedDraftList=found.candidate;}
   if(platform==='toutiao'&&i>=3&&!toutiaoLocated){
    let ready=false;try{ready=!!await page(tabId,'draft-location',article,job.accountId,platform)}catch{ready=true}

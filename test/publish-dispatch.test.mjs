@@ -136,3 +136,13 @@ test('Typecho one-click publishes the durable draft and recovers without duplica
  assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,accountId:'someone-else'}],journal:{}}),{});
 });
 test('51CTO explicit draft action recovers preparation through original server job, then can publish the draft',async()=>{const f=fixture(),target={key:'51cto:s',platform:'51cto',sessionId:'s',accountId:'author',modes:['prepare','draft','publish']};f.journal[target.key]={...target,id:'old',jobId:'j',state:'prepared'};await f.run({targets:[target],mode:'draft'});assert.equal(f.calls[0][1].mode,'draft');assert.equal(f.journal[target.key].state,'queued');f.journal[target.key].state='draft';await f.run({targets:[target],mode:'publish'});assert.equal(f.calls.at(-1)[1].mode,'publish')});
+
+test('Juejin checkbox dispatch reaches the desktop queue and reads its draft receipt',async()=>{
+ const journal={},target={key:'juejin:s',platform:'juejin',sessionId:'s',accountId:'123',modes:['prepare','draft']},calls=[];
+ const request=async(path,init)=>{calls.push({path,init});if(path==='/api/local-publisher/enqueue'){assert.equal(JSON.parse(init.body).mode,'draft');return {job:{id:'j',state:'queued'}}}return {jobs:[{id:'j',state:'draft',receipt:{url:'https://juejin.cn/editor/drafts/456',publicVerified:false}}]}};
+ const args={article:{...article,title:'test',text:'test'},journal,request,persist:async()=>{},assertScope(){}};
+ await dispatchArticle({...args,targets:[target],mode:'draft'});assert.equal(journal[target.key].state,'queued');
+ await reconcileDispatch(args);assert.equal(journal[target.key].state,'draft');assert.equal(journal[target.key].remote.publicVerified,false);
+ await dispatchArticle({...args,targets:[target],mode:'draft'});assert.equal(calls.filter(c=>c.init?.method==='POST').length,1);
+ await assert.rejects(dispatchArticle({...args,targets:[target],mode:'publish'}));
+});

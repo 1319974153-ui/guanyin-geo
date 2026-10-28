@@ -16,6 +16,7 @@ export function loginPageRequired(platform,value){
  try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port)return false;
   if(platform==='aliyun')return u.hostname==='account.aliyun.com'&&['/login/login.htm','/login/login_aliyun.htm'].includes(u.pathname)||u.hostname==='passport.aliyun.com'&&u.pathname==='/havanaone/login/login.htm';
   if(platform==='zhihu')return u.hostname==='www.zhihu.com'&&u.pathname==='/signin';
+  if(platform==='juejin')return u.hostname==='juejin.cn'&&u.pathname==='/login';
   if(platform==='csdn')return u.hostname==='passport.csdn.net'&&u.pathname==='/login';
   return false;
  }catch{return false}

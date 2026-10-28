@@ -47,7 +47,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
      assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
      const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
     }
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun'].includes(target.platform)){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'].includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
     const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu','51cto'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
@@ -73,7 +73,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun'].includes(row.platform)){
+   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     assertScope();
     let job=browserStatus.jobs.find(j=>j.id===row.jobId);

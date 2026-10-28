@@ -136,3 +136,15 @@ test('Aliyun observed handoff requires original lease, full content and identity
  await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash}),/不允许/);
  assert.equal((await e.app('retry',{id:j.id})).status,409);
 });
+
+test('Juejin desktop accepts draft and blocks public dispatch even if accidentally configured',async t=>{
+ const e=setup(t,['juejin']),c=e.bridge.connectDesktop({brandId:'a',platform:'juejin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('juejin'));
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author'};
+ assert.equal((await e.app('enqueue',{...args,mode:'publish'})).status,409);
+ assert.equal((await e.app('enqueue',{...args,mode:'draft'})).status,200);
+ const j=(await call('claim')).job;
+ const draft={url:'https://juejin.cn/editor/drafts/123',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true};
+ await assert.rejects(call('report',{id:j.id,lease:j.lease,state:'draft',draft}));
+ await call('report',{id:j.id,lease:j.lease,state:'draft',draft:{...draft,verification:'reopened_content'}});
+ const duplicate=await e.app('enqueue',{...args,mode:'draft'});assert.equal(duplicate.data.existing,true);assert.equal(duplicate.data.job.receipt.publicVerified,false);
+});

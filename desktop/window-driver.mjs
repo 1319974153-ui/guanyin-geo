@@ -47,7 +47,7 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
    const win=ensureWindow(target.tabId);await ready(win);const url=win.webContents.getURL();
    if(!platformConfig(connection.platform).hosts.some(pattern=>new URL(url).origin===new URL(pattern.replace('*','')).origin))throw new Error('请在平台登录完成后继续');
    // func comes solely from the bundled adapter, never from IPC, page content or a URL.
-   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(['51cto','aliyun'].includes(connection.platform)&&args[0]?.action==='fill'&&typeof result?.nativeInsertTitle==='string'){
+   let timer;try{const result=await Promise.race([win.webContents.executeJavaScript('('+func.toString()+')('+args.map(a=>JSON.stringify(a)).join(',')+')',true),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('平台检查未返回，原稿保留')),20000)})]);if(['51cto','aliyun','juejin'].includes(connection.platform)&&args[0]?.action==='fill'&&typeof result?.nativeInsertTitle==='string'){
     await win.webContents.insertText(result.nativeInsertTitle);
     const next={...args[0],action:'fill-body'},body=await win.webContents.executeJavaScript('('+func.toString()+')('+JSON.stringify(next)+')',true);
     if(body?.connectorError)return [{result:body}];if(typeof body?.nativeInsertText!=='string')throw Error('正文输入未准备，原稿保留');

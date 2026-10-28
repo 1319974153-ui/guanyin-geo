@@ -15,7 +15,7 @@ const groups = {
  vertical: [['xueqiu','雪球'],['eastmoney','东方财富'],['smzdm','什么值得买'],['sohufocus','搜狐焦点']]
 };
 import {publishingEvidence,publishingEvidenceSummary,PUBLISHING_EVIDENCE_DATE} from './publishing-evidence.js';
-const browserAdapters=new Set(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun']);
+const browserAdapters=new Set(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']);
 export function publishingCatalog(){
  return Object.entries(groups).flatMap(([group,entries])=>entries.map(([id,name])=>{
   const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
@@ -24,7 +24,7 @@ export function publishingCatalog(){
    implementation:['cnblogs','typecho','personal-site'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':browser?'browser_adapter_acceptance':'planned',
    contentTypes:wp||browser||['cnblogs','typecho','personal-site'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:id==='personal-site'?'scoped_ssh':id==='typecho'?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':['tencentcloud','51cto','aliyun'].includes(id)?'desktop_browser':browser?'local_browser_extension':null,
+   connectionMethod:id==='personal-site'?'scoped_ssh':id==='typecho'?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':['tencentcloud','51cto','aliyun','juejin'].includes(id)?'desktop_browser':browser?'local_browser_extension':null,
    acceptance:id==='cnblogs'?'live_acceptance_pending':wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,
