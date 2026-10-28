@@ -43,6 +43,11 @@ for(const event of ['visibilitychange','online'])window.addEventListener(event,(
 function browserPublicationWatchLabel(){
  return ({timeout:'本页自动更新已暂停，点击“刷新发送进度”继续查看原任务。',paused:'页面在后台、正在编辑或网络不可用，恢复后继续更新。',retry_wait:'暂未取得新回执，稍后自动再查；不会重复发送。',complete:'结果已更新。'})[browserPublisherWatchState]||'发送进度自动更新；审核中的文章会保留待确认状态，直到取得公开回执。';
 }
+function browserPublisherDestination(job,url,label){
+ if(!url)return '';
+ if(window.guanyinDesktop?.openReceipt&&job.sessionId&&job.id&&['draft','prepared','needs_attention'].includes(job.state))return btn(job.state==='draft'?'在观引中查看草稿':'在观引中打开原稿','browser-publisher-desktop-receipt','small',`data-session="${esc(job.sessionId)}" data-job="${esc(job.id)}"`);
+ return links(url,label);
+}
 function renderBrowserPublicationHistory(){
  if(!browserPublisherAvailable()||!brand()?.id)return '';
  const scope=browserPublisherContext();if(browserPublisherScope!==scope&&!browserPublisherLoading)queueMicrotask(refreshBrowserPublisher);
@@ -51,7 +56,7 @@ function renderBrowserPublicationHistory(){
  return `<section class="panel"><div class="panel-head"><div><h2>多平台发送进度</h2><p>保留每次发送的原稿与回执；刷新只查结果，不会重发。</p></div>${btn('刷新发送进度','browser-publisher-refresh','small')}</div><div class="panel-body"><p class="helper" role="status" data-publication-watch-status>${esc(browserPublicationWatchLabel())}</p>${browserPublisherScope===scope&&browserPublisherError?`<p class="form-error" role="alert">${esc(browserPublisherError)}；已保留上次记录。</p>`:''}${table(['内容与平台','实际进度','下一步'],jobs.map(j=>{
   const c=own('contents').find(c=>c.id===j.contentId),url=j.receipt?.publicUrl||j.receipt?.url||j.preparation?.editorUrl;
   const advice={published:'已核验公开正文，无需重复操作。',queued:desktopPublisherAvailable()?'观引正在自动处理，请保持应用运行。':'打开 Chrome 中的观引连接器，任务会按队列处理。',preparing:'正在处理原任务，请勿重复发送。',submitting:'正在提交原任务，请勿重复发送。',draft:'已保存在平台草稿箱，尚未公开。',prepared:'正文已填入，仍需在平台检查并提交。',submitted:GEO_DISPATCH.dispatchNeedsRefresh([j])?'平台已接收，观引会自动读取核验结果；审核期间无需重复提交。':'平台已接收，公开可访问状态仍待核对。',uncertain:'先到平台核对原稿，结果不明时不能重发。',needs_attention:'查看原因，在账号页核对后继续原任务。',cancelled:'本任务已取消，记录保留。'}[j.state]||'请核对平台实际结果。';
-  return [esc(j.title)+`<span class="sub">${esc(browserPlatformNames[j.platform]||j.platform)} · ${esc(j.accountId)}</span>`+(j.currentRevision!==true?'<span class="sub">历史版本；当前稿件已变化或移除</span>':''),esc(browserPublisherStates[j.state]||j.state)+`<span class="sub">${esc(advice)}</span>`+(j.error?`<span class="sub">${esc(j.error)}</span>`:''),(url?links(url,j.receipt?'查看平台回执':'打开原编辑页'):'')+(c?btn(j.currentRevision===true?'原稿与回执':'查看当前稿件',j.currentRevision===true?'distribute-article':'edit-content','small',`data-id="${esc(c.id)}"`):'')+(['needs_attention','uncertain'].includes(j.state)?'<a class="button small" href="#integrations">检查发布账号</a>':'')];
+  return [esc(j.title)+`<span class="sub">${esc(browserPlatformNames[j.platform]||j.platform)} · ${esc(j.accountId)}</span>`+(j.currentRevision!==true?'<span class="sub">历史版本；当前稿件已变化或移除</span>':''),esc(browserPublisherStates[j.state]||j.state)+`<span class="sub">${esc(advice)}</span>`+(j.error?`<span class="sub">${esc(j.error)}</span>`:''),browserPublisherDestination(j,url,j.receipt?'查看平台回执':'打开原编辑页')+(c?btn(j.currentRevision===true?'原稿与回执':'查看当前稿件',j.currentRevision===true?'distribute-article':'edit-content','small',`data-id="${esc(c.id)}"`):'')+(['needs_attention','uncertain'].includes(j.state)?'<a class="button small" href="#integrations">检查发布账号</a>':'')];
  }))}${!data?(browserPublisherScope===scope&&browserPublisherError?'<p>记录读取失败，请刷新重试。当前发送状态未知。</p>':'<p role="status">正在读取发送记录…</p>'):!jobs.length?'<p>还没有发送任务。<a href="#inbox">打开内容，选择账号发送 →</a></p>':''}</div></section>`;
 }
 function renderBrowserPublisher(){
@@ -68,6 +73,7 @@ async function browserPublisherAction(name,el){
  if(action==='help'){openDrawer('找到观引连接器',`<ol><li>打开电脑上的 Chrome 浏览器，点击右上角拼图形状的“扩展程序”图标。</li><li>选择“观引发布连接器（验收版）”；可以点图钉固定到工具栏。</li><li>在弹窗的“发布平台”选择对应平台。</li><li>需要恢复结果时，点击底部的“核对上次回执”。这会检查原任务，不会新建或公开发布文章。</li></ol><p>已安装时无需重新安装或配对；找不到扩展时再按交付包说明安装。连接器弹窗和观引网页是两个入口。</p>`);return true;}
  if(action==='copy'){const value=document.querySelector('[aria-label="一次性配对信息"]')?.value;if(!value)throw Error('配对信息已关闭，请重新连接');await navigator.clipboard.writeText(value);toast('已复制，请粘贴到观引连接器');return true;}
  if(action==='refresh'){await refreshBrowserPublisher();return true}
+ if(action==='desktop-receipt'){if(!desktopPublisherAvailable()||!window.guanyinDesktop.openReceipt)throw Error('请在新版观引桌面打开原稿');await window.guanyinDesktop.openReceipt({sessionId:el.dataset.session,jobId:el.dataset.job});toast('已在观引原账号中打开；不会重新填稿或发布');startDesktopAccountWatch();return true;}
  if(action==='desktop-open'){await window.guanyinDesktop.openAccount(el.dataset.session);toast('已打开平台窗口；已有任务会回到原稿');await refreshBrowserPublisher();return true;}
  if(action==='pair'&&desktopPublisherAvailable()){
   startDesktopAccountWatch();await runtimeFlush();await window.guanyinDesktop.connect({brandId:brand().id,platform:el?.dataset?.platform||document.getElementById('browser-publisher-platform')?.value||'csdn'});toast('已打开登录窗口，登录完成后自动识别账号');await refreshBrowserPublisher();return true;
@@ -95,7 +101,7 @@ function desktopAccountPanel(d){
  return `<section class="panel"><div class="panel-head"><div><h2>发布账号</h2><p>登录一次，之后勾选平台即可发送。账号和结果由观引自动检查。</p></div><label class="field">平台<select id="browser-publisher-platform"><option value="toutiao">头条</option><option value="zhihu">知乎</option><option value="csdn">CSDN</option><option value="douyin">抖音图文（填稿验收）</option><option value="51cto">51CTO（接入验收）</option><option value="tencentcloud">腾讯云开发者社区（接入验收）</option><option value="aliyun">阿里云开发者社区（草稿验收）</option></select></label>${btn('添加账号','browser-publisher-pair','primary small')}</div><div class="panel-body">${browserPublisherError?'<p class="form-error">'+esc(browserPublisherError)+'</p>':''}<div id="desktop-account-table">${desktopAccountTable(d)}</div><p class="helper">无需浏览器插件。登录信息仅保存在本机；平台要求扫码或验证码时由你本人完成。公开发布仅对已通过验收的渠道开放。</p></div></section>`;
 }
 
-function desktopAccountTable(d){const labels={awaiting_login:'等待登录',checking:'正在连接',connected:'已连接',needs_login:'需要登录',error:'连接异常'};return d?table(['平台与账号','连接状态','操作'],d.accounts.filter(a=>a.transport==='desktop').map(a=>[esc(browserPlatformNames[a.platform])+'<span class="sub">'+esc(a.account?.name||'登录后自动识别')+'</span>',esc(labels[a.connectionState]||'等待登录')+(a.connectionError?'<span class="sub">'+esc(a.connectionError)+'</span>':''),btn(a.account?'打开账号':'去登录','browser-publisher-desktop-open','small',`data-session="${esc(a.id)}"`)+(a.account?btn('写文章','browser-publisher-compose','small'):'')+btn('断开连接','browser-publisher-revoke','small',`data-session="${esc(a.id)}"`)]),'还没有账号。点击添加账号，在平台自己的窗口登录即可。'):'<p>正在读取账号…</p>'}
+function desktopAccountTable(d){const labels={awaiting_login:'等待登录',checking:'正在连接',connected:'已连接',needs_login:'需要登录',error:'连接异常'};return d?table(['平台与账号','连接状态','操作'],d.accounts.filter(a=>a.transport==='desktop').map(a=>[esc(browserPlatformNames[a.platform])+'<span class="sub">'+esc(a.account?.name||'登录后自动识别')+'</span>',esc(labels[a.connectionState]||'等待登录')+(a.connectionError?'<span class="sub">'+esc(a.connectionError)+'</span>':''),btn(a.account&&a.connectionState==='connected'?'打开账号':'去登录','browser-publisher-desktop-open','small',`data-session="${esc(a.id)}"`)+(a.account?btn('写文章','browser-publisher-compose','small'):'')+btn('断开连接','browser-publisher-revoke','small',`data-session="${esc(a.id)}"`)]),'还没有账号。点击添加账号，在平台自己的窗口登录即可。'):'<p>正在读取账号…</p>'}
 
 let desktopAccountsRefreshing=false;
 async function refreshDesktopAccounts(){

@@ -71,6 +71,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   return {contentId:c.id,title:c.title,text:c.text,html:formatted.html,formatVersion:formatted.version,factSnapshots:c.factSnapshots||[],productId:c.productId||'',ai:!!c.ai};
  }
  function checkCurrent(j,s){
+  if(s.transport==='desktop'&&s.connectionState!=='connected')fail(409,'平台需要重新登录，原任务已保留；登录后会自动核对账号');
   if(j.expires<clock())fail(409,'本次授权已过期');
   if(!s.account||s.account.accountId!==j.accountId||s.account.revision!==j.accountRevision||clock()-s.account.checkedAt>300000)fail(409,'账号已变化或核验过期，请重新核验');
   if(hash(snapshot(j.brandId,j.snapshot.contentId,j.platform||'csdn'))!==j.sourceHash)fail(409,'稿件或事实已变化，请重新审核和授权');
@@ -122,6 +123,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     }
     if(action==='enqueue'){
      const s=sessions().find(s=>s.id===b.sessionId&&!s.revoked&&s.brandId===b.brandId);if(!s?.account)fail(409,'请先核验真实发布账号');
+     if(s.transport==='desktop'&&s.connectionState!=='connected')fail(409,'平台需要重新登录，未创建发布任务');
      if(s.transport==='desktop'&&b.expectedAccountId!==s.account.accountId)fail(409,'账号已变化，请重新选择当前账号');
      if(!['prepare','publish','draft'].includes(b.mode))fail(400,'请选择操作');if(b.mode==='publish'&&!publishing.has(s.platform||'csdn'))fail(409,'自动提交尚待真机验收，当前仅开放编辑器接入');
      if(b.mode==='draft'&&!supportsDraftProtocol(s.platform||'csdn',s.draftProtocol))fail(409,'请重载支持草稿的连接器并重新核验对应平台账号');
@@ -260,6 +262,14 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  function desktopConnections(){return sessions().filter(s=>!s.revoked&&s.transport==='desktop').map(s=>({sessionId:s.id,brandId:s.brandId,platform:s.platform,origin,instance,accountId:s.account?.accountId||null}))}
  async function desktopRequest({sessionId,action,data={}}){
   const s=sessions().find(s=>s.id===sessionId&&!s.revoked&&s.transport==='desktop');if(!s)fail(403,'桌面连接已失效，请重新登录');brand(s.brandId);
+  if(action==='receipt-target'){
+   if(!safeId(data.jobId))fail(400,'原稿编号无效');
+   const j=getJob(data.jobId);if(j.sessionId!==s.id||j.brandId!==s.brandId||j.platform!==s.platform||!s.account||j.accountId!==s.account.accountId)fail(409,'原稿不属于当前账号，未打开');
+   const proof=j.state==='draft'?draftEvidence(j.platform,{...j.receipt,accountId:j.accountId,contentVerified:true}):null;
+   const url=proof?.url||(['prepared','needs_attention'].includes(j.state)&&j.preparation?.sourceHash===j.sourceHash?preparationEditorUrl(j.platform,j.preparation.editorUrl):null);
+   if(!url)fail(409,'没有已核验的原稿地址，请保留原任务');
+   return {url,jobId:j.id,platform:j.platform};
+  }
   if(action==='connection-state'){
    if(!['awaiting_login','checking','needs_login','error'].includes(data.state))fail(400,'不支持的账号状态');
    s.connectionState=data.state;s.connectionError=String(data.error||'').slice(0,250);save('publisher_sessions',s);return {ok:true};

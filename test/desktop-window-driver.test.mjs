@@ -101,3 +101,24 @@ test('Alibaba driver upgrades only official cleartext return and closes ephemera
  blocked=false;w.webContents.emit('will-redirect',{url:'https://account-s.aliyun.com/pass/adding',preventDefault(){blocked=true}});assert.equal(blocked,false);
  const p=await d.chrome.tabs.create({url:'https://developer.aliyun.com/myProfile',active:false});await d.chrome.tabs.remove(p.id);assert.equal(x.windows.at(-1).closed,true);assert.equal(d.state._tabs[p.id],undefined);
 });
+
+test('visible original redirected to sign-in reports expiry once and resumes on editor without recreating or filling',async t=>{
+ const x=fixture(t);let expired=0,ready=0;const d=x.create({sessionId:'aliyun-expiry',platform:'aliyun'},{onLoginRequired:()=>expired++,onLoginReady:()=>ready++});
+ const original=await d.chrome.tabs.create({url:'https://developer.aliyun.com/article/new?edit=123',active:true});
+ await d.chrome.storage.local.set({inflightByPlatform:{aliyun:{tabId:original.id,job:{id:'original'}}}});
+ const w=x.windows[0];await w.loadURL('https://account.aliyun.com/login/login.htm');w.webContents.emit('did-finish-load');w.webContents.emit('did-stop-loading');w.emit('focus');assert.equal(expired,1);
+ await w.loadURL('https://developer.aliyun.com/article/new?edit=123');w.webContents.emit('did-finish-load');assert.equal(ready,1);assert.equal(d.loginEditorReady(),true);
+ assert.equal(x.windows.length,1);assert.equal(w.webContents.lastScript,undefined);assert.equal(d.state.inflightByPlatform.aliyun.job.id,'original');
+ await w.loadURL('https://account.aliyun.com/login/login.htm');w.webContents.emit('did-finish-load');assert.equal(expired,2);
+});
+test('hidden identity probes do not steal the login window or prompt users to log in',async t=>{
+ const x=fixture(t);let expired=0;const d=x.create({sessionId:'aliyun-hidden',platform:'aliyun'},{onLoginRequired:()=>expired++});
+ await d.chrome.tabs.create({url:'https://developer.aliyun.com/myProfile',active:false});const w=x.windows[0];await w.loadURL('https://account.aliyun.com/login/login.htm');w.webContents.emit('did-finish-load');assert.equal(expired,0);assert.equal(d.loginEditorReady(),false);
+});
+
+test('opening saved draft reuses platform session without replacing active job or navigating Chrome',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'ali-receipt',platform:'aliyun'});const url='https://developer.aliyun.com/article/new?edit=123';
+ const first=d.openReceipt(url),second=d.openReceipt(url);assert.equal(first.id,second.id);assert.equal(x.windows.length,1);assert.equal(x.windows[0].visible,true);
+ assert.equal(x.windows[0].webContents.lastScript,undefined);assert.equal(d.state['editorTab:aliyun'],undefined);
+ for(const bad of ['https://evil.test','https://developer.aliyun.com/article/123','http://developer.aliyun.com/article/new?edit=123'])assert.throws(()=>d.openReceipt(bad),/编辑地址/);
+});

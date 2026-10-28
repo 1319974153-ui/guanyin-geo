@@ -10,3 +10,14 @@ export function readLoginWarning() {
 }
 
 export const LOGIN_RATE_LIMIT_MESSAGE='平台提示访问过于频繁，已暂停自动检查。请等待平台恢复后再点击去登录；不会自动刷新或重试。';
+
+// Exact observed sign-in routes, never article text or a broad subdomain match.
+export function loginPageRequired(platform,value){
+ try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port)return false;
+  if(platform==='aliyun')return u.hostname==='account.aliyun.com'&&['/login/login.htm','/login/login_aliyun.htm'].includes(u.pathname)||u.hostname==='passport.aliyun.com'&&u.pathname==='/havanaone/login/login.htm';
+  if(platform==='zhihu')return u.hostname==='www.zhihu.com'&&u.pathname==='/signin';
+  if(platform==='csdn')return u.hostname==='passport.csdn.net'&&u.pathname==='/login';
+  return false;
+ }catch{return false}
+}
+export const LOGIN_EXPIRED_MESSAGE='平台登录已失效，请在已打开的官方窗口登录；完成后观引自动继续核对，不需要重新添加账号。';

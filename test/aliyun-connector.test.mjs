@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {aliyunPage} from '../browser-extension/aliyun.js';
 import {editorEvidence,draftEvidence,receiptEvidence,preparationEditorUrl} from '../browser-extension/platforms.js';
 import {navigationAllowed} from '../desktop/security.mjs';
-function fixture({body='第一段 第二段',title='技术稿',account='author-123',url='https://developer.aliyun.com/article/new?edit=123#/',duplicates=false,checked=true,missingDisclaimer=false,previewCount=1}={}){
+function fixture({body='第一段 第二段',title='技术稿',account='author-123',url='https://developer.aliyun.com/article/new?edit=123#/',duplicates=false,checked=true,missingDisclaimer=false,previewCount=1,summary='技术摘要',publishDisabled=false}={}){
  let clicks=0,opened=0;const el=(innerText,extra={})=>({innerText,textContent:innerText,getClientRects:()=>[{}],querySelector:()=>null,querySelectorAll:()=>[],focus(){},click(){},...extra});
  const editor=el('',{tagName:'TEXTAREA',value:body}),titleEl=el('',{tagName:'INPUT',value:title}),preview=el(body);
  const checkbox={checked,click(){this.checked=false}},label=el('已同意用户免责声明',{querySelector:()=>checkbox});
@@ -16,7 +16,9 @@ function fixture({body='第一段 第二段',title='技术稿',account='author-1
   if(s==='.left-content textarea.textarea')return [editor];
   if(s==='.markdown-body')return Array.from({length:previewCount},()=>preview);
   if(s==='.draft-list-dialog')return [el('草稿箱',{querySelectorAll:()=>Array.from({length:duplicates?2:1},row)})];
-  if(s==='button')return [el('存为草稿',{click(){clicks++}}),el('发布文章',{click(){throw Error('不应点击公开发布')}})];
+  if(s==='button')return [el('存为草稿',{click(){clicks++}}),el('发布文章',{disabled:publishDisabled,click(){throw Error('不应点击公开发布')}})];
+  if(s==='textarea#abstractContent[placeholder="请填写摘要"]')return [el('',{tagName:'TEXTAREA',value:summary})];
+  if(s==='input#agreeDisclaimer[type="checkbox"]')return missingDisclaimer?[]:[el('',{checked})];
   if(s==='label')return missingDisclaimer?[]:[label];return [];
  }};
  const context=vm.createContext({URL,URLSearchParams,document:doc,location:new URL(url),getComputedStyle:()=>({visibility:'visible'}),setTimeout:f=>f(),DOMParser:class{parseFromString(s){return {body:{textContent:s.replace(/<[^>]*>/g,'')}}}}});
@@ -64,4 +66,13 @@ test('Alibaba empty editor login and draft lookup do not require rendered markdo
  assert.equal((await fixture({title:'技术稿',body:'',previewCount:0}).run('fill-body')).nativeInsertText,'第一段\n\n第二段');
  const lookup=fixture({previewCount:0});assert.equal((await lookup.run('draft-list-inspect')).matched,true);
  for(const previewCount of [0,2]){const bad=fixture({previewCount});assert.match((await bad.run('save-draft')).connectorError,/完整正文/);assert.equal(bad.clicks,0)}
+});
+
+
+test('Alibaba publish preflight reads the exact article, summary and human disclaimer without clicking',async()=>{
+ const f=fixture();const result=await f.run('preflight');assert.equal(result.publishButtonReady,true);assert.equal(f.clicks,0);assert.equal(f.checkbox.checked,true);
+ for(const [opts,reason] of [[{summary:''},/摘要/],[{checked:false},/本人/],[{missingDisclaimer:true},/声明/],[{publishDisabled:true},/按钮/],[{body:'changed'},/完整正文/]]){
+  const x=fixture(opts);assert.match((await x.run('preflight')).connectorError,reason);assert.equal(x.clicks,0);
+ }
+ assert.match((await f.run('submit')).connectorError,/尚未开放/);
 });

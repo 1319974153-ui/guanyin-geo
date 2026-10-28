@@ -4,9 +4,9 @@ import path from 'node:path';
 import {randomInt} from 'node:crypto';
 import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './security.mjs';
 import {editorEvidence,platformConfig} from '../browser-extension/platforms.js';
-import {readLoginWarning} from './login-state.mjs';
+import {readLoginWarning,loginPageRequired} from './login-state.mjs';
 // No Chrome profiles, remote debugging port, arbitrary renderer scripts, or credential exports.
-export function windowDriver({BrowserWindow,session,root,connection,partition,onStatus=()=>{},onLoginReady=()=>{}}){
+export function windowDriver({BrowserWindow,session,root,connection,partition,onStatus=()=>{},onLoginReady=()=>{},onLoginRequired=()=>{}}){
  fs.mkdirSync(root,{recursive:true,mode:0o700});const filename=path.join(root,'executor.json');
  let state={};if(fs.existsSync(filename)){state=JSON.parse(fs.readFileSync(filename,'utf8'));if(!state||typeof state!=='object'||Array.isArray(state))throw new Error('发布记录损坏，已停止以防重发')}
  let loginTab=null;const windows=new Map();const savedTabs=state._tabs||{};const browserSession=session.fromPartition(partition||connectionPartition(connection.sessionId));
@@ -21,7 +21,11 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
   wc.on('will-attach-webview',e=>e.preventDefault());
   // Resume a bounded login check after the human returns, even if the initial
   // wait expired. Only this connection's login window can signal readiness.
-  const loginReady=()=>{if(id===loginTab&&!win.isDestroyed()&&!wc.isLoadingMainFrame()&&editorEvidence(connection.platform,wc.getURL()))onLoginReady()};
+  let signInReported=false;
+  const loginReady=()=>{if(win.isDestroyed()||wc.isLoadingMainFrame())return;
+   if(win.isVisible()&&loginPageRequired(connection.platform,wc.getURL())){loginTab=id;if(!signInReported){signInReported=true;onLoginRequired()}return}
+   signInReported=false;
+   if(id===loginTab&&!win.isDestroyed()&&!wc.isLoadingMainFrame()&&editorEvidence(connection.platform,wc.getURL()))onLoginReady()};
   wc.on('did-finish-load',loginReady);wc.on('did-stop-loading',loginReady);win.on('focus',loginReady);wc.on('did-navigate-in-page',(_e,_url,main)=>{if(main)loginReady()});
   wc.setWindowOpenHandler(({url})=>{if(navigationAllowed(connection.platform,url))createWindow(url,{openerTabId:id,active:true});return {action:'deny'}});
   wc.on('did-navigate',(_e,url)=>{saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{});});wc.on('did-navigate-in-page',(_e,url,main)=>{if(main){saveTab(id,url,openerTabId);if(id===loginTab&&loginReturned(connection.platform,url))void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{})}});
@@ -52,7 +56,7 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
   const w=windows.get(loginTab);if(!w||w.isDestroyed()||w.webContents.isLoadingMainFrame())return false;
   if(!navigationAllowed(connection.platform,w.webContents.getURL()))return false;
   let timer;try{const result=await Promise.race([w.webContents.executeJavaScript('('+readLoginWarning.toString()+')()'),new Promise(resolve=>{timer=setTimeout(()=>resolve(null),3000)})]);if(result==='rate_limited'){state._loginHold=result;persist();return true}return false}catch{return false}finally{clearTimeout(timer)}
- },showOriginal(){const entry=state.inflightByPlatform?.[connection.platform]||(connection.platform==='csdn'?state.inflight:null);if(!entry?.tabId)return false;const win=ensureWindow(entry.tabId);win.show();win.focus();return true},async openLogin(){
+ },openReceipt(url){if(!editorEvidence(connection.platform,url))throw Error('不是已核验的平台编辑地址');for(const [id,win]of windows){if(!win.isDestroyed()&&(win.webContents.getURL()===url||savedTabs[id]?.url===url)){win.show();win.focus();return {id,url}}}return createWindow(url,{active:true})},showOriginal(){const entry=state.inflightByPlatform?.[connection.platform]||(connection.platform==='csdn'?state.inflight:null);if(!entry?.tabId)return false;const win=ensureWindow(entry.tabId);win.show();win.focus();return true},async openLogin(){
   if(loginTab&&windows.has(loginTab)){const w=windows.get(loginTab);w.show();w.focus();return}
   const tab=createWindow(LOGIN_URLS[connection.platform]);loginTab=tab.id;
   // Reuse this window for the first identity check. Never replace an in-flight original editor.

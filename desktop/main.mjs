@@ -9,7 +9,7 @@ import net from 'node:net';
 import {fileURLToPath} from 'node:url';
 import {createPublisherRuntime} from '../browser-extension/runtime.js';
 import {windowDriver} from './window-driver.mjs';
-import {LOGIN_RATE_LIMIT_MESSAGE} from './login-state.mjs';
+import {LOGIN_RATE_LIMIT_MESSAGE,LOGIN_EXPIRED_MESSAGE} from './login-state.mjs';
 import {trustedFrame,connectionInput,targetInput} from './security.mjs';
 import {installQuitFlow} from './quit-flow.mjs';
 import {desktopDataRoot} from './data-root.mjs';
@@ -41,6 +41,7 @@ async function start(){
  main.webContents.on('will-navigate',(e,url)=>{try{if(new URL(url).origin!==origin)e.preventDefault()}catch{e.preventDefault()}});main.webContents.on('will-attach-webview',e=>e.preventDefault());main.webContents.setWindowOpenHandler(({url})=>{try{const u=new URL(url);if(u.protocol==='https:'&&!u.username&&!u.password)void shell.openExternal(u.href)}catch{}return {action:'deny'}});main.webContents.session.setPermissionRequestHandler((_wc,_p,cb)=>cb(false));
  const bind=(name,fn)=>ipcMain.handle('guanyin:'+name,(event,value)=>{if(!trustedFrame(event,main.webContents,origin))throw new Error('仅观引主窗口可执行此操作');return fn(value)});
  bind('connect',async input=>{const c=await rpc('desktop-connect',connectionInput(input)),controller=await control(c);await controller.login();return {sessionId:c.sessionId,waitingForLogin:true}});
+ bind('open-receipt',async input=>{if(!input||typeof input.jobId!=='string'||!/^[-\w]{1,100}$/.test(input.jobId))throw Error('原稿编号无效');const c=await getConnection(input.sessionId),target=await rpc('desktop-request',{sessionId:c.sessionId,action:'receipt-target',data:{jobId:input.jobId}});(await control(c)).driver.openReceipt(target.url);return {ok:true}});
  bind('open-account',async id=>{const c=await getConnection(id),controller=await control(c);if(!controller.driver.showOriginal())await controller.login();return {ok:true}});
  bind('prepare',async input=>{for(const t of targetInput(input)){const c=await getConnection(t.sessionId),controller=await control(c);await controller.verify(t.accountId)}return {ok:true}});
  bind('resume',async input=>{const t=targetInput([input])[0];if(typeof input.jobId!=='string'||!/^[-\w]{1,100}$/.test(input.jobId))throw Error('原任务无效');const c=await getConnection(t.sessionId);if(c.accountId!==t.accountId)throw Error('账号已变化');const controller=await control(c);await controller.resume(input.jobId);return {ok:true}});
@@ -54,7 +55,7 @@ async function getConnection(id){if(typeof id!=='string')throw new Error('账号
 async function control(connection){
  if(controllers.has(connection.sessionId))return controllers.get(connection.sessionId);
  let controller,busy=false,loginUntil=0,paused=false,lastLoginCheck=0;
- const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,partition:publishingPartition(dataRoot,connection),onLoginReady(){if(controller&&paused&&!busy&&!driver.loginHeld()){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();paused=driver.loginHeld();
+ const driver=windowDriver({BrowserWindow,session,root:path.join(dataRoot,'accounts',connection.sessionId),connection,partition:publishingPartition(dataRoot,connection),onLoginRequired(){if(!controller)return;loginUntil=Date.now()+600000;paused=false;void request('connection-state',{state:'needs_login',error:LOGIN_EXPIRED_MESSAGE}).catch(()=>{})},onLoginReady(){if(controller&&(paused||loginUntil)&&!busy&&!driver.loginHeld()){loginUntil=Date.now()+60000;paused=false;void controller.checkLogin()}}});await driver.initialize();paused=driver.loginHeld();
  const request=(action,data)=>rpc('desktop-request',{sessionId:connection.sessionId,action,data});const runtime=createPublisherRuntime(driver.chrome,{request});await runtime.ready;
  async function verify(expected){if(driver.loginHeld())throw new Error(LOGIN_RATE_LIMIT_MESSAGE);if(busy)throw new Error('该账号正在处理原任务，请等待结果');busy=true;try{await runtime.command({action:'verify',platform:connection.platform});const c=await getConnection(connection.sessionId);if(expected&&c.accountId!==expected)throw new Error('登录账号已变化，请在观引重新选择账号');paused=false;loginUntil=0;return true}catch(e){await request('connection-state',{state:'needs_login',error:e.message}).catch(()=>{});throw e}finally{busy=false}}
  controller={driver,async login(){if(busy)throw new Error('原任务正在执行，请等待结果');driver.clearLoginHold();await driver.openLogin();loginUntil=Date.now()+600000;paused=false;await request('connection-state',{state:'awaiting_login'});void controller.checkLogin()},verify,

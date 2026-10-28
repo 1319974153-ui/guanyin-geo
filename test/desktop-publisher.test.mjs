@@ -87,3 +87,27 @@ test('Alibaba desktop connection exposes draft only and rejects public dispatch'
  await call('report',{id:j.id,lease:j.lease,state:'draft',draft});
  const duplicate=await e.app('enqueue',{...args,mode:'draft'});assert.equal(duplicate.data.existing,true);assert.equal(duplicate.data.job.receipt.publicVerified,false);
 });
+
+test('desktop receipt opens only persisted same-brand same-account draft and never a renderer-supplied URL',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'aliyun'}),other=e.bridge.connectDesktop({brandId:'b',platform:'aliyun'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('aliyun'));
+ await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author',mode:'draft'});const j=(await call('claim')).job;
+ await assert.rejects(call('receipt-target',{jobId:j.id,url:'https://evil.test'}),/没有已核验/);
+ const draft={url:'https://developer.aliyun.com/article/new?edit=123',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true};
+ await call('report',{id:j.id,lease:j.lease,state:'draft',draft});
+ assert.equal((await call('receipt-target',{jobId:j.id,url:'https://evil.test'})).url,draft.url);
+ await assert.rejects(e.bridge.desktopRequest({sessionId:other.sessionId,action:'receipt-target',data:{jobId:j.id}}),/不属于/);
+ assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,1);
+ await call('account',identity('aliyun','someone-else'));await assert.rejects(call('receipt-target',{jobId:j.id}),/不属于/);
+});
+
+
+test('expired desktop login blocks dispatch even when its old identity is still recent',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'aliyun'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});
+ await call('account',identity('aliyun'));await call('connection-state',{state:'needs_login'});
+ const args={sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author',mode:'draft'};
+ assert.equal((await e.app('enqueue',args)).status,409);assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,0);
+ await call('account',identity('aliyun'));assert.equal((await e.app('enqueue',args)).status,200);
+ const job=(await call('claim')).job;await call('connection-state',{state:'needs_login'});
+ await assert.rejects(call('commit',{id:job.id,lease:job.lease,accountId:'author',sourceHash:job.sourceHash}));
+ assert.equal(e.db.prepare('SELECT COUNT(*) AS n FROM publisher_jobs').get().n,1);
+});

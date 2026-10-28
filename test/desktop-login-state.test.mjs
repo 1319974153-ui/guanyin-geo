@@ -18,3 +18,12 @@ test('expired QR and normal login do not claim a rate limit; editor and hidden t
  assert.equal(inspect({alerts:[{text:'访问太频繁',hidden:true}]}),null);
  assert.equal(inspect({body:'教程：如何解决访问太频繁',editor:true}),null);
 });
+
+test('expired login detection recognizes exact official routes, not redirect parameters or hostile hosts',async()=>{
+ const {loginPageRequired}=await import('../desktop/login-state.mjs');
+ assert.equal(loginPageRequired('aliyun','https://account.aliyun.com/login/login.htm?oauth_callback=http%3A%2F%2Fdeveloper.aliyun.com'),true);
+ assert.equal(loginPageRequired('zhihu','https://www.zhihu.com/signin'),true);
+ assert.equal(loginPageRequired('csdn','https://passport.csdn.net/login'),true);
+ for(const url of ['https://developer.aliyun.com/article/new?edit=123','https://account-s.aliyun.com/pass/adding','https://account.aliyun.com.evil.test/login/login.htm','https://user:secret@account.aliyun.com/login/login.htm','http://account.aliyun.com/login/login.htm','https://account.aliyun.com:8443/login/login.htm','https://account.aliyun.com/other?url=/login/login.htm'])assert.equal(loginPageRequired('aliyun',url),false);
+ assert.equal(loginPageRequired('51cto','https://account.aliyun.com/login/login.htm'),false);
+});

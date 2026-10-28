@@ -93,3 +93,14 @@ test('verified public result opens public article instead of editor success scre
  await vm.runInContext('refreshBrowserPublisher()',ctx);const html=vm.runInContext('renderBrowserPublicationHistory()',ctx);
  assert.match(html,/https:\/\/blog.csdn.net\/writer\/article\/details\/123/);assert.doesNotMatch(html,/https:\/\/mp.csdn.net/);
 });
+
+
+test('desktop draft links stay in the matching app account while public links remain public',()=>{
+ const {ctx}=ui();ctx.window.guanyinDesktop={openReceipt:async()=>{}};
+ const draft=vm.runInContext("browserPublisherDestination({id:'j',sessionId:'s',state:'draft'},'https://developer.aliyun.com/article/new?edit=123','查看')",ctx);
+ assert.match(draft,/browser-publisher-desktop-receipt/);assert.match(draft,/在观引中查看草稿/);assert.doesNotMatch(draft,/https:/);
+ const publicLink=vm.runInContext("browserPublisherDestination({id:'j',sessionId:'s',state:'published'},'https://example.com/article','查看')",ctx);
+ assert.match(publicLink,/https:\/\/example.com/);assert.doesNotMatch(publicLink,/desktop-receipt/);
+ ctx.window.guanyinDesktop=null;
+ assert.match(vm.runInContext("browserPublisherDestination({id:'j',sessionId:'s',state:'draft'},'https://example.com/draft','查看')",ctx),/https:/);
+});

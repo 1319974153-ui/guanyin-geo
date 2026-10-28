@@ -86,3 +86,12 @@ test('unchanged receipt polling preserves action nodes while progress text updat
  x.f.distributionWatchState='watching';x.g.distributionResults(x.f);assert.equal(writes,1);assert.match(watch.textContent,/自动更新/);
  x.f.distributionJournal.one.error='平台拒绝保存';x.g.distributionResults(x.f);assert.equal(writes,2);assert.match(html,/平台拒绝保存/);
 });
+
+
+test('expired desktop account offers login and never keeps a checked publish target',()=>{
+ const x=fixture('draft');x.g.window.guanyinDesktop={available:true};
+ x.f.distributionTargets.push({key:'aliyun:old',platform:'aliyun',sessionId:'old',accountId:'author',transport:'desktop',loginRequired:true,modes:[]});
+ x.g.distributionRenderTargets(x.f,new Set(['aliyun:old']));
+ assert.match(x.html(),/value="aliyun:old"[^>]*disabled/);assert.doesNotMatch(x.html(),/value="aliyun:old"[^>]*checked/);
+ assert.match(x.html(),/需要登录/);assert.match(x.html(),/data-distribution-connect="aliyun"/);
+});
