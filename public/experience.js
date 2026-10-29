@@ -26,7 +26,7 @@ function context() { return new URLSearchParams(location.hash.split('?')[1] || '
 function routeLink(target,values={},inherit=true) { values=inherit?analyticsNavigationValues(target,values):values;const p=new URLSearchParams();for(const [k,v] of Object.entries(values))if(v)p.set(k,v);return '#'+target+(p.size?'?'+p:''); }
 function go(target,values={},inherit=true) { const next=routeLink(target,values,inherit); if(location.hash===next)render();else location.hash=next; }
 function replaceContext(values) { const p=context();for(const [k,v] of Object.entries(values)){if(v)p.set(k,v);else p.delete(k)}history.replaceState(null,'',routeLink(route,Object.fromEntries(p),false)); }
-function pageName(id) {return ({today:'今天',inbox:'待我确认',results:'效果','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
+function pageName(id) {return ({today:'工作台',inbox:'内容与确认',results:'AI 引用与推荐','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',brands:'品牌管理',setup:'建立公开资料',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
 function renderNavigation() {
   if(state.viewMode==='simple'){renderSimpleNavigation();return;}
   const client=state.viewMode==='client';
@@ -41,7 +41,7 @@ function renderNavigation() {
   document.body.dataset.view=state.viewMode;
 }
 function sectionNavigation() {
-  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回今天</a></p>';
+  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回工作台</a></p>';
   let links=[];
   if(['monitor','demand','tasks','operations'].includes(route)) links=[['monitor','监测问题'],['answers','回答记录'],['demand','需求数据'],['tasks','任务与批量执行'],['operations','告警与待办'],['insights','品牌与竞品'],['sources','引用来源'],['audit','网站诊断']];
   if(['knowledge','content','dso'].includes(route)&&state.viewMode!=='client')links=[['content','内容工作台'],['knowledge','品牌资料'],['dso','DSO 内容实验室']];
@@ -102,7 +102,7 @@ function renderFactLibrary() {
 }
 function renderContentWorkspace() {
   const productId=context().get('productId')||'',contents=own('contents').filter(c=>GEO_METRICS.matchesProduct(c,productId));const status=context().get('status')||'',statuses=status?[status]:['草稿','待审核','已审核'];
-  return title(state.viewMode==='client'?'内容确认':'内容工作台','问题、资料、草稿和审核放在同一条工作路径中。',btn('批量质检','check-contents')+pendingChecksButton()+btn('批量生成','batch-write')+btn('＋ 创建内容','new-content','primary'))+brandFilter()+
+  return title(state.viewMode==='client'?'内容确认':'内容工作台','问题、资料、草稿和审核放在同一条工作路径中。',btn('批量质检','check-contents')+pendingChecksButton()+btn('批量生成','batch-write')+btn('从资料生成','new-content')+btn('写文章','write-article','primary'))+brandFilter()+
   `<div class="toolbar">${productScopeSelect('产品范围','productId',productId,true,'data-content-product')}<div class="segment" aria-label="内容状态">${['全部','草稿','待审核','已审核'].map(s=>`<a class="button ${status===(s==='全部'?'':s)?'selected':''}" href="${routeLink('content',{productId,status:s==='全部'?'':s})}">${s} ${contents.filter(c=>s==='全部'||c.status===s).length}</a>`).join('')}</div></div>`+
   (status?filterNotice(`只显示${status}内容`):'')+
   `<div class="workflow-board ${status?'single-status':''}">${statuses.map(s=>`<section class="board-col"><h3>${esc(s)}<span>${contents.filter(c=>c.status===s).length}</span></h3>${contents.filter(c=>c.status===s).map(c=>`<article class="content-item">${badge(c.style,'blue')}<h3>${esc(c.title)}</h3><p>${esc(savedProductLabel(c))} · ${c.demo?'演示内容':'自有内容'} · ${c.generated?'本地模板草稿':c.ai?'AI 草稿':'可编辑'}${c.variant?' · 版本 '+c.variant:''}</p>${c.question?`<p class="linked-question">对应问题：${esc(c.question)}</p>`:''}${contentCheckSummary(c)}<div class="item-footer">${btn('自动质检','check-one','ghost small',`data-kind="content" data-id="${c.id}"`)}${latestCheck('content',c.id)?btn('检查结果','check-detail','ghost small',`data-id="${latestCheck('content',c.id).record.id}"`):''}${btn(s==='待审核'?'核对并审核':s==='已审核'?'查看与发布':'继续编辑','edit-content','small',`data-id="${c.id}"`)}</div></article>`).join('')||`<p class="empty-inline">${s==='待审核'?'没有待审核内容。草稿送审后会出现在这里。':s==='已审核'?'审核通过后，可以创建发布任务。':'从客户问题开始，创建第一篇内容。'}</p>`}</section>`).join('')}</div>`+

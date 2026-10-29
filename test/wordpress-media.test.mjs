@@ -90,3 +90,19 @@ test('alt text that WordPress strips or reinterprets is rejected before creating
 test('legacy whitespace-only mismatch reconciles without accepting real remote edits',async()=>{
  const e=env();await seed(e);await fixture(async({media,calls})=>{await connect(e);const id=crypto.randomUUID();await upload(e,id,{alt:'项目 页面与 产品资料'});const row=e.db.prepare('SELECT result FROM runs WHERE id=?').get(id),r=JSON.parse(row.result);r.alt='项目   页面与  产品资料';e.db.prepare("UPDATE runs SET result=?,state='uncertain' WHERE id=?").run(JSON.stringify(r),id);assert.equal((await reconcile(e,id)).data.media.state,'uploaded');assert.equal((await draft(e,id)).status,200);media.get(1).alt_text='不同的项目页面';assert.equal((await reconcile(e,id)).data.media.state,'changed');assert.equal((await draft(e,id)).status,409);assert.equal(calls.filter(c=>c.body instanceof FormData).length,1);});
 });
+
+test('media cannot cross publishing accounts even on the same website',async()=>{
+ const e=env();await seed(e);await fixture(async({calls})=>{
+  await connect(e);const accountId='wp-'+crypto.randomUUID();await call(e,'/api/wordpress/connection','POST',{...config,accountId,username:'second-author'});await call(e,'/api/wordpress/verify','POST',{brandId:'b1',accountId});
+  const id=crypto.randomUUID(),result=await upload(e,id,{accountId});assert.equal(result.status,200);assert.equal(result.data.media.accountId,accountId);
+  assert.equal((await call(e,'/api/wordpress/media?brandId=b1')).data.records.length,0);
+  assert.equal((await call(e,'/api/wordpress/media?brandId=b1&accountId='+accountId)).data.records.length,1);
+  assert.equal((await call(e,'/api/wordpress/media/detail?brandId=b1&id='+id)).status,404);
+  assert.equal((await reconcile(e,id)).status,404);
+  assert.equal((await draft(e,id)).status,404);
+  assert.equal((await upload(e,id)).status,409);
+  const p=(await call(e,'/api/wordpress/preview?brandId=b1&contentId=c1')).data;
+  const d=await call(e,'/api/wordpress/draft','POST',{id:crypto.randomUUID(),brandId:'b1',accountId,contentId:'c1',previewHash:p.previewHash,mediaRunId:id});assert.equal(d.status,200);assert.equal(d.data.record.accountId,accountId);
+  assert.equal(calls.filter(c=>c.body instanceof FormData).length,1);
+ });e.db.close();
+});
