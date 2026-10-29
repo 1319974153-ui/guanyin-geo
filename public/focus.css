@@ -60,3 +60,8 @@ body[data-view="simple"] .button{min-height:38px}.focus-workspace .button.primar
 /* Account setup keeps the selected platform readable in a narrow app panel. */
 .browser-account-connect .panel-head{flex-wrap:wrap;gap:12px}.browser-account-connect .browser-account-heading{flex:1 1 240px}.browser-account-connect .panel-head>.field{flex:1 1 160px;min-width:160px;margin:0}.browser-account-connect .panel-head select{width:100%}.browser-account-connect .panel-head>.button{flex-shrink:0}
 @media(max-width:700px){.browser-account-connect .browser-account-heading{flex-basis:100%}.browser-account-connect .panel-head>.field{flex-basis:100%;min-width:0}.browser-account-connect .panel-head>.button.primary{flex:1}.browser-account-connect .panel-head>.button{min-height:44px}}
+
+/* Keep account setup actions readable as more supported destinations are added. */
+.publishing-accounts-panel>.panel-head{flex-wrap:wrap;gap:10px}
+.publishing-accounts-panel>.panel-head>div:first-child{flex:1 0 100%;min-width:0}
+.publishing-accounts-panel>.panel-head>.button{flex:0 0 auto}

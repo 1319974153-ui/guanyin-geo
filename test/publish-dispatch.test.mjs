@@ -146,3 +146,17 @@ test('Juejin checkbox dispatch reaches the desktop queue and reads its draft rec
  await dispatchArticle({...args,targets:[target],mode:'draft'});assert.equal(calls.filter(c=>c.init?.method==='POST').length,1);
  await assert.rejects(dispatchArticle({...args,targets:[target],mode:'publish'}));
 });
+
+test('MetaWeblog one-click publishes the durable draft and recovers without duplicating it',async()=>{
+ const {recoverDispatchJournal}=await import('../src/publish-dispatch-core.js');
+ const target={key:'metaweblog:tc',platform:'metaweblog',accountId:'tc',name:'站点作者',modes:['draft','publish']},calls=[],journal={};
+ const request=async(path,opts)=>{calls.push({path,body:opts?.body});return path.includes('/preview')?{previewHash:'hash'}:{record:{id:'original-metaweblog',state:path.endsWith('/publish')?'submitted':'draft',remote:{postId:'23'}}}};
+ const params={article,targets:[target],mode:'publish',journal,request,persist:async()=>{},assertScope:()=>{}};
+ await dispatchArticle(params);await dispatchArticle(params);
+ assert.equal(calls.filter(c=>c.path==='/api/metaweblog/draft').length,1);assert.equal(calls.filter(c=>c.path==='/api/metaweblog/publish').length,1);
+ assert.equal(journal[target.key].state,'submitted');
+ const job={id:'original-metaweblog',platform:'metaweblog',accountId:'tc',brandId:article.brandId,contentId:article.id,state:'draft',currentRevision:true,receipt:{postId:'23'}};
+ const recovered=await recoverDispatchJournal({article,targets:[target],jobs:[job],journal:{}});assert.equal(recovered[target.key].id,'original-metaweblog');
+ let writes=0;await dispatchArticle({...params,mode:'draft',journal:recovered,request:async()=>{writes++}});assert.equal(writes,0);
+ assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,accountId:'someone-else'}],journal:{}}),{});
+});

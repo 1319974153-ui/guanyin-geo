@@ -1,10 +1,10 @@
 // Product acceptance evidence only. Never used to grant an account permission.
-export const PUBLISHING_EVIDENCE_DATE='2026-10-28';
+export const PUBLISHING_EVIDENCE_DATE='2026-10-29';
 export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入编辑器',draft:'平台草稿',publish:'公开提交'};
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(id),wp=['wordpress','typecho','personal-site'].includes(id);
+ const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(id),wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
  const tested=['csdn','toutiao','zhihu'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
   const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
@@ -25,6 +25,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
  if(id==='wechat')return {stage:'可准备公众号稿件',note:'支持本地排版、复制与下载；个人主体由本人发表。官方草稿与发表协议已实现，真实授权和发布尚未验收，未开放自动提交。'};
  if(id==='personal-site')return {stage:'官网草稿与发布已实测',note:'Mac 桌面已通过真实官网草稿、公开发布与匿名正文核验；需管理员先绑定受限发布端，其他网站与操作系统须单独验收。'};
+ if(id==='metaweblog')return {stage:'接口已接入 · 待实测',note:'兼容自建博客可配置同源 HTTPS XML-RPC、自动核对账号、保存草稿和发布原稿；协议与失败恢复自动测试通过，真实站点待验收；不是所有 MetaWeblog 实现都兼容。'};
  if(id==='typecho')return {stage:'接口已接入 · 待实测',note:'网站连接、草稿、原稿发布与恢复已实现；真实 Typecho 网站尚待验收，不能以自动测试代替'};
  if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};
  if(actions.draft.liveAcceptance==='passed')return {stage:'平台草稿已实测',note:'账号、填稿与平台草稿已验收；公开提交仍待验收'};
