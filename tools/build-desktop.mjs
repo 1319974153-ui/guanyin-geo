@@ -1,3 +1,4 @@
+import {desktopBuildCapabilities} from '../desktop/build-capabilities.mjs';
 import {build} from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,5 +11,5 @@ await build({...opts,entryPoints:['desktop/main.mjs'],outfile:path.join(out,'mai
 await build({...opts,entryPoints:['dev-server.mjs'],outfile:path.join(out,'server.mjs')});
 fs.copyFileSync('desktop/preload.cjs',path.join(out,'preload.cjs'));fs.cpSync('drizzle',path.join(out,'drizzle'),{recursive:true});
 const p=JSON.parse(fs.readFileSync('package.json'));fs.writeFileSync(path.join(out,'package.json'),JSON.stringify({name:'guanyin-geo-desktop',version:p.version,main:'main.mjs',type:'module',private:true},null,2));
-fs.writeFileSync(path.join(out,'build-manifest.json'),JSON.stringify({source:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),builtAt:new Date().toISOString(),desktop:true,preview:true,publicPublishingEnabled:true,publicPublishingPlatforms:['cnblogs','wordpress','csdn','zhihu','tencentcloud','51cto','aliyun','typecho','personal-site'],publicPublishingLiveAcceptance:'per-platform-see-delivery-record'},null,2));
+fs.writeFileSync(path.join(out,'build-manifest.json'),JSON.stringify({source:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),builtAt:new Date().toISOString(),version:p.version,desktop:true,...desktopBuildCapabilities()},null,2));
 console.log('Desktop preview built: '+out);

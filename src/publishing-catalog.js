@@ -25,7 +25,7 @@ export function publishingCatalog(){
    contentTypes:wp||browser||['cnblogs','typecho','metaweblog','personal-site'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
    connectionMethod:id==='personal-site'?'scoped_ssh':['typecho','metaweblog'].includes(id)?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':['tencentcloud','51cto','aliyun','juejin'].includes(id)?'desktop_browser':browser?'local_browser_extension':null,
-   acceptance:id==='cnblogs'?'live_acceptance_pending':wp?'account_verification_required':tested?'identity_and_prepare_tested':browser?'live_acceptance_pending':'not_implemented',
+   acceptance:actions.publish.liveAcceptance==='passed'?'public_acceptance_recorded':wp?'account_verification_required':tested?'identity_and_prepare_tested':actions.identity.implemented?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,
    // Catalog metadata must never grant a publish capability to an account.
