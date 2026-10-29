@@ -95,3 +95,11 @@ test('expired desktop account offers login and never keeps a checked publish tar
  assert.match(x.html(),/value="aliyun:old"[^>]*disabled/);assert.doesNotMatch(x.html(),/value="aliyun:old"[^>]*checked/);
  assert.match(x.html(),/需要登录/);assert.match(x.html(),/data-distribution-connect="aliyun"/);
 });
+
+test('WeChat offers current-article preparation without enabling automatic submission',()=>{
+ const x=fixture();x.g.distributionRenderTargets(x.f,new Set(['catalog:wechat']));
+ assert.match(x.html(),/data-distribution-wechat>准备公众号稿件/);
+ assert.match(x.html(),/可准备稿件 · 需本人发表/);
+ assert.match(x.html(),/value="catalog:wechat"[^>]*disabled/);
+ assert.doesNotMatch(x.html(),/value="catalog:wechat"[^>]*checked/);
+});

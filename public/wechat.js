@@ -1,9 +1,9 @@
 // Personal accounts use a local handoff, never a simulated platform receipt.
 let wechatPrepared=null;
-function wechatPrepare(){
+function wechatPrepare(contentId){
  wechatPrepared=null;
  const rows=own('contents').filter(c=>c.status==='已审核'&&!c.demo);
- openDrawer('公众号稿件',`<p>选择已审核文章 → 复制排版 → 在公众号发表。</p><p class="helper">个人主体不支持官方自动发表接口。这里准备稿件，不要求你安装插件、提供密码或反复核验。</p>${rows.length?`<form data-wechat-prepare><label class="field">文章<select name="contentId" required>${rows.map(c=>`<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select></label><details class="simple-detail"><summary>可选设置 · 摘要默认自动提取</summary><label class="field">署名（可选）<input name="author" maxlength="16"></label><label class="field">摘要（可选）<textarea name="digest" maxlength="120" placeholder="留空时从正文自动提取，不消耗模型费用"></textarea></label><label class="field">阅读原文（可选）<input name="sourceUrl" type="url" placeholder="https://"></label></details><button class="button primary" type="submit">准备公众号稿件</button><p data-wechat-error class="form-error" role="alert"></p></form>`:'<p>还没有已审核文章。请先在「写文章」中生成或导入正文，再审核。</p>'}<p class="helper">自动写稿使用你配置的文本模型。未连接模型时不会调用或产生模型费用。封面请在公众号后台选择，本版本不会自动上传图片。</p>`,'本地准备 · 本人发表');
+ openDrawer('公众号稿件',`<p>选择已审核文章 → 复制排版 → 在公众号发表。</p><p class="helper">个人主体不支持官方自动发表接口。这里准备稿件，不要求你安装插件、提供密码或反复核验。</p>${rows.length?`<form data-wechat-prepare><label class="field">文章<select name="contentId" required>${rows.map(c=>`<option value="${esc(c.id)}" ${c.id===contentId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><details class="simple-detail"><summary>可选设置 · 摘要默认自动提取</summary><label class="field">署名（可选）<input name="author" maxlength="16"></label><label class="field">摘要（可选）<textarea name="digest" maxlength="120" placeholder="留空时从正文自动提取，不消耗模型费用"></textarea></label><label class="field">阅读原文（可选）<input name="sourceUrl" type="url" placeholder="https://"></label></details><button class="button primary" type="submit">准备公众号稿件</button><p data-wechat-error class="form-error" role="alert"></p></form>`:'<p>还没有已审核文章。请先在「写文章」中生成或导入正文，再审核。</p>'}<p class="helper">自动写稿使用你配置的文本模型。未连接模型时不会调用或产生模型费用。封面请在公众号后台选择，本版本不会自动上传图片。</p>`,'本地准备 · 本人发表');
 }
 document.addEventListener('submit',async e=>{
  const f=e.target.closest('[data-wechat-prepare]');if(!f)return;e.preventDefault();

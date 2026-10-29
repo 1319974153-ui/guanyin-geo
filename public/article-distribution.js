@@ -7,14 +7,14 @@ function distributionPlatformRows(platforms,targets){
  const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
  return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
 }
-function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.platform==='wechat'?'可准备稿件 · 需本人发表':t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
 function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
  const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
  f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
   const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
-  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
+  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}${t.platform==='wechat'?'<button type="button" class="button small" data-distribution-wechat>准备公众号稿件</button>':''}</div>`;
  }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
 function distributionInlineResults(f){
@@ -72,7 +72,7 @@ function distributionRecoveryTarget(f,row){
  if(!window.guanyinDesktop?.available||!['needs_attention','uncertain'].includes(row?.state)||!row.sessionId)return null;
  return (f.distributionTargets||[]).find(t=>t.transport==='desktop'&&t.sessionId===row.sessionId&&t.platform===row.platform&&t.accountId===row.accountId)||null;
 }
-function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button>${row.resumable&&row.jobId?`<button type="button" class="button small" data-distribution-resume="${esc(row.key)}">继续原稿发布</button>`:''}<span class="helper">查看原任务，不会重新发送</span></p>`:'';}
+function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button>${row.retryable&&row.jobId?`<button type="button" class="button small" data-distribution-unstarted="${esc(row.key)}">继续未开始的任务</button>`:''}${row.resumable&&row.jobId?`<button type="button" class="button small" data-distribution-resume="${esc(row.key)}">${row.stage==='prepare'?'补齐原稿文字（不发布）':'继续原稿发布'}</button>`:''}<span class="helper">查看原任务，不会重新发送</span></p>`:'';}
 async function distributionOpenOriginal(f,key){
  if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id)throw Error('工作区已变化，请重新打开稿件');
  const row=f.distributionJournal?.[key],target=distributionRecoveryTarget(f,row);if(!target)throw Error('原账号连接已变化，请检查账号设置');
@@ -172,6 +172,7 @@ document.addEventListener('click',async e=>{
  const f=e.target.closest('[data-article-editor]');if(!f)return;const b=e.target.closest('button');if(!b)return;
  if(b.hasAttribute('data-distribution-focus')){f.querySelector('.article-distribution').scrollIntoView({block:'start'});f.querySelector('[data-distribution-target]')?.focus()}
  if(b.hasAttribute('data-distribution-manual')){if(articleEditorDirty()){f.querySelector('[data-distribution-error]').textContent='请先保存并审核修改，再准备交付稿。';return}const c=distributionArticle(f);if(c?.status!=='已审核'){f.querySelector('[data-distribution-error]').textContent='请先完成稿件审核。';return}manualPublicationHandoff(c)}
+ if(b.hasAttribute('data-distribution-wechat')){const c=distributionArticle(f);if(articleEditorDirty()||c?.status!=='已审核'||c?.demo){f.querySelector('[data-distribution-error]').textContent='请先保存并审核当前文章，再准备公众号稿件。';return}wechatPrepare(c.id);return;}
  if(b.hasAttribute('data-distribution-refresh'))await distributionLoad(f);
  if(b.hasAttribute('data-distribution-manage')){if(articleEditorDirty()){const saved=await articleEditorSave('save',{reopen:false});if(!saved)return;}closeDrawer();location.hash='integrations';toast('账号连接后，从内容与确认中打开原稿继续发送')}
  if(b.hasAttribute('data-distribution-select-all')){const boxes=[...f.querySelectorAll('[data-distribution-target]:not(:disabled)')],select=!boxes.every(x=>x.checked);for(const box of boxes)box.checked=select;distributionUpdate(f);}
@@ -181,6 +182,15 @@ document.addEventListener('click',async e=>{
   }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}
  }
  if(b.dataset.distributionOpenOriginal){try{b.disabled=true;await distributionOpenOriginal(f,b.dataset.distributionOpenOriginal)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
+ if(b.dataset.distributionUnstarted){try{
+  b.disabled=true;const row=f.distributionJournal?.[b.dataset.distributionUnstarted],target=distributionRecoveryTarget(f,row);
+  const current=()=>f.isConnected&&f.distributionScope===distributionScope()&&f.dataset.brand===brand().id&&!articleEditorDirty();
+  if(!current()||!target||row.retryable!==true||!row.jobId)throw Error('原任务或工作区已变化');
+  await window.guanyinDesktop.prepare([{sessionId:target.sessionId,accountId:target.accountId}]);
+  if(!current())throw Error('稿件已变化，未继续');
+  await apiRequest('/api/local-publisher/continue-unstarted',{method:'POST',body:JSON.stringify({id:row.jobId})});
+  await distributionReconcile(f);distributionWatch(f);
+ }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionResume){try{b.disabled=true;await distributionResumeOriginal(f,b.dataset.distributionResume)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionSend){f.elements.distributionConfirmed.checked=true;await distributionSend(f,b.dataset.distributionSend);}
  if(b.hasAttribute('data-distribution-reconcile')){

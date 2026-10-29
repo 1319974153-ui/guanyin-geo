@@ -192,3 +192,42 @@ test('Toutiao account setup is reported before any editor write or submission',a
  for(const action of ['identity','fill','submit','draft-list-open'])assert.match((await f.run(action)).connectorError,/完善账号信息.*发布权益/);
  assert.equal(f.clicks,0);assert.equal(f.draftOpens,0);
 });
+
+test('Douyin homepage evidence cannot override a conflicting editor identity',async()=>{
+ const f=fixture('douyin');
+ const profileEvidence={accountId:'another',name:'another',accountVerified:true,evidenceUrl:'https://creator.douyin.com/creator-micro/home'};
+ assert.match((await f.run('identity',{profileEvidence})).connectorError,/唯一/);
+ assert.match((await f.run('identity',{profileEvidence:{...profileEvidence,accountId:'author',evidenceUrl:'https://evil.test/'}})).connectorError,/依据/);
+ assert.equal((await f.run('identity',{profileEvidence:{...profileEvidence,accountId:'author'}})).accountId,'author');
+});
+
+test('Douyin ignores empty editor zero-width decoration but preserves actual text before native input',async()=>{
+ const f=fixture('douyin');f.setTitle('');f.setBody('\u200b');assert.equal((await f.run('fill',{nativeInput:true})).nativeInsertTitle,'测试文章');
+ f.setBody('添加作品描述...');assert.match((await f.run('fill')).connectorError,/已有内容/);
+ f.setBody('用户原稿');assert.match((await f.run('fill')).connectorError,/已有内容/);
+ f.setTitle('测试文章');f.setBody('\u200b');assert.equal((await f.run('fill-body')).nativeInsertText,'测试正文');
+ f.setTitle('不同标题');assert.match((await f.run('fill-body')).connectorError,/标题/);
+});
+
+test('Douyin retained media count tolerates split label text and rejects mismatched or uploading media',async()=>{
+ const f=fixture('douyin');const query=f.context.document.querySelectorAll.bind(f.context.document);let label='已添加 2 张 图片 继续添加',busy=false;
+ const element={textContent:label,getClientRects:()=>[{}],closest:()=>null};
+ f.context.document.querySelectorAll=s=>s==='*'?[{...element,textContent:label}]:s==='.uploading,[class*="upload-progress"],[class*="upload-error"]'?(busy?[element]:[]):query(s);
+ const media=[{name:'a.png'},{name:'b.png'}];
+ assert.equal((await f.run('check-retained-media',{media})).mediaCount,2);
+ label='已添加 1 张图片';assert.match((await f.run('check-retained-media',{media})).connectorError,/数量未匹配/);
+ label='已添加2张图片';busy=true;assert.match((await f.run('check-retained-media',{media})).connectorError,/上传状态/);assert.equal(f.clicks,0);
+});
+
+test('Douyin receipt preserves rendered paragraph boundaries and ignores only zero-width decorations',async()=>{
+ const f=fixture('douyin');f.setBody('第一段\n第二段');const body=f.context.document.querySelectorAll('[contenteditable="true"]')[0];
+ f.context.document.createTextNode=value=>({textContent:value});
+ body.cloneNode=()=>{const lines=['第一段\u200B','第二段\u200B'];return{get textContent(){return lines.join('')},querySelectorAll:s=>s==='div,p,li,br'?lines.map((_,i)=>({appendChild:n=>lines[i]+=n.textContent})):[]}};
+ const article={title:'测试文章',text:'第一段\n\n第二段',html:''};assert.equal((await f.run('prepared',{article})).contentVerified,true);
+ assert.match((await f.run('prepared',{article:{...article,text:'第一段\n不同正文'}})).connectorError,/正文已变化/);assert.equal(f.clicks,0);
+});
+
+test('Douyin native description input preserves words in one plain paragraph without platform newline markers',async()=>{
+ const f=fixture('douyin');f.setBody('');const r=await f.run('fill-body',{article:{title:'测试文章',text:'第一段\n\n第二段\n署名',html:''}});
+ assert.equal(r.nativeInsertText,'第一段 第二段 署名');assert.equal(f.clicks,0);
+});

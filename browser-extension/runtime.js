@@ -1,3 +1,4 @@
+import {douyinAccountPage} from './douyin-account.js';
 import {juejinPage} from './juejin.js';
 import {fiftyonePage} from './fiftyone.js';
 import {aliyunPage} from './aliyun.js';
@@ -24,14 +25,14 @@ async function api(action,data={},connection){
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
  let profileEvidence;
- if(['aliyun','juejin'].includes(platform)){
+ if(['aliyun','juejin'].includes(platform)||(platform==='douyin'&&!['receipt','inspect'].includes(action))){
   // Read /myProfile in the same isolated session before every action, rather
   // than deriving an account ID from an article author, nickname or tracking JS.
-  const profile=await chrome.tabs.create({url:platform==='juejin'?'https://juejin.cn/creator/home':'https://developer.aliyun.com/myProfile',active:false});
-  try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:platform==='juejin'?juejinPage:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'平台登录身份不可用');}
+  const profile=await chrome.tabs.create({url:platform==='douyin'?'https://creator.douyin.com/creator-micro/home':platform==='juejin'?'https://juejin.cn/creator/home':'https://developer.aliyun.com/myProfile',active:false});
+  try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:platform==='douyin'?douyinAccountPage:platform==='juejin'?juejinPage:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'平台登录身份不可用');}
   finally{await chrome.tabs.remove(profile.id)}
  }
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='juejin'?juejinPage:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence}]});
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='juejin'?juejinPage:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence,nativeInput:chrome.runtime.id==='desktop'}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
  if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
@@ -41,7 +42,7 @@ async function page(tabId,action,article,accountId,platform='csdn',media=[]){
 }
 async function freshEditor(platform='csdn'){const tab=await chrome.tabs.create({url:platformConfig(platform).editor,active:true});await chrome.storage.local.set({['editorTab:'+platform]:tab.id,...(platform==='csdn'?{editorTab:tab.id}:{})});return tab.id}
 const accountEvidence=(me,platform)=>({...me,draftProtocol:platformConfig(platform).draftProtocol||0});
-async function identity(tabId,platform='csdn'){let last;for(let i=0;i<12;i++){try{return await page(tabId,'identity',undefined,undefined,platform)}catch(e){last=e;await delay(1000)}}throw last}
+async function identity(tabId,platform='csdn'){let last;for(let i=0;i<(platform==='douyin'?3:12);i++){try{return await page(tabId,'identity',undefined,undefined,platform)}catch(e){last=e;await delay(1000)}}throw last}
 async function setStatus(message){await chrome.storage.local.set({status:message})}
 async function submitPrepared(platform,job,tabId,article,call){
  const me=await page(tabId,'identity',undefined,job.accountId,platform);
@@ -226,6 +227,19 @@ async function resume(platform='csdn',expectedJobId){
   inflight=await journal(platform);if(!inflight)throw new Error('没有待继续的原稿');
   const j=inflight.job;if(expectedJobId&&j.id!==expectedJobId)throw new Error('原任务已变化，未继续提交');const connection=await settings(platform);call=(action,data)=>api(action,data,connection);
   const state=await call('job-state',{id:j.id,lease:j.lease});
+  if(platform==='douyin'&&j.mode==='prepare'&&state.canCompletePreparation){
+   const article={...j.snapshot,tags:j.tags};
+   const me=await page(inflight.tabId,'identity',undefined,j.accountId,platform);
+   await page(inflight.tabId,'check-retained-media',article,j.accountId,platform,j.media||[]);
+   await call('account',accountEvidence(me,platform));
+   await call('resume-preparation',{id:j.id,lease:j.lease,accountId:me.accountId,sourceHash:j.sourceHash});
+   // Explicit recovery writes only empty title/body in this retained editor.
+   // It never uploads media, creates an editor, preflights or submits.
+   await page(inflight.tabId,'fill',article,j.accountId,platform,j.media||[]);
+   const proof=preparationEvidence(platform,await page(inflight.tabId,'prepared',article,j.accountId,platform,j.media||[]));
+   if(!proof)throw Error('原稿填入结果不完整');
+   await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{...proof,sourceHash:j.sourceHash}});await saveJournal(platform,null);await setStatus('原稿标题正文已补齐，未公开发布');return;
+  }
   if(!state.canResume)throw new Error('此任务不能继续提交；请核对上次回执，不会重复发布');
   const article={...j.snapshot,tags:j.tags,mediaProof:j.originalDraft?.mediaProof||inflight.mediaProof||[]};
   if(platform==='51cto'&&j.originalDraft){

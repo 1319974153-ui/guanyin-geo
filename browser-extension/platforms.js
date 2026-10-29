@@ -7,7 +7,7 @@ export const PLATFORMS = {
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
- douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:30,textMax:1000,images:9},
+ douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}

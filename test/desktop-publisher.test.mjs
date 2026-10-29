@@ -148,3 +148,25 @@ test('Juejin desktop accepts draft and blocks public dispatch even if accidental
  await call('report',{id:j.id,lease:j.lease,state:'draft',draft:{...draft,verification:'reopened_content'}});
  const duplicate=await e.app('enqueue',{...args,mode:'draft'});assert.equal(duplicate.data.existing,true);assert.equal(duplicate.data.job.receipt.publicVerified,false);
 });
+
+test('explicit continuation restarts only a never-claimed task, never an interrupted editor',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'csdn'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity());
+ const j=(await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'draft',tags:['测试'],expectedAccountId:'author'})).data.job;
+ e.restart(origin);await call('account',identity());
+ const resumed=await e.app('continue-unstarted',{id:j.id});assert.equal(resumed.status,200);assert.equal(resumed.data.job.id,j.id);assert.equal(resumed.data.job.state,'queued');
+ await call('claim');e.restart(origin);await call('account',identity());
+ assert.equal((await e.app('continue-unstarted',{id:j.id})).status,409);
+ assert.equal((await call('pending')).count,0);
+});
+
+test('Douyin original preparation can resume empty fields but never gains public commit permission',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'douyin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('douyin'));
+ const media=[{dataUrl:'data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,1]).toString('base64')}];
+ await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author',media});const j=(await call('claim')).job;
+ await assert.rejects(call('resume-preparation',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}));
+ await call('report',{id:j.id,lease:j.lease,state:'needs_attention',editorRetained:true,error:'empty editor'});
+ assert.equal((await call('job-state',{id:j.id,lease:j.lease})).canCompletePreparation,true);
+ await call('resume-preparation',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash});
+ await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}));
+ assert.equal((await e.app('continue-unstarted',{id:j.id})).status,409);
+});

@@ -151,3 +151,19 @@ test('verified session flushing waits for Chromium persistence without reading o
  session.flushStorageData=()=>events.push('dom-storage');session.cookies={flushStore:()=>{events.push('cookie-store');return new Promise(r=>finish=r)},get:()=>{throw Error('must not read cookies')},set:()=>{throw Error('must not rewrite cookies')}};
  let done=false;const pending=d.close().then(()=>done=true);assert.equal(x.windows[0].isDestroyed(),true);assert.deepEqual(events,['dom-storage','cookie-store']);await Promise.resolve();assert.equal(done,false);finish();await pending;assert.equal(done,true);
 });
+
+test('returning manually to creator homepage after login does not trigger another editor redirect',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'douyin-session',platform:'douyin'});await d.openLogin();const w=x.windows[0];
+ await w.loadURL('https://creator.douyin.com/creator-micro/home');await new Promise(r=>setImmediate(r));assert.match(w.webContents.url,/content\/upload$/);
+ await w.loadURL('https://creator.douyin.com/creator-micro/home');await new Promise(r=>setImmediate(r));assert.match(w.webContents.url,/creator-micro\/home$/);
+ const probe=await d.chrome.tabs.create({url:'https://creator.douyin.com/creator-micro/home',active:false});await new Promise(r=>setImmediate(r));assert.match((await d.chrome.tabs.get(probe.id)).url,/creator-micro\/home$/);
+ await d.close();
+});
+
+test('loaded DOM may be inspected while unrelated resources are still loading',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'douyin-dom',platform:'douyin'});const tab=await d.chrome.tabs.create({url:'https://creator.douyin.com/creator-micro/home',active:false});
+ const wc=x.windows[0].webContents;wc.isLoadingMainFrame=()=>true;wc.emit('dom-ready');
+ const result=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>({accountId:'fixture'}),args:[]});assert.equal(result[0].result.accountId,'fixture');
+ wc.emit('did-start-navigation',{},'https://creator.douyin.com/creator-micro/home',false,true);
+ const pending=d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>true,args:[]});queueMicrotask(()=>wc.emit('dom-ready'));await pending;await d.close();
+});

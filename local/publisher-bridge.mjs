@@ -10,7 +10,7 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status})};
 const EXT=/^chrome-extension:\/\/[a-p]{32}$/;
 const csrf=req=>req.headers.get('x-geo-request')==='1';
 const safeId=v=>typeof v==='string'&&/^[\w-]{1,100}$/.test(v);
-const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,resumable:j.mode==='publish'&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.state==='submitted'&&j.receipt?'':j.error||'',receipt:j.receipt||null,preparation:j.preparation||null,recoveredDraft:j.recoveredDraft||null});
+const publicJob=j=>({platform:j.platform||'csdn',id:j.id,sessionId:j.sessionId,brandId:j.brandId,contentId:j.snapshot.contentId,title:j.snapshot.title,accountId:j.accountId,state:j.state,mode:j.mode,retryable:j.state==='needs_attention'&&!j.lease&&!j.attempted&&!j.editorRetained,resumable:(j.mode==='publish'||j.platform==='douyin'&&j.mode==='prepare')&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',mediaHashes:(j.media||[]).map(m=>m.sha256),created:j.created,expires:j.expires,error:j.state==='submitted'&&j.receipt?'':j.error||'',receipt:j.receipt||null,preparation:j.preparation||null,recoveredDraft:j.recoveredDraft||null});
 
 
 function validateMedia(input,limits){
@@ -167,8 +167,8 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const j={platform,media,mediaHash,id:randomUUID(),sessionId:s.id,brandId:s.brandId,accountId:s.account.accountId,accountRevision:s.account.revision,snapshot:snap,sourceHash,tags,mode:b.mode,state:'queued',created:clock(),expires:clock()+600000,attempted:false};checkCurrent(j,s);
      db.prepare('INSERT INTO publisher_jobs VALUES(?,?,?)').run(j.id,fingerprint,JSON.stringify(j));return respond({job:publicJob(j)});
     }
-    if(['retry','cancel'].includes(action)){
-     const j=getJob(b.id);brand(j.brandId);if(j.attempted)fail(409,'已经进入提交阶段，只能核对回执，不能重发');
+    if(['retry','cancel','continue-unstarted'].includes(action)){
+     const j=getJob(b.id);brand(j.brandId);if(action==='continue-unstarted'&&(j.state!=='needs_attention'||j.lease||j.attempted||j.editorRetained))fail(409,'任务可能已开始，请核对原稿，不会重新填入');if(j.attempted)fail(409,'已经进入提交阶段，只能核对回执，不能重发');
      if(!['queued','needs_attention'].includes(j.state))fail(409,'任务正在处理或已结束');
      if(action==='cancel'){j.state='cancelled';j.error='用户取消'}else{const s=sessions().find(s=>s.id===j.sessionId&&!s.revoked);if(!s)fail(409,'连接已撤销');j.expires=clock()+600000;checkCurrent(j,s);j.state=j.editorRetained?'needs_attention':'queued';j.error=j.editorRetained?'授权已续期，请在连接器继续原稿；不会重新填一篇':'';if(!j.editorRetained)delete j.lease;}
      save('publisher_jobs',j);return respond({job:publicJob(j)});
@@ -197,7 +197,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     session.account={accountId:b.accountId,name:b.name,checkedAt:clock(),revision:previous?.accountId===b.accountId?previous.revision:randomUUID(),evidenceUrl:b.evidenceUrl};save('publisher_sessions',session);
     return respond({account:session.account});
    }
-   if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');const active=!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state);return respond({job:publicJob(j),journalActive:active,canResume:active&&!j.attempted&&j.mode==='publish'&&publishing.has(j.platform||'csdn')&&['preparing','needs_attention'].includes(j.state)})}
+   if(action==='job-state'){const j=getJob(b.id);if(j.sessionId!==session.id)fail(403,'任务不属于此连接');const active=!!j.lease&&j.lease===b.lease&&!['cancelled','queued'].includes(j.state);return respond({job:publicJob(j),journalActive:active,canCompletePreparation:active&&j.platform==='douyin'&&j.mode==='prepare'&&!j.attempted&&j.editorRetained===true&&j.state==='needs_attention',canResume:active&&!j.attempted&&j.mode==='publish'&&publishing.has(j.platform||'csdn')&&['preparing','needs_attention'].includes(j.state)})}
    if(action==='pending'){const queued=jobs().filter(j=>j.sessionId===session.id&&j.state==='queued');return respond({platform:session.platform||'csdn',count:queued.length,originalDraft:queued[0]?.originalDraft||null,recoverPreparation:queued[0]?.recoverPreparation===true});}
    if(action==='claim'){
     if(jobs().some(j=>j.sessionId===session.id&&['preparing','submitting'].includes(j.state)))return respond({job:null});
@@ -206,8 +206,11 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     j.state='preparing';if(j.mode==='draft')j.editorRetained=true;j.lease=secret();j.leaseExpires=clock()+120000;save('publisher_jobs',j);
     return respond({job:{...publicJob(j),snapshot:j.snapshot,sourceHash:j.sourceHash,tags:j.tags,media:j.media||[],originalDraft:j.originalDraft||null,recoverPreparation:j.recoverPreparation===true,lease:j.lease}});
    }
-   if(['resume','commit','report'].includes(action)){
+   if(['resume','resume-preparation','commit','report'].includes(action)){
     const j=getJob(b.id);if(j.sessionId!==session.id||!j.lease||b.lease!==j.lease)fail(403,'任务租约不属于此连接');
+    if(action==='resume-preparation'){
+     if(j.platform!=='douyin'||j.mode!=='prepare'||j.attempted||!j.editorRetained||j.state!=='needs_attention')fail(409,'不能补齐此原稿');checkCurrent(j,session);if(b.accountId!==j.accountId||b.sourceHash!==j.sourceHash)fail(409,'原稿或账号已变化');j.state='preparing';j.leaseExpires=clock()+120000;save('publisher_jobs',j);return respond({resumed:true});
+    }
     if(action==='resume'){
      if(j.mode!=='publish'||!publishing.has(j.platform||'csdn')||j.attempted||!['preparing','needs_attention'].includes(j.state))fail(409,'此任务不能继续提交，请核对原回执');
      // Only an explicit connector action can renew a pre-submit lease. Content,
@@ -295,7 +298,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!['awaiting_login','checking','needs_login','error'].includes(data.state))fail(400,'不支持的账号状态');
    s.connectionState=data.state;s.connectionError=String(data.error||'').slice(0,250);save('publisher_sessions',s);return {ok:true};
   }
-  if(!['account','pending','claim','job-state','report','resume','commit'].includes(action))fail(400,'不支持的桌面操作');
+  if(!['account','pending','claim','job-state','report','resume','resume-preparation','commit'].includes(action))fail(400,'不支持的桌面操作');
   const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
   const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
  }
