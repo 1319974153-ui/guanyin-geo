@@ -12,7 +12,7 @@ function fixture(t){
   constructor(options){super();this.options=options;this.visible=options.show;windows.push(this);const wc=this.webContents=new EventEmitter();wc.url='';wc.getURL=()=>wc.url;wc.isLoadingMainFrame=()=>false;wc.loadURL=u=>this.loadURL(u);wc.setWindowOpenHandler=f=>wc.open=f;wc.executeJavaScript=async s=>{wc.lastScript=s;return {accountId:'fixture'}};}
   async loadURL(url){this.webContents.url=url;queueMicrotask(()=>this.webContents.emit('did-navigate',{},url))}isDestroyed(){return !!this.closed}isVisible(){return this.visible}show(){this.visible=true}focus(){}destroy(){this.closed=true;this.emit('closed')}
  }
- const session={fromPartition:p=>{partitions.push(p);return {flushStorageData(){},cookies:{async flushStore(){}},setPermissionRequestHandler(f){this.permission=f},setPermissionCheckHandler(f){this.check=f}}}};
+ const session={fromPartition:p=>{partitions.push(p);return {webRequest:{onErrorOccurred(f){this.error=f}},flushStorageData(){},cookies:{async flushStore(){}},setPermissionRequestHandler(f){this.permission=f},setPermissionCheckHandler(f){this.check=f}}}};
  const connection={sessionId:'session-a',platform:'toutiao'},create=(c,extra={})=>windowDriver({BrowserWindow:Window,session,root,connection:c||connection,...extra});return {root,windows,partitions,create,connection};
 }
 test('desktop login has no page privileges, returns to editor automatically, and retains its own private session',async t=>{
@@ -166,4 +166,16 @@ test('loaded DOM may be inspected while unrelated resources are still loading',a
  const result=await d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>({accountId:'fixture'}),args:[]});assert.equal(result[0].result.accountId,'fixture');
  wc.emit('did-start-navigation',{},'https://creator.douyin.com/creator-micro/home',false,true);
  const pending=d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>true,args:[]});queueMicrotask(()=>wc.emit('dom-ready'));await pending;await d.close();
+});
+
+
+test('receipt reads tolerate a ready DOM resource error but writes and main-page failures remain blocked',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'douyin-read-proof',platform:'douyin'});
+ const tab=await d.chrome.tabs.create({url:'https://creator.douyin.com/creator-micro/content/manage',active:false});
+ const w=x.windows[0],wc=w.webContents;wc.id=123;wc.emit('dom-ready');
+ w.options.webPreferences.session.webRequest.error({webContentsId:123,resourceType:'script',error:'net::ERR_CONNECTION_CLOSED',url:'https://unpkg.byted-static.com/react/fixture.js'});
+ const run=action=>d.chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>true,args:[{action}]});
+ await run('receipt-list-inspect');await assert.rejects(run('fill'),/基础组件/);
+ wc.emit('did-fail-load',{},-100,'ERR_CONNECTION_CLOSED',wc.url,true);
+ await assert.rejects(run('receipt-list-inspect'),/加载|连接/);await d.close();
 });

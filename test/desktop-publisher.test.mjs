@@ -170,3 +170,44 @@ test('Douyin original preparation can resume empty fields but never gains public
  await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}));
  assert.equal((await e.app('continue-unstarted',{id:j.id})).status,409);
 });
+
+test('Douyin temporary save renews only same reviewed prepared job and cannot authorize publication',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'douyin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});
+ await call('account',identity('douyin'));
+ const media=[{dataUrl:'data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,1]).toString('base64')}];
+ await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author',media});
+ let j=(await call('claim')).job;
+ const editorUrl='https://creator.douyin.com/creator-micro/content/post/image';
+ await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{editorUrl,accountId:'author',sourceHash:j.sourceHash}});
+ await assert.rejects(call('save-prepared',{id:j.id,accountId:'other'}),/账号/);
+ e.state.contents[0].text='changed';await assert.rejects(call('save-prepared',{id:j.id,accountId:'author'}),/稿件/);e.state.contents[0].text='测试正文';
+ e.advance(700000);await call('account',identity('douyin'));j=(await call('save-prepared',{id:j.id,accountId:'author'})).job;
+ assert.equal(j.mode,'prepare');assert.equal(j.state,'preparing');assert.equal(e.db.prepare('SELECT COUNT(*) n FROM publisher_jobs').get().n,1);
+ await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}),/不允许/);
+ const proof={editorUrl,accountId:'author',sourceHash:j.sourceHash,temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:1};
+ await assert.rejects(call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:{...proof,mediaCount:2}}),/不完整/);
+ const result=await call('report',{id:j.id,lease:j.lease,state:'prepared',preparation:proof});
+ assert.equal(result.job.preparation.temporaryVerified,true);assert.equal(result.job.preparation.savedVerified,false);assert.equal(result.job.preparation.storageScope,'current_device');assert.equal(result.job.receipt,null);
+ await assert.rejects(call('save-prepared',{id:j.id,accountId:'author'}),/重复暂存/);
+});
+
+test('Douyin original media restores across restart but not changed content, brand or ambiguous image versions',async t=>{
+ const e=setup(t,['douyin']),c=e.bridge.connectDesktop({brandId:'a',platform:'douyin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('douyin'));
+ const media=[{dataUrl:'data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,1]).toString('base64')}];
+ const r=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',expectedAccountId:'author',media});assert.equal(r.status,200);
+ e.restart();let restored=await e.app('media',{brandId:'a',contentId:'c'});assert.equal(restored.data.media[0].dataUrl,media[0].dataUrl);
+ assert.equal((await e.app('media',{brandId:'b',contentId:'c'})).status,409);
+ e.state.contents[0].text='changed';assert.equal((await e.app('media',{brandId:'a',contentId:'c'})).data.media.length,0);e.state.contents[0].text='测试正文';
+ const job=JSON.parse(e.db.prepare('SELECT body FROM publisher_jobs WHERE id=?').get(r.data.job.id).body);job.id='other';job.mediaHash='other';e.db.prepare('INSERT INTO publisher_jobs (id,fingerprint,body) VALUES (?,?,?)').run(job.id,'other',JSON.stringify(job));
+ assert.equal((await e.app('media',{brandId:'a',contentId:'c'})).status,409);
+});
+
+test('Douyin success requires committed original task, account, source and full-content receipt',async t=>{
+ const e=setup(t,['douyin']),c=e.bridge.connectDesktop({brandId:'a',platform:'douyin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('douyin'));
+ const media=[{dataUrl:'data:image/png;base64,'+Buffer.from([137,80,78,71,13,10,26,10,1]).toString('base64')}];await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',expectedAccountId:'author',media});const j=(await call('claim')).job;
+ const receipt={id:j.id,lease:j.lease,state:'submitted',url:'https://www.douyin.com/note/123',articleId:'123',verification:'creator_list_and_full_content',contentVerified:true,accountId:'author',sourceHash:j.sourceHash};
+ await assert.rejects(call('report',receipt));await call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash});
+ for(const patch of [{sourceHash:'changed'},{accountId:'other'},{contentVerified:false},{verification:'toast'}])await assert.rejects(call('report',{...receipt,...patch}));
+ const r=await call('report',receipt);assert.equal(r.job.state,'submitted');assert.equal(r.job.receipt.publicVerified,false);assert.equal(r.job.receipt.verification,'creator_list_and_full_content');
+ await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}));
+});

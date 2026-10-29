@@ -6,7 +6,7 @@ test('package capability manifest follows actual desktop gates and distinguishes
  const c=desktopBuildCapabilities();
  assert.ok(c.publicPublishingPlatforms.includes('metaweblog'));
  assert.ok(c.draftOnlyPlatforms.includes('juejin'));
- for(const id of ['juejin','toutiao','douyin','xiaohongshu','wechat','baijiahao'])assert.ok(!c.publicPublishingPlatforms.includes(id));
+ for(const id of ['juejin','toutiao','xiaohongshu','wechat','baijiahao'])assert.ok(!c.publicPublishingPlatforms.includes(id));
  for(const id of DESKTOP_PUBLIC_PLATFORMS)assert.ok(c.publicPublishingPlatforms.includes(id));
  const generic=c.platformEvidence.find(p=>p.id==='metaweblog');assert.equal(generic.actions.publish.implemented,true);assert.equal(generic.actions.publish.liveAcceptance,'pending');
  for(const p of publishingCatalog())assert.equal(p.acceptance==='not_implemented',!p.actionEvidence.identity.implemented);

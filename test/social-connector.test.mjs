@@ -24,7 +24,10 @@ function fixture(platform,options={}){
   if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
+  if(s==='*'&&platform==='douyin')return [...(options.missingMedia?[]:[element('已添加1张图片')]),...(options.douyinDeclared?[element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')]:[])];
+  if(s==='label'&&platform==='douyin')return (options.privateOnly?['仅自己可见','立即发布']:['公开','立即发布']).map(v=>element(v,{querySelector:()=>({})}));
   if(s.startsWith('.image-item img'))return[element('图片')];
+  if(s==='div,span'&&options.douyinDeclared)return [element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')];
   if(s==='div,span')return options.restoredDraft?[element('你还有上次未发布的图文，是否继续编辑？')]:[];
   if(s.includes('placeholder')&&s.includes('标题'))return options.wrappedTitle&&s.split(',').some(x=>x.trim()==='.WriteIndex-titleInput')?[element('标题外层'),titleEl]:[titleEl];
   if(s.includes('contenteditable'))return[bodyEl];
@@ -230,4 +233,19 @@ test('Douyin receipt preserves rendered paragraph boundaries and ignores only ze
 test('Douyin native description input preserves words in one plain paragraph without platform newline markers',async()=>{
  const f=fixture('douyin');f.setBody('');const r=await f.run('fill-body',{article:{title:'测试文章',text:'第一段\n\n第二段\n署名',html:''}});
  assert.equal(r.nativeInsertText,'第一段 第二段 署名');assert.equal(f.clicks,0);
+});
+
+test('Douyin preflight needs explicit AI declaration, image count, public and immediate settings',async()=>{
+ const article={title:'测试文章',text:'测试正文',ai:true};
+ const ready=fixture('douyin',{douyinDeclared:true});assert.equal((await ready.run('preflight',{article})).ready,true);assert.equal(ready.clicks,0);
+ for(const options of [{douyinDeclared:true,missingMedia:true},{douyinDeclared:true,privateOnly:true}]){const f=fixture('douyin',options);assert.ok((await f.run('preflight',{article})).connectorError);assert.equal(f.clicks,0)}
+});
+
+test("Douyin declaration accepts adjacent label nodes without weakening required AI declaration",async()=>{const f=fixture("douyin",{douyinDeclared:true,compactDeclaration:true});assert.equal((await f.run("preflight",{article:{title:"测试文章",text:"测试正文",ai:true}})).ready,true);assert.equal(f.clicks,0)});
+
+test('Douyin finds unique visible declaration placeholder and verifies selection without submitting',async()=>{
+ const f=fixture('douyin');const query=f.context.document.querySelectorAll.bind(f.context.document);let open=false,chosen=false,declared=false;
+ const el=(value,click=()=>{})=>({textContent:value,getClientRects:()=>[{}],closest:()=>null,contains:()=>false,click,getAttribute:()=>null});
+ f.context.document.querySelectorAll=s=>s==='*'?[...query(s),el(declared?'自主声明 内容由AI生成':'请选择自主声明',()=>open=true)]:s==='label,[role="radio"]'&&open?[el('内容由AI生成',()=>chosen=true)]:s==='button,[role="button"]'&&open?[...query(s),el('确定',()=>{declared=chosen;open=false})]:query(s);
+ assert.equal((await f.run('preflight',{article:{title:'测试文章',text:'测试正文',ai:true}})).ready,true);assert.equal(declared,true);assert.equal(f.clicks,0);
 });

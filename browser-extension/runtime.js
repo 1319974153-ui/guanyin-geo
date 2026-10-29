@@ -1,3 +1,4 @@
+import {douyinReceiptPage} from './douyin-receipt.js';
 import {douyinAccountPage} from './douyin-account.js';
 import {juejinPage} from './juejin.js';
 import {fiftyonePage} from './fiftyone.js';
@@ -25,17 +26,17 @@ async function api(action,data={},connection){
 }
 async function page(tabId,action,article,accountId,platform='csdn',media=[]){
  let profileEvidence;
- if(['aliyun','juejin'].includes(platform)||(platform==='douyin'&&!['receipt','inspect'].includes(action))){
+ if(['aliyun','juejin'].includes(platform)||(platform==='douyin'&&!['receipt','inspect','receipt-public'].includes(action))){
   // Read /myProfile in the same isolated session before every action, rather
   // than deriving an account ID from an article author, nickname or tracking JS.
   const profile=await chrome.tabs.create({url:platform==='douyin'?'https://creator.douyin.com/creator-micro/home':platform==='juejin'?'https://juejin.cn/creator/home':'https://developer.aliyun.com/myProfile',active:false});
   try{let last;for(let i=0;i<8;i++){const r=await chrome.scripting.executeScript({target:{tabId:profile.id},world:'MAIN',func:platform==='douyin'?douyinAccountPage:platform==='juejin'?juejinPage:aliyunPage,args:[{action:'account'}]});const v=r[0]?.result;if(v?.accountId&&v?.name&&!v.connectorError){profileEvidence=v;break}last=v?.connectorError||'本人主页尚未加载';await delay(500)}if(!profileEvidence)throw Error(last||'平台登录身份不可用');}
-  finally{await chrome.tabs.remove(profile.id)}
+  catch(e){throw Error('账号主页检查：'+e.message)}finally{await chrome.tabs.remove(profile.id)}
  }
- const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='juejin'?juejinPage:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence,nativeInput:chrome.runtime.id==='desktop'}]});
+ const result=await chrome.scripting.executeScript({target:{tabId},world:'MAIN',func:platform==='douyin'&&action.startsWith('receipt-')?douyinReceiptPage:platform==='juejin'?juejinPage:platform==='aliyun'?aliyunPage:platform==='51cto'?fiftyonePage:platform==='tencentcloud'?tencentcloudPage:platform==='csdn'?csdnPage:socialPage,args:[{platform,action,article,accountId,media,profileEvidence,nativeInput:chrome.runtime.id==='desktop'}]});
  if(result[0]?.error)throw new Error(result[0].error.message||'编辑器操作失败');
  const value=result[0]?.result;if(value?.connectorError)throw new Error(value.connectorError);
- if(['receipt','draft-receipt','draft-location'].includes(action)&&value===null)return null;
+ if(['receipt','draft-receipt','draft-location','receipt-public','receipt-list-inspect'].includes(action)&&value===null)return null;
  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('未取得编辑器操作结果，请重新核验');
  if(action==='identity'&&(!value.accountId||!value.name||value.editorReady!==true||!editorEvidence(platform,value.evidenceUrl)))throw new Error('编辑器未返回完整账号信息，未继续提交');
  return value;
@@ -178,6 +179,42 @@ async function savedDraft(platform,job,tabId,call){
  }
  throw new Error('尚未取得草稿保存回执，原编辑页已保留；请核对上次回执，不要重新发一篇');
 }
+async function temporarySaveDouyin(job,tabId,call){
+ const article={...job.snapshot,tags:job.tags};let entry=await journal('douyin');
+ if(!entry||entry.job.id!==job.id)throw Error('原稿任务记录不匹配');
+ if(!entry.temporarySave){
+  await page(tabId,'prepared',article,job.accountId,'douyin',job.media);
+  await page(tabId,'check-retained-media',article,job.accountId,'douyin',job.media);
+  entry.temporarySave={attempted:true,reopenAttempted:false};await saveJournal('douyin',entry);
+  await page(tabId,'temporary-save',article,job.accountId,'douyin',job.media);
+ }
+ if(!entry.temporarySave.reopenAttempted){
+  let uploaded=false;
+  for(let i=0;i<10;i++){const tab=await chrome.tabs.get(tabId);if(new URL(tab.url).pathname==='/creator-micro/content/upload'){uploaded=true;break}await delay(500)}
+  if(!uploaded)throw Error('暂存离开结果待核对，未重复保存');
+  entry.temporarySave.reopenAttempted=true;await saveJournal('douyin',entry);
+  await page(tabId,'temporary-reopen',article,job.accountId,'douyin',job.media);
+ }
+ let proof,last;
+ for(let i=0;i<4;i++){try{
+  const body=await page(tabId,'prepared',article,job.accountId,'douyin',job.media);
+  const images=await page(tabId,'check-retained-media',article,job.accountId,'douyin',job.media);
+  proof=preparationEvidence('douyin',{...body,temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:images.mediaCount});break;
+ }catch(e){last=e;await delay(500)}}
+ if(!proof?.temporaryVerified)throw last||Error('重开原稿未匹配，未标记暂存成功');
+ await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...proof,sourceHash:job.sourceHash}});
+ await saveJournal('douyin',null);await setStatus('已暂存并重开核对原图文；仅确认当前设备，未公开发布');
+}
+async function savePreparedDouyin(jobId){
+ if(running||await journal('douyin'))throw Error('原账号还有任务待核对，请先处理原任务');running=true;let job,call;
+ try{
+  const tabId=(await chrome.storage.local.get('editorTab:douyin'))['editorTab:douyin'];if(!tabId)throw Error('原编辑窗口不存在，未新建稿件');await chrome.tabs.get(tabId);
+  const connection=await settings('douyin');call=(action,data)=>api(action,data,connection);
+  const me=await page(tabId,'identity',undefined,undefined,'douyin');await call('account',accountEvidence(me,'douyin'));
+  job=(await call('save-prepared',{id:jobId,accountId:me.accountId})).job;
+  await saveJournal('douyin',{job,tabId});await temporarySaveDouyin(job,tabId,call);
+ }catch(e){if(job&&call)await call('report',{id:job.id,lease:job.lease,state:'needs_attention',editorRetained:true,error:e.message}).catch(()=>{});throw e;}finally{running=false}
+}
 async function run(platform='csdn'){
  if(running)return;running=true;let job,editorTouched=false;
  try{
@@ -205,6 +242,7 @@ async function run(platform='csdn'){
   }
   editorTouched=true;if(job.media?.length&&platform!=='51cto'){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(platform==='51cto'&&job.media?.length){const result=await page(tabId,'media',article,job.accountId,platform,job.media);article.mediaProof=result.mediaProof;const entry=await journal(platform);entry.mediaProof=result.mediaProof;await saveJournal(platform,entry);}
+  if(job.mode==='prepare'&&platform==='douyin'&&chrome.runtime.id==='desktop'){await temporarySaveDouyin(job,tabId,call);return}
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
   if(job.mode==='draft'){if(['csdn','tencentcloud','aliyun'].includes(platform))await page(tabId,'save-draft',article,job.accountId,platform);await savedDraft(platform,job,tabId,call);return}
   if(platform==='51cto'){
@@ -258,12 +296,36 @@ async function resume(platform='csdn',expectedJobId){
   await setStatus(e.message);
  }finally{running=false}
 }
+async function recoverDouyinReceipt(inflight,call){
+ const j=inflight.job,article=j.snapshot;
+ if(!inflight.receiptLookup){
+  const list=await page(inflight.tabId,'receipt-list-inspect',article,j.accountId,'douyin',j.media||[]);if(!list)return false;
+  inflight.receiptLookup={openAttempted:true,list};await saveJournal('douyin',inflight);
+  await page(inflight.tabId,'receipt-list-open',article,j.accountId,'douyin',j.media||[]);
+ }
+ const list=inflight.receiptLookup.list;if(!list?.contentVerified||list.accountId!==j.accountId)throw Error('原稿列表身份记录不完整');
+ // Driver-owned persisted URLs are observed navigations, not hidden platform state.
+ // Recover the child even after restart; only the exact original opener qualifies.
+ const saved=chrome.runtime.id==='desktop'?(await chrome.storage.local.get('_tabs'))._tabs||{}:{};
+ const tabs=[...(await chrome.tabs.query({url:'https://creator.douyin.com/*'})),...Object.values(saved)];
+ const ids=new Set();
+ for(const t of tabs){if(t.openerTabId!==inflight.tabId)continue;try{const u=new URL(t.url);const id=u.origin==='https://creator.douyin.com'&&!u.username&&!u.password&&!u.hash&&u.pathname.match(/^\/creator-micro\/work-management\/work-detail\/([1-9]\d{0,29})$/)?.[1];if(id)ids.add(id)}catch{}}
+ if(ids.size>1)throw Error('出现多个原稿作品编号，请核对，未重新发布');
+ if(ids.size===1){const articleId=[...ids][0];await call('report',{id:j.id,lease:j.lease,state:'submitted',articleId,url:'https://www.douyin.com/note/'+articleId,accountId:j.accountId,sourceHash:j.sourceHash,contentVerified:true,verification:'creator_list_and_full_content',reviewState:list.reviewState});await saveJournal('douyin',null);await setStatus('已取得原作品回执，正在核对公开正文；没有重复发布');return true}
+ return false;
+}
 async function reconcile(platform='csdn'){
  if(running)return;running=true;try{await reconcileJob(platform)}finally{running=false}
 }
 async function reconcileJob(platform='csdn'){
  await requireStorage();const inflight=await journal(platform);if(!inflight)return;const call=(action,data)=>api(action,data,settingsConnection);const settingsConnection=await settings(platform);
  try{
+  if(platform==='douyin'&&inflight.temporarySave){
+   const status=await call('job-state',{id:inflight.job.id,lease:inflight.job.lease});
+   if(status.journalActive===false){await saveJournal(platform,null);return}
+   // Resume only read navigation/checks. Never issue another save, fill or publish.
+   await temporarySaveDouyin(inflight.job,inflight.tabId,call);return;
+  }
   if(inflight.job.mode==='draft'){
    const j=inflight.job,status=await call('job-state',{id:j.id,lease:j.lease});
    if(status.journalActive===false){await saveJournal(platform,null);await setStatus('原草稿任务已结束或取消，未重新发送');return}
@@ -298,6 +360,7 @@ async function reconcileJob(platform='csdn'){
    }
    await setStatus('原稿已保留；补齐平台设置后点击“继续原稿并提交”。后台不会自动提交');return
   }
+  if(platform==='douyin'&&['submitting','uncertain'].includes(status.job?.state)&&await recoverDouyinReceipt(inflight,call))return;
   const receipt=await page(inflight.tabId,'receipt',['51cto','aliyun'].includes(platform)?inflight.job.snapshot:undefined,['51cto','aliyun'].includes(platform)?inflight.job.accountId:undefined,platform);if(receipt?.blocked&&platform!=='csdn')throw new Error(receipt.error);if(receipt&&!receipt.blocked){await call('report',{id:inflight.job.id,lease:inflight.job.lease,...receipt});await saveJournal(platform,null);await setStatus('已恢复提交回执；未再次点击发布')}else if(platform==='csdn'&&['uncertain','submitting'].includes(status.job?.state)){
    const j=inflight.job,found=await locateCsdnDraft(j),article={...j.snapshot,tags:j.tags,verifiedDraftList:found.candidate};
    const raw=await page(found.tabId,'draft-receipt',article,j.accountId,platform),proof=draftEvidence(platform,raw);
@@ -337,6 +400,7 @@ async function command(message){
    if(!editorTab)editorTab=await freshEditor(platform);
    const me=await identity(editorTab,platform);await api('account',accountEvidence(me,platform),connection);await setStatus('已核验账号：'+me.name+'（'+me.accountId+'）');return {ok:true};
   }
+  if(message.action==='save-prepared'){if(platform!=='douyin'||chrome.runtime.id!=='desktop')throw Error('仅抖音桌面暂存可用');await savePreparedDouyin(message.jobId);return {ok:true}}
   if(message.action==='resume'){await resume(platform,message.jobId);return {ok:true}}
   if(message.action==='run'){if(await journal(platform))await reconcile(platform);else await run(platform);return {ok:true}}
   if(message.action==='reconcile'){await reconcile(platform);return {ok:true}}

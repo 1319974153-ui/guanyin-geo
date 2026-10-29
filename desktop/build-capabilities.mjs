@@ -1,7 +1,7 @@
 import {PLATFORMS} from '../browser-extension/platforms.js';
 import {publishingCatalog} from '../src/publishing-catalog.js';
 // One desktop gate used both by the actual queue and package metadata.
-export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun']);
+export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun','douyin']);
 export function desktopBuildCapabilities(){
  const catalog=publishingCatalog();
  const publicPublishingPlatforms=catalog.filter(p=>p.actionEvidence.publish.implemented&&(

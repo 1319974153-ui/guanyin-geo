@@ -33,6 +33,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  // The official setup page is an account eligibility gate, not a saved draft.
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
+  if(platform==='douyin'){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const candidates=[location.href,...many('a[href]').filter(a=>/^(查看文章|查看作品|查看笔记|查看发布内容)$/.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];
   const matches=candidates.map(url=>({url,id:url.match(patterns[platform])?.[1]})).filter(r=>r.id);
@@ -41,7 +42,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  }
  const draftList=platform==='toutiao'&&location.pathname==='/profile_v4/manage/draft'&&['draft-list-inspect','draft-list-open'].includes(action);
  if(!draftList&&!cfg.paths.some(p=>p.test(location.pathname)))fail('当前不是支持的创作页，未继续');verifyChallenge();
- if(platform==='douyin'&&action!=='inspect'&&many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会放弃、覆盖或上传测试图片');
+ if(platform==='douyin'&&!['inspect','temporary-reopen'].includes(action)&&many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会放弃、覆盖或上传测试图片');
  if(action==='inspect'){
   const ts=many(cfg.title),bs=many(cfg.body);return {platform,titleMatches:ts.length,bodyMatches:bs.length,bodyVisibleChars:bs.map(e=>text(e).length),bodyContentChars:bs.map(e=>bodyContent(e).length),bodyTextChars:bs.map(e=>(e.textContent||'').trim().length),bodyIsPlaceholder:bs.map(e=>text(e)==='请输入正文'),editableStructure:many('[contenteditable="true"]').map(e=>({tag:e.tagName,classes:String(e.className||'').slice(0,180)})),imageInputs:[...document.querySelectorAll('input[type="file"]')].map(e=>e.accept||'')};
  }
@@ -78,7 +79,17 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
    if(many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会覆盖');
   }
  }
- const evidence={...me,editorReady:true,evidenceUrl:location.href};if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.body).length===1;const hasUpload=cfg.images&&[...document.querySelectorAll('input[type="file"]')].some(e=>/image|\.png|\.jpg|\.jpeg/.test(e.accept));if(!hasFields&&!hasUpload)fail('已登录，但编辑器还未就绪');return evidence;}
+ const evidence={...me,editorReady:true,evidenceUrl:location.href};
+ if(platform==='douyin'&&action==='temporary-reopen'){
+  if(location.pathname!=='/creator-micro/content/upload')fail('暂存回到上传页后才可重开原稿');
+  if(!many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('暂存提示未出现，原稿状态待核对');
+  const all=many('button,[role="button"],div,span').filter(e=>text(e)==='继续编辑'&&!e.closest('[contenteditable],article,aside'));
+  const controls=all.filter(e=>!all.some(child=>child!==e&&e.contains(child)));
+  if(controls.length!==1)fail('继续编辑入口不唯一，未操作');
+  if(globalThis.__guanyinTemporaryReopenAttempted)fail('已尝试重开原稿，不会重复点击');
+  globalThis.__guanyinTemporaryReopenAttempted=true;controls[0].click();return {...evidence,reopenAttempted:true};
+ }
+if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.body).length===1;const hasUpload=cfg.images&&[...document.querySelectorAll('input[type="file"]')].some(e=>/image|\.png|\.jpg|\.jpeg/.test(e.accept));if(!hasFields&&!hasUpload)fail('已登录，但编辑器还未就绪');return evidence;}
  if(draftList){
   const titles=many('main a.title').filter(e=>text(e)===article.title.trim());
   if(titles.length!==1)fail('草稿箱中没有唯一同标题原稿，请手动核对；不会新建或删除');
@@ -106,6 +117,12 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&(platform==='douyin'?bodyContent(editor):text(editor))===expected;
  if(platform==='douyin'&&action==='fill-body'){if(text(title)!==article.title.trim()||bodyContent(editor)||editor.querySelector('img,video,iframe'))fail('标题未完整填写或原正文非空，未覆盖');editor.focus();return {nativeInsertText:article.text.replace(/\s+/g,' ').trim()};}
+ if(platform==='douyin'&&action==='temporary-save'){
+  if(location.pathname!=='/creator-micro/content/post/image'||!matches())fail('原图文标题正文已变化，未暂存');
+  const controls=buttons(['暂存离开']);if(controls.length!==1)fail('未找到唯一暂存离开按钮');
+  if(globalThis.__guanyinTemporarySaveAttempted)fail('已尝试暂存，请核对原稿，不会重复点击');
+  globalThis.__guanyinTemporarySaveAttempted=true;controls[0].click();return {...evidence,temporarySaveAttempted:true};
+ }
  if(action==='prepared'){if(!matches())fail('编辑器正文已变化，未登记填稿回执');return {...evidence,contentVerified:true};}
  if(action==='draft-location'){
   if(platform!=='toutiao'||!matches())fail('原稿正文或标题不匹配，未定位草稿');
@@ -153,9 +170,19 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  }
  const aiLabel='包含 AI 辅助创作',aiLabels=[aiLabel,aiLabel+' 作者对内容负责'];
  const aiCombo=()=>{const items=many('[role="combobox"]').filter(e=>!e.closest('[contenteditable],article,aside')&&['无声明',...aiLabels].includes(text(e)));return items.length===1?items[0]:null};
- const aiDeclared=()=>platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
+ const douyinDeclared=()=>many('*').some(e=>!e.closest('[contenteditable],article')&&text(e).replace(/\s+/g,'')==='自主声明内容由AI生成');
+ const aiDeclared=()=>platform==='douyin'?douyinDeclared():platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
  if(action==='preflight'||action==='submit'){
   if(!matches())fail('正文或标题与已确认版本不同');verifyChallenge();
+  if(platform==='douyin'&&article.ai&&action==='preflight'&&!aiDeclared()){
+   const all=many('*').filter(e=>['自主声明请选择自主声明','请选择自主声明'].includes(text(e).replace(/\s+/g,''))&&!e.closest('[contenteditable],article'));
+   const triggers=all.filter(e=>!all.some(child=>child!==e&&e.contains(child)));
+   if(triggers.length!==1)fail('请在原稿核对 AI 自主声明，未提交');triggers[0].click();await wait(200);
+   const choices=many('label,[role="radio"]').filter(e=>text(e)==='内容由AI生成');
+   if(choices.length!==1)fail('AI 声明选项不唯一，未提交');choices[0].click();await wait(150);
+   const confirms=buttons(['确定']);if(confirms.length!==1)fail('声明确认按钮不唯一，未提交');confirms[0].click();await wait(200);
+   if(!aiDeclared())fail('AI 自主声明未保存，未提交');
+  }
   if(platform==='zhihu'&&article.ai&&action==='preflight'&&!aiDeclared()){
    const combo=aiCombo();if(!combo)fail('未找到唯一的 AI 创作声明选项，请在原稿核对');
    combo.click();await wait(200);
@@ -163,7 +190,14 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
    if(options.length!==1)fail('AI 创作声明选项不唯一，未提交');options[0].click();await wait(200);
    if(!aiDeclared())fail('平台尚未保存 AI 创作声明，未提交');
   }
-  if(cfg.images){if(many('.uploading,[class*="upload-progress"],[class*="upload-error"]').length)fail('图片仍在上传或上传失败');const previews=many('.image-item img,.img-preview img,[class*="image-preview"] img,.image-preview');if(!media.length||previews.length!==media.length)fail('未核对到全部图片上传结果，未提交');}
+  if(cfg.images){if(many('.uploading,[class*="upload-progress"],[class*="upload-error"]').length)fail('图片仍在上传或上传失败');
+   if(platform==='douyin'){
+    const counts=[...new Set(many('*').filter(e=>!e.closest('[contenteditable="true"],textarea')).map(e=>(e.textContent||'').replace(/\s+/g,'').match(/^已添加(\d+)张图片(?:继续添加)?$/)?.[1]).filter(Boolean))];
+    if(!media.length||counts.length!==1||Number(counts[0])!==media.length)fail('未核对到全部图文图片，未提交');
+    const selected=label=>many('label').some(e=>text(e)===label&&e.querySelector('input:checked'));
+    if(!selected('公开')||!selected('立即发布'))fail('请确认公开与立即发布设置，未提交');
+   }else{const previews=many('.image-item img,.img-preview img,[class*="image-preview"] img,.image-preview');if(!media.length||previews.length!==media.length)fail('未核对到全部图片上传结果，未提交');}
+  }
   const exclusive=many('label').find(e=>/独家|独占|首发/.test(text(e))&&e.querySelector('input:checked'));if(exclusive)fail('请关闭独家/首发选项，再继续');
   if(article.ai&&!aiDeclared())fail('平台 AI 声明尚未核对，请先完成声明');
   const widgets=platform==='xiaohongshu'?many('xhs-publish-btn').filter(e=>e.getAttribute('is-publish')!=='false'&&e.getAttribute('submit-disabled')!=='true'):[];const b=widgets.length?widgets:buttons(cfg.publish);if(b.length!==1)fail('未找到唯一可用的发布按钮');
