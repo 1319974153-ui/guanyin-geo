@@ -16,8 +16,14 @@ document.addEventListener('submit',async e=>{
 async function wechatLoadPackage(fields,scope){
   const args=new URLSearchParams({brandId:brand().id,...fields});
   const r=await apiRequest('/api/wechat/package?'+args);if(scope!==wordpressBaseScope())return;
-  wechatPrepared={...r.package,scope};
-  openDrawer('公众号稿件已准备',`<p role="status">已完成本地排版，尚未保存到公众号或发表。</p><h3>${esc(r.package.title)}</h3>${r.package.author?`<p>署名：${esc(r.package.author)}</p>`:''}${r.package.digest?`<p>摘要：${esc(r.package.digest)}</p>`:''}${r.package.content_source_url?`<p>阅读原文：${esc(r.package.content_source_url)}</p>`:''}<div class="button-row"><button class="button" data-wechat-export="title">复制标题</button><button class="button" data-wechat-export="digest">复制摘要</button><button class="button primary" data-wechat-export="rich">复制排版正文</button><button class="button" data-wechat-export="text">下载纯文本</button><button class="button" data-wechat-export="html">下载排版文件</button></div><p data-wechat-result role="status"></p><iframe title="公众号正文预览" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:45vh;border:1px solid var(--border)" srcdoc="${esc(wechatDocument(r.package))}"></iframe><p class="helper">在公众号新建图文，粘贴正文并选择封面；发表后保存公开链接。审核中与已发表分别记录。若排版复制不可用，可下载排版文件后打开复制。</p>`,'个人主体 · 本人完成发表');
+  const handoff=await wechatLocalHandoff(fields.contentId);
+  wechatPrepared={...r.package,scope,handoffId:handoff?.id||''};
+  const handoffStatus=handoff?`<p class="helper" data-wechat-handoff-status>本机交接任务已保存。${handoff.state==='reported_by_user'?'已记录本人报告的链接，待后续核对。':'发表后可在下方记录公开链接。'}</p>`:'<p class="helper">当前不是本机桌面版，无法保存交接任务；仍可复制或下载稿件。</p>';
+  openDrawer('公众号稿件已准备',`<p role="status">已完成本地排版，尚未保存到公众号或发表。</p><h3>${esc(r.package.title)}</h3>${r.package.author?`<p>署名：${esc(r.package.author)}</p>`:''}${r.package.digest?`<p>摘要：${esc(r.package.digest)}</p>`:''}${r.package.content_source_url?`<p>阅读原文：${esc(r.package.content_source_url)}</p>`:''}<div class="button-row"><button class="button" data-wechat-export="title">复制标题</button><button class="button" data-wechat-export="digest">复制摘要</button><button class="button primary" data-wechat-export="rich">复制排版正文</button><button class="button" data-wechat-export="text">下载纯文本</button><button class="button" data-wechat-export="html">下载排版文件</button></div><p data-wechat-result role="status"></p>${handoffStatus}${handoff?`<details class="simple-detail"><summary>本人发表后 · 记录公开链接</summary><form data-wechat-report data-task="${esc(handoff.id)}"><label class="field">公众号文章链接<input required name="publicUrl" type="url" placeholder="https://mp.weixin.qq.com/s/..." inputmode="url"></label><label class="check"><input required name="confirmPublished" type="checkbox"> 我确认这是本人已在公众号发表后的链接</label><button class="button" type="submit">保存链接（待核对）</button><p class="form-error" data-wechat-report-error role="alert"></p></form></details>`:''}<iframe title="公众号正文预览" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:45vh;border:1px solid var(--border)" srcdoc="${esc(wechatDocument(r.package))}"></iframe><p class="helper">在公众号新建图文，粘贴正文并选择封面；发表后保存公开链接。审核中与已发表分别记录。若排版复制不可用，可下载排版文件后打开复制。</p>`,'个人主体 · 本人完成发表');
+}
+async function wechatLocalHandoff(contentId){
+ if(!['127.0.0.1','localhost'].includes(location.hostname)||!contentId)return null;
+ try{return (await apiRequest('/api/local-wechat-handoff/prepare',{method:'POST',body:JSON.stringify({brandId:brand().id,contentId})})).task}catch{return null}
 }
 function wechatDocument(p){return '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+esc(p.title)+'</title><body style="max-width:680px;margin:24px auto;padding:0 16px;line-height:1.9;color:#222;font-family:-apple-system, BlinkMacSystemFont, &quot;PingFang SC&quot;, &quot;Microsoft YaHei&quot;, sans-serif">'+p.content+'</body></html>'}
 document.addEventListener('click',async e=>{
@@ -38,4 +44,15 @@ document.addEventListener('click',async e=>{
   }
   result.textContent=['title','digest','rich'].includes(kind)?'已复制；尚未发表。':'已下载；尚未发表。';
  }catch(err){result.textContent=err.message;}finally{b.disabled=false;}
+});
+document.addEventListener('submit',async e=>{
+ const f=e.target.closest('[data-wechat-report]');if(!f)return;e.preventDefault();
+ const error=f.querySelector('[data-wechat-report-error]'),button=f.querySelector('button'),scope=wordpressBaseScope();error.textContent='';button.disabled=true;
+ try{
+  if(!wechatPrepared||wechatPrepared.scope!==scope)throw Error('品牌或工作区已切换，请重新准备。');
+  const r=await apiRequest('/api/local-wechat-handoff/report',{method:'POST',body:JSON.stringify({id:f.dataset.task,publicUrl:f.elements.publicUrl.value,confirmPublished:f.elements.confirmPublished.checked})});
+  if(scope!==wordpressBaseScope())return;
+  const status=f.closest('#drawer')?.querySelector('[data-wechat-handoff-status]');if(status)status.textContent='已记录本人报告的发表链接；尚未由观引访问核对。';
+  f.querySelectorAll('input,button').forEach(el=>el.disabled=true);toast(r.notice);
+ }catch(err){if(f.isConnected)error.textContent=err.message}finally{button.disabled=false;}
 });
