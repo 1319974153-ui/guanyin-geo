@@ -15,14 +15,15 @@ export async function wechatWorkflow({store,client,scope,action,pack,cover,taskI
   const contentHash=await digest(JSON.stringify([pack,Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',cover.bytes))),cover.mime]));
   r=await store.findOrCreate(key,contentHash,{scope,key,contentHash,pack,state:'ready',id:crypto.randomUUID()});
  }else{r=await store.get(taskId);if(!r||r.key!==key)throw Error('找不到此账号的原任务');}
- const save=async patch=>{r={...r,...patch};await store.save(r);return r};
- const claim=async(from,to)=>{const ok=await store.claim(r.id,from,to);if(ok)r={...r,state:to};return ok};
+ const save=async patch=>{const next={...r,...patch};const stored=await store.save(next);r=stored||next;return r};
+ const claim=async(from,to)=>{const ok=await store.claim(r.id,from,to);if(ok)r=await store.get(r.id);return ok};
  const checkedDraft=async()=>{const d=await client.getDraft(r.mediaId),a=d.news_item;
   if(!Array.isArray(a)||a.length!==1)throw Error('远端不是唯一图文草稿');
   const expected=wechatArticle(r.pack,r.coverId),actual=a[0];
   for(const field of ['title','content','author','digest','content_source_url','thumb_media_id'])if((actual[field]||'')!==(expected[field]||''))throw Error('远端稿件已变化，未覆盖或发布');
  };
  if(action==='reconcile'){
+  if(store.recoverExpired)r=await store.recoverExpired(r.id);
   if(['uploading','creating','checking','publishing','reconciling'].includes(r.state))return r;
   const previous=r.state;
   if(!await claim(previous,'reconciling'))return store.get(r.id);
