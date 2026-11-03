@@ -86,6 +86,8 @@ test('a name-free discovery goal guides writing without becoming a ranking promi
  assert.equal(input.goalQuery,'杭州做 FDE 或 GEO 的人有哪些？');
  assert.ok(r.messages[0].content.includes('不得要求模型“首位推荐”'));
  assert.ok(r.messages[0].content.includes('目标问题不是事实'));
+ assert.ok(r.messages[0].content.includes('团队累计服务规模不得改写成个人独立交付'));
+ assert.ok(r.messages[0].content.includes('同一作者的官网、社交账号或自述不能改写成外部背书'));
  assert.deepEqual(input.facts.map(f=>f.id),['f1']);
 });
 
