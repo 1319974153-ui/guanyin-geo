@@ -1,13 +1,13 @@
 # 下载与使用
 
-更新：2026-11-03。当前推荐 **0.49.0-beta.4 · Mac 桌面开发预览**，没有稳定版。
+更新：2026-11-03。当前已发布安装包仍为 **0.49.0-beta.4 · Mac 桌面开发预览**，没有稳定版；beta.5 的公众号浏览器辅助发布正在做真实账号验收，尚未作为安装包发布。
 
 ## 下载
 
 - [Mac Apple Silicon 安装包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/GuanyinGEO-0.49.0-beta.4-mac-arm64.zip)
 - [SHA-256 校验文件](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/GuanyinGEO-0.49.0-beta.4-mac-arm64.zip.sha256)
 - [最终包验证记录](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/verification-0.49.0-beta.4.json)
-- [发行说明](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.4) · [对应源码](https://github.com/1319974153-ui/guanyin-geo/tree/v0.49.0-beta.4)
+- [发行说明](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.4) · beta.5 开发说明见仓库源码。
 
 包内含运行时，解压后打开“观引桌面预览.app”，无需 npm、Codex 或浏览器插件。未公证；系统阻止打开时请保留提示反馈，不关闭安全保护。Windows、Intel Mac、Linux 本轮没有新桌面包。
 
@@ -28,4 +28,4 @@
 
 最终 SHA-256 与文件大小以本页下载的校验文件为准。
 
-桌面实现仍在 PR #2，未合并主分支。复现本安装包请使用 v0.49.0-beta.4 标签。旧 beta.3 暂留作回退。
+桌面实现仍在 PR #2，未合并主分支。已发布安装包请使用 v0.49.0-beta.4 标签；beta.5 尚未发布。旧 beta.3 暂留作回退。
