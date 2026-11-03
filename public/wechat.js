@@ -1,10 +1,12 @@
-// Personal accounts use a local handoff, never a simulated platform receipt.
+// Personal accounts use a durable local task, never a simulated platform receipt.
+// The task stays in the background: a user should only ever see a platform
+// login / verification window, never a form asking them to paste a receipt URL.
 let wechatPrepared=null;
 async function wechatPrepare(contentId){
  wechatPrepared=null;
  const rows=own('contents').filter(c=>c.status==='已审核'&&!c.demo);
  if(contentId&&rows.some(c=>c.id===contentId)){const scope=wordpressBaseScope();openDrawer('公众号稿件','<p role="status">正在准备当前文章排版…</p>');try{await wechatLoadPackage({contentId},scope)}catch(e){if(scope===wordpressBaseScope())openDrawer('公众号稿件','<p role="alert">'+esc(e.message)+'</p>')}return;}
- openDrawer('公众号稿件',`<p>选择已审核文章 → 复制排版 → 在公众号发表。</p><p class="helper">个人主体不支持官方自动发表接口。这里准备稿件，不要求你安装插件、提供密码或反复核验。</p>${rows.length?`<form data-wechat-prepare><label class="field">文章<select name="contentId" required>${rows.map(c=>`<option value="${esc(c.id)}" ${c.id===contentId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><details class="simple-detail"><summary>可选设置 · 摘要默认自动提取</summary><label class="field">署名（可选）<input name="author" maxlength="16"></label><label class="field">摘要（可选）<textarea name="digest" maxlength="120" placeholder="留空时从正文自动提取，不消耗模型费用"></textarea></label><label class="field">阅读原文（可选）<input name="sourceUrl" type="url" placeholder="https://"></label></details><button class="button primary" type="submit">准备公众号稿件</button><p data-wechat-error class="form-error" role="alert"></p></form>`:'<p>还没有已审核文章。请先在「写文章」中生成或导入正文，再审核。</p>'}<p class="helper">自动写稿使用你配置的文本模型。未连接模型时不会调用或产生模型费用。封面请在公众号后台选择，本版本不会自动上传图片。</p>`,'本地准备 · 本人发表');
+ openDrawer('公众号发布',`<p>选择已审核文章后，观引自动生成排版和摘要，并保存为本机待发任务。</p><p class="helper">个人主体使用浏览器辅助流程：首次登录、扫码或平台安全验证只在公众号窗口完成；无需填写署名、摘要、链接或回执。</p>${rows.length?`<form data-wechat-prepare><label class="field">文章<select name="contentId" required>${rows.map(c=>`<option value="${esc(c.id)}" ${c.id===contentId?'selected':''}>${esc(c.title)}</option>`).join('')}</select></label><button class="button primary" type="submit">加入公众号发布队列</button><p data-wechat-error class="form-error" role="alert"></p></form>`:'<p>还没有已审核文章。请先在「写文章」中生成或导入正文，再审核。</p>'}<p class="helper">封面由已连接的公众号窗口选择或上传。未连接窗口时，任务会保留在本机等待一次登录，不会丢失或重复创建。</p>`,'本机队列 · 平台验证时再提示');
 }
 document.addEventListener('submit',async e=>{
  const f=e.target.closest('[data-wechat-prepare]');if(!f)return;e.preventDefault();
@@ -18,8 +20,8 @@ async function wechatLoadPackage(fields,scope){
   const r=await apiRequest('/api/wechat/package?'+args);if(scope!==wordpressBaseScope())return;
   const handoff=await wechatLocalHandoff(fields.contentId);
   wechatPrepared={...r.package,scope,handoffId:handoff?.id||''};
-  const handoffStatus=handoff?`<p class="helper" data-wechat-handoff-status>本机交接任务已保存。${handoff.state==='reported_by_user'?'已记录本人报告的链接，待后续核对。':'发表后可在下方记录公开链接。'}</p>`:'<p class="helper">当前不是本机桌面版，无法保存交接任务；仍可复制或下载稿件。</p>';
-  openDrawer('公众号稿件已准备',`<p role="status">已完成本地排版，尚未保存到公众号或发表。</p><h3>${esc(r.package.title)}</h3>${r.package.author?`<p>署名：${esc(r.package.author)}</p>`:''}${r.package.digest?`<p>摘要：${esc(r.package.digest)}</p>`:''}${r.package.content_source_url?`<p>阅读原文：${esc(r.package.content_source_url)}</p>`:''}<div class="button-row"><button class="button" data-wechat-export="title">复制标题</button><button class="button" data-wechat-export="digest">复制摘要</button><button class="button primary" data-wechat-export="rich">复制排版正文</button><button class="button" data-wechat-export="text">下载纯文本</button><button class="button" data-wechat-export="html">下载排版文件</button></div><p data-wechat-result role="status"></p>${handoffStatus}${handoff?`<details class="simple-detail"><summary>本人发表后 · 记录公开链接</summary><form data-wechat-report data-task="${esc(handoff.id)}"><label class="field">公众号文章链接<input required name="publicUrl" type="url" placeholder="https://mp.weixin.qq.com/s/..." inputmode="url"></label><label class="check"><input required name="confirmPublished" type="checkbox"> 我确认这是本人已在公众号发表后的链接</label><button class="button" type="submit">保存链接（待核对）</button><p class="form-error" data-wechat-report-error role="alert"></p></form></details>`:''}<iframe title="公众号正文预览" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:45vh;border:1px solid var(--border)" srcdoc="${esc(wechatDocument(r.package))}"></iframe><p class="helper">在公众号新建图文，粘贴正文并选择封面；发表后保存公开链接。审核中与已发表分别记录。若排版复制不可用，可下载排版文件后打开复制。</p>`,'个人主体 · 本人完成发表');
+  const handoffStatus=handoff?`<p class="helper" data-wechat-handoff-status>待发任务已保存到本机。登录窗口准备好后将自动接续；不需要填写公开链接或回执。</p>`:'<p class="helper">当前不是本机桌面版，无法保存待发任务；仍可使用仅用于排障的导出。</p>';
+  openDrawer('公众号待发任务已创建',`<p role="status">已完成本地排版，尚未保存到公众号或发表。</p><h3>${esc(r.package.title)}</h3>${r.package.digest?`<p>摘要已自动生成。</p>`:''}${handoffStatus}<p class="helper">下一步由已连接的公众号窗口处理：若平台要求扫码、短信或最终发表确认，会显示在该窗口。观引不会要求你回填文章链接。</p><details class="simple-detail"><summary>排障时导出稿件</summary><p class="helper">仅当公众号窗口临时不可用时使用；正常发布无需复制或下载。</p><div class="button-row"><button class="button" data-wechat-export="text">下载纯文本</button><button class="button" data-wechat-export="html">下载排版文件</button></div><p data-wechat-result role="status"></p></details><iframe title="公众号正文预览" sandbox="" referrerpolicy="no-referrer" style="width:100%;height:45vh;border:1px solid var(--border)" srcdoc="${esc(wechatDocument(r.package))}"></iframe>`,'个人主体 · 自动准备 · 平台确认时提示');
 }
 async function wechatLocalHandoff(contentId){
  if(!['127.0.0.1','localhost'].includes(location.hostname)||!contentId)return null;
@@ -44,15 +46,4 @@ document.addEventListener('click',async e=>{
   }
   result.textContent=['title','digest','rich'].includes(kind)?'已复制；尚未发表。':'已下载；尚未发表。';
  }catch(err){result.textContent=err.message;}finally{b.disabled=false;}
-});
-document.addEventListener('submit',async e=>{
- const f=e.target.closest('[data-wechat-report]');if(!f)return;e.preventDefault();
- const error=f.querySelector('[data-wechat-report-error]'),button=f.querySelector('button'),scope=wordpressBaseScope();error.textContent='';button.disabled=true;
- try{
-  if(!wechatPrepared||wechatPrepared.scope!==scope)throw Error('品牌或工作区已切换，请重新准备。');
-  const r=await apiRequest('/api/local-wechat-handoff/report',{method:'POST',body:JSON.stringify({id:f.dataset.task,publicUrl:f.elements.publicUrl.value,confirmPublished:f.elements.confirmPublished.checked})});
-  if(scope!==wordpressBaseScope())return;
-  const status=f.closest('#drawer')?.querySelector('[data-wechat-handoff-status]');if(status)status.textContent='已记录本人报告的发表链接；尚未由观引访问核对。';
-  f.querySelectorAll('input,button').forEach(el=>el.disabled=true);toast(r.notice);
- }catch(err){if(f.isConnected)error.textContent=err.message}finally{button.disabled=false;}
 });
