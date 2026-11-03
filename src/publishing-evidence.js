@@ -4,10 +4,10 @@ export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入�
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(id),wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
+ const browser=['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
  const tested=['csdn','toutiao','zhihu','douyin'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
+  const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:wechat?true:id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
@@ -24,7 +24,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；10月28日产品只读找回168768477并核对全文，保留禁止重发；当日额度已用完，公开提交仍待验收'};
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
  if(id==='douyin')return {stage:'暂存与公开发布已实测',note:'Mac 桌面两图稿自动填入、设备暂存与重开通过；经本人短信验证后公开提交成功，原任务自动回收编号并匿名核对完整正文。未取得云端草稿编号；遇平台验证仍需本人处理。'};
- if(id==='wechat')return {stage:'可准备公众号稿件',note:'支持本地排版、复制与下载；个人主体由本人发表。官方草稿与发表协议已实现，真实授权和发布尚未验收，未开放自动提交。'};
+ if(id==='wechat')return {stage:'桌面浏览器流程已接入 · 待实测',note:'个人主体通过隔离的公众号官方窗口登录一次后，观引会自动打开图文编辑器、填入标题正文，并请求保存草稿或发表；页面反馈会回写为“草稿已保存、已提交待确认或需要本人验证”。不读取 Cookie、不代做验证；尚未完成真实账号草稿、发表及公开链接回执验收。'};
  if(id==='personal-site')return {stage:'官网草稿与发布已实测',note:'Mac 桌面已通过真实官网草稿、公开发布与匿名正文核验；需管理员先绑定受限发布端，其他网站与操作系统须单独验收。'};
  if(id==='metaweblog')return {stage:'接口已接入 · 待实测',note:'兼容自建博客可配置同源 HTTPS XML-RPC、自动核对账号、保存草稿和发布原稿；协议与失败恢复自动测试通过，真实站点待验收；不是所有 MetaWeblog 实现都兼容。'};
  if(id==='typecho')return {stage:'接口已接入 · 待实测',note:'网站连接、草稿、原稿发布与恢复已实现；真实 Typecho 网站尚待验收，不能以自动测试代替'};
