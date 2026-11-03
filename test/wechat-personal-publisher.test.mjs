@@ -7,6 +7,8 @@ test('personal WeChat helper accepts only a bounded article and explicit final m
  assert.throws(()=>wechatPersonalCommand({title:'',html:'<p>正文</p>',mode:'draft'}));
  assert.throws(()=>wechatPersonalCommand({title:'测试稿',html:'<p>正文</p>',mode:'anything'}));
  assert.throws(()=>wechatPersonalCommand({title:'测'.repeat(65),html:'<p>正文</p>',mode:'publish'}));
+ assert.deepEqual(wechatPersonalCommand({title:'测试稿',html:'<p>正文</p>',mode:'draft',taskId:'gy-'+'a'.repeat(64)}),{title:'测试稿',html:'<p>正文</p>',mode:'draft',taskId:'gy-'+'a'.repeat(64)});
+ assert.throws(()=>wechatPersonalCommand({title:'测试稿',html:'<p>正文</p>',mode:'draft',taskId:'not-a-task'}));
 });
 
 test('personal WeChat helper keeps navigation inside official login and management origins',()=>{

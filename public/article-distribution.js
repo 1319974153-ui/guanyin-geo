@@ -163,8 +163,11 @@ async function distributionSend(f,mode){
   for(const target of wechatTargets){
    if(!window.guanyinDesktop?.wechatPersonalPublish)throw new Error('请在观引桌面版打开此稿件');
    const existing=journal[target.key];if(existing&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(existing.state))continue;
-   const result=await window.guanyinDesktop.wechatPersonalPublish({title:c.title,html:GEO_ARTICLE_FORMAT.formatArticle(c.text).html,mode});assertScope();
-   journal[target.key]={id:await GEO_DISPATCH.dispatchId(c,target),key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state:'needs_attention',stage:mode,error:result?.message||'公众号窗口已打开，等待登录或平台安全验证；最终结果请以公众号后台为准。'};
+   const taskId=await GEO_DISPATCH.dispatchId(c,target);
+   journal[target.key]={id:taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state:'preparing',stage:mode,error:'公众号窗口已打开，正在等待登录或编辑器就绪。'};
+   await persist(journal);distributionResults(f);
+   const result=await window.guanyinDesktop.wechatPersonalPublish({title:c.title,html:GEO_ARTICLE_FORMAT.formatArticle(c.text).html,mode,taskId});assertScope();
+   journal[target.key]={...journal[target.key],state:'preparing',error:result?.message||journal[target.key].error};
    await persist(journal);distributionResults(f);
   }
   if(regularTargets.length)await GEO_DISPATCH.dispatchArticle({article:{...c,tags},targets:regularTargets,mode,journal,request:apiRequest,persist,assertScope,changed:()=>distributionResults(f)});
@@ -175,6 +178,16 @@ async function distributionSend(f,mode){
  }catch(e){error.textContent=e.message}
  finally{f.distributionBusy=false;runtimeLock(false);if(f.isConnected){f.querySelectorAll('input,textarea,select,button').forEach(e=>e.disabled=false);f.querySelectorAll('[data-distribution-target]').forEach(e=>e.disabled=!f.distributionTargets.find(t=>t.key===e.value)?.modes.includes(f.elements.distributionMode.value));distributionUpdate(f);distributionResults(f);distributionWatch(f)}}
 }
+function distributionWechatStatus(status){
+ if(!status?.taskId)return;
+ const map={opening_editor:'preparing',waiting_editor:'preparing',waiting_receipt:'submitting',draft_requested:'submitting',publish_requested:'submitting',draft_saved:'draft',publish_submitted:'submitted',verification_required:'needs_attention',blocked:'needs_attention',filled:'needs_attention'};
+ const state=map[status.state];if(!state)return;
+ for(const f of document.querySelectorAll?.('[data-article-editor]')||[]){
+  const row=Object.values(f.distributionJournal||{}).find(v=>v.platform==='wechat'&&v.id===status.taskId);if(!row)continue;
+  row.state=state;row.error=status.message||'';localStorage.setItem(f.distributionKey,JSON.stringify(f.distributionJournal));distributionResults(f);distributionInlineResults(f);
+ }
+}
+if(window.guanyinDesktop?.onWechatPersonalStatus)window.guanyinDesktop.onWechatPersonalStatus(distributionWechatStatus);
 document.addEventListener('change',e=>{const f=e.target.closest('[data-article-editor]');if(f&&e.target.name==='distributionMode')distributionRenderTargets(f);if(f&&(e.target.matches('[data-distribution-target]')||['distributionConfirmed','distributionMode'].includes(e.target.name)))distributionUpdate(f)});
 function distributionInvalidate(f){distributionStopWatch(f);f.distributionEpoch=(f.distributionEpoch||0)+1;f.distributionKey=null;f.elements.distributionConfirmed.checked=false;f.distributionJournal={};distributionResults(f);distributionUpdate(f)}
 document.addEventListener('input',e=>{const f=e.target.closest('[data-article-editor]');if(f&&['title','text','articleAi'].includes(e.target.name)){distributionInvalidate(f)}});

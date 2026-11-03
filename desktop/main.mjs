@@ -66,12 +66,14 @@ async function openWechatPersonalPublisher(input){
  wechatPersonalWindow=win;const wc=win.webContents;
  for(const event of ['will-navigate','will-redirect'])wc.on(event,(e,legacyUrl)=>{const url=e.url||legacyUrl;if(!wechatPersonalUrlAllowed(url))e.preventDefault()});
  wc.on('will-attach-webview',e=>e.preventDefault());wc.setWindowOpenHandler(({url})=>wechatPersonalUrlAllowed(url)?{action:'allow'}:{action:'deny'});
- let attempts=0,busy=false;
+ let attempts=0,busy=false,requested=false;
  const run=async()=>{
   if(busy||win.isDestroyed()||!wechatPersonalUrlAllowed(wc.getURL())||wc.isLoadingMainFrame())return;
   busy=true;try{
-   const result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify(command)+')',true);
-   if(['draft_requested','publish_requested','verification_required','filled'].includes(result?.state)){if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;return;}
+   const result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify({...command,requested})+')',true);
+   if(['draft_requested','publish_requested'].includes(result?.state))requested=true;
+   if(result?.state)main.webContents.send('guanyin:wechat-personal-status',{...result,taskId:command.taskId||'',mode:command.mode});
+   if(['draft_saved','publish_submitted','verification_required','filled','blocked'].includes(result?.state)){if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;return;}
    if(++attempts<20)wechatPersonalTimer=setTimeout(()=>void run(),1000);
   }catch{if(++attempts<20)wechatPersonalTimer=setTimeout(()=>void run(),1000)}finally{busy=false}
  };

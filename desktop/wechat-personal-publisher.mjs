@@ -14,7 +14,9 @@ export function wechatPersonalCommand(input={}){
  if(!title||[...title].length>64)throw Error('公众号标题应为 1 至 64 个字符');
  if(!html||html.length>900000)throw Error('公众号正文为空或超过本机安全限制');
  if(!['draft','publish'].includes(mode))throw Error('请选择保存草稿或发布');
- return {title,html,mode};
+ const taskId=String(input.taskId||'').trim();
+ if(taskId&&!/^gy-[a-f0-9]{64}$/.test(taskId))throw Error('公众号任务编号无效');
+ return taskId?{title,html,mode,taskId}:{title,html,mode};
 }
 
 // This function is injected only from the signed desktop bundle, never from
@@ -30,6 +32,12 @@ export function wechatPersonalPage(command){
   return null;
  };
  const blocked=state();if(blocked)return blocked;
+ const confirmed=command.mode==='draft'
+  ?has(['草稿保存成功','已保存草稿','保存成功'])
+  :has(['发表成功','发布成功','已群发']);
+ if(confirmed)return command.mode==='draft'
+  ?{state:'draft_saved',message:'公众号页面已确认草稿保存；请以公众号草稿箱为准'}
+  :{state:'publish_submitted',message:'公众号页面已确认发表提交；公开结果仍以公众号后台为准'};
  const clickLabel=labels=>{
   const candidates=all('button,a,[role="button"],span').filter(node=>labels.includes(text(node))&&!node.closest('[aria-disabled="true"],:disabled'));
   const node=candidates.find(node=>node.offsetParent!==null);if(!node)return false;node.click();return true;
@@ -45,6 +53,7 @@ export function wechatPersonalPage(command){
  if(input.value!==command.title)setValue(input,command.title);
  const bodyNode=body.tagName==='IFRAME'?body.contentDocument?.body:body;if(!bodyNode)return {state:'waiting_editor',message:'正文编辑器仍在加载'};
  if(bodyNode.innerHTML!==command.html)setValue(bodyNode,command.html);
+ if(command.requested)return {state:'waiting_receipt',message:'已请求平台操作，正在等待公众号页面反馈'};
  if(command.mode==='draft'){
   if(clickLabel(['保存草稿','存草稿']))return {state:'draft_requested',message:'已请求保存草稿，正在等待平台回执'};
   return {state:'filled',message:'标题和正文已填入，平台未显示保存草稿按钮'};
