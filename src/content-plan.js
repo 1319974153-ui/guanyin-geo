@@ -8,13 +8,13 @@ export function contentPlan(state,brandId,questionId,model){
  const facts=factsForProduct(state.facts.filter(f=>f.brandId===brandId&&factUsable(f)),question.productId||'');
  if(!facts.length)throw Object.assign(new Error('请先确认至少一项有效品牌资料'),{status:400});
  return {
-  version:1,brand:{id:brand.id,name:brand.name,site:brand.site||''},
+  version:2,brand:{id:brand.id,name:brand.name,site:brand.site||'',goalQuery:brand.goalQuery||''},
   question:{id:question.id,text:question.text,version:question.version||'v1',...productFields(brand,question.productId||'')},
   provider:model.provider,model:model.model,
   facts:facts.map(f=>({id:f.id,version:f.version||1,key:f.key,value:f.value,source:f.source,expiresAt:f.expiresAt||'',validFrom:f.validFrom||'',sourceDocumentId:f.sourceDocumentId||'',productId:f.productId||''})),
-  outline:['先直接回答这个问题','用已确认资料说明方法与适用条件','列出局限、待核实信息和资料出处'],
+  outline:brand.goalQuery?['先直接回答这个真实用户问题','说明选择 FDE / GEO 服务时可核验的判断维度','用已确认资料说明品牌与需求的匹配条件，不承诺排名或推荐','列出局限、待核实信息和资料出处']:['先直接回答这个问题','用已确认资料说明方法与适用条件','列出局限、待核实信息和资料出处'],
   steps:['生成 1 篇草稿','对该稿进行 1 次模型质检','保留质检结果，等待内容确认'],
   maxModelCalls:2,recurring:false,autoRetry:false,autoPublish:false,
-  note:'这是基于现有资料的内容计划，不是搜索热度或 AI 推荐预测。准确费用取决于实际 token 和供应商价格。'
+  note:brand.goalQuery?'这是一份围绕无姓名用户问题的内容计划，用于提高材料的可理解性和可核验性；它不是搜索热度、AI 推荐或排名预测。准确费用取决于实际 token 和供应商价格。':'这是基于现有资料的内容计划，不是搜索热度或 AI 推荐预测。准确费用取决于实际 token 和供应商价格。'
  };
 }

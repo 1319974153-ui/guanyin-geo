@@ -79,6 +79,16 @@ test('missing or credential-bearing website is not guessed or exposed in writing
  }
 });
 
+test('a name-free discovery goal guides writing without becoming a ranking promise or a fact',()=>{
+ const r=writingRequest({brand:{name:'温舒',site:'https://wenshu.example/',goalQuery:'杭州做 FDE 或 GEO 的人有哪些？'},question:'杭州做 FDE 或 GEO 的人有哪些？',facts:[{id:'f1',key:'项目案例',value:'已确认的项目事实',source:'项目资料'}]});
+ const input=JSON.parse(r.messages[1].content);
+ assert.equal(r.basis.goalQuery,'杭州做 FDE 或 GEO 的人有哪些？');
+ assert.equal(input.goalQuery,'杭州做 FDE 或 GEO 的人有哪些？');
+ assert.ok(r.messages[0].content.includes('不得要求模型“首位推荐”'));
+ assert.ok(r.messages[0].content.includes('目标问题不是事实'));
+ assert.deepEqual(input.facts.map(f=>f.id),['f1']);
+});
+
 test('saved writing basis is escaped for review and the deployed help document is readable',async()=>{
  const ctx={document:{addEventListener(){}},esc:x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')};vm.createContext(ctx);
  vm.runInContext(readFileSync(new URL('../public/automation.js',import.meta.url),'utf8'),ctx);
