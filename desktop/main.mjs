@@ -77,7 +77,7 @@ async function openWechatPersonalPublisher(input){
  };
  wc.on('did-finish-load',()=>void run());wc.on('did-stop-loading',()=>void run());win.on('closed',()=>{if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;wechatPersonalWindow=null});
  await wc.loadURL('https://mp.weixin.qq.com/');
- return {state:'waiting_login',message:'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并保存草稿'};
+ return {state:'waiting_login',message:command.mode==='publish'?'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并请求发表':'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并保存草稿'};
 }
 async function getConnection(id){if(typeof id!=='string')throw new Error('账号连接无效');const list=await rpc('desktop-list');const c=list.find(c=>c.sessionId===id);if(!c)throw new Error('账号连接已撤销');return c}
 async function control(connection){

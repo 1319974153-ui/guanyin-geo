@@ -96,10 +96,10 @@ test('expired desktop account offers login and never keeps a checked publish tar
  assert.match(x.html(),/需要登录/);assert.match(x.html(),/data-distribution-connect="aliyun"/);
 });
 
-test('WeChat offers current-article preparation without enabling automatic submission',()=>{
- const x=fixture();x.g.distributionRenderTargets(x.f,new Set(['catalog:wechat']));
- assert.match(x.html(),/data-distribution-wechat>准备公众号稿件/);
- assert.match(x.html(),/可准备稿件 · 需本人发表/);
- assert.match(x.html(),/value="catalog:wechat"[^>]*disabled/);
- assert.doesNotMatch(x.html(),/value="catalog:wechat"[^>]*checked/);
+test('a connected desktop personal WeChat publisher is a normal selectable publish target',()=>{
+ const x=fixture();x.f.distributionTargets.push({key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',transport:'desktop_personal',modes:['draft','publish']});
+ x.g.distributionRenderTargets(x.f,new Set(['wechat:personal-browser']));
+ assert.match(x.html(),/value="wechat:personal-browser"[^>]*checked/);
+ assert.match(x.html(),/登录一次后自动运行/);
+ assert.doesNotMatch(x.html(),/data-distribution-wechat/);
 });

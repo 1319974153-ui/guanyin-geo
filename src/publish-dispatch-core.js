@@ -73,6 +73,9 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
+   }else if(row.platform==='wechat'&&row.transport==='desktop_personal'){
+    // Personal-account browser publishing has no server-side receipt API. Keep the
+    // observed state and never turn a window-open action into a publication claim.
    }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'].includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     assertScope();
