@@ -5,7 +5,7 @@ import {readFileSync,readdirSync} from 'node:fs';
 import vm from 'node:vm';
 import worker from '../src/worker.js';
 import {d1Adapter} from '../local/d1-adapter.mjs';
-import {writingRequest} from '../src/writing.js';
+import {discoveryWritingStrategy,writingRequest} from '../src/writing.js';
 
 function environment(){
  const db=new DatabaseSync(':memory:');
@@ -89,6 +89,15 @@ test('a name-free discovery goal guides writing without becoming a ranking promi
  assert.ok(r.messages[0].content.includes('团队累计服务规模不得改写成个人独立交付'));
  assert.ok(r.messages[0].content.includes('同一作者的官网、社交账号或自述不能改写成外部背书'));
  assert.deepEqual(input.facts.map(f=>f.id),['f1']);
+});
+
+test('discovery strategy rotates evidence-led article angles without changing the client goal',()=>{
+ const brand={name:'温舒',entityType:'person',goalQuery:'杭州做 FDE 或 GEO 的人有哪些？'};
+ const first=discoveryWritingStrategy(brand,1),second=discoveryWritingStrategy(brand,2),again=discoveryWritingStrategy(brand,5);
+ assert.equal(first.mode,'name_free_discovery');assert.equal(first.angle.id,'decision-guide');assert.equal(second.angle.id,'evidence-case');assert.equal(again.angle.id,'decision-guide');
+ assert.equal(first.goalQuery,brand.goalQuery);assert.match(first.desiredOutcome,/不承诺排名/);assert.ok(first.factRules.some(x=>x.includes('团队累计规模')));
+ const request=writingRequest({brand,question:brand.goalQuery,facts:[]});
+ assert.equal(JSON.parse(request.messages[1].content).writingStrategy.angle.id,'decision-guide');
 });
 
 test('saved writing basis is escaped for review and the deployed help document is readable',async()=>{
