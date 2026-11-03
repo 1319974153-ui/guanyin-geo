@@ -1,13 +1,13 @@
 # 下载与使用
 
-更新：2026-10-29。当前推荐 **0.49.0-beta.3 · Mac 桌面开发预览**，没有稳定版。
+更新：2026-11-03。当前已发布安装包仍为 **0.49.0-beta.4 · Mac 桌面开发预览**，没有稳定版；beta.5 的公众号浏览器辅助发布正在做真实账号验收，尚未作为安装包发布。
 
 ## 下载
 
-- [Mac Apple Silicon 安装包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.3/GuanyinGEO-0.49.0-beta.3-mac-arm64.zip)
-- [SHA-256 校验文件](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.3/GuanyinGEO-0.49.0-beta.3-mac-arm64.zip.sha256)
-- [最终包验证记录](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.3/verification-0.49.0-beta.3.json)
-- [发行说明](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.3) · [对应源码](https://github.com/1319974153-ui/guanyin-geo/tree/v0.49.0-beta.3)
+- [Mac Apple Silicon 安装包](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/GuanyinGEO-0.49.0-beta.4-mac-arm64.zip)
+- [SHA-256 校验文件](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/GuanyinGEO-0.49.0-beta.4-mac-arm64.zip.sha256)
+- [最终包验证记录](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.4/verification-0.49.0-beta.4.json)
+- [发行说明](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.4) · beta.5 开发说明见仓库源码。
 
 包内含运行时，解压后打开“观引桌面预览.app”，无需 npm、Codex 或浏览器插件。未公证；系统阻止打开时请保留提示反馈，不关闭安全保护。Windows、Intel Mac、Linux 本轮没有新桌面包。
 
@@ -22,10 +22,10 @@
 
 ## 本版验证范围
 
-1014 项自动测试通过。最终 ZIP 已完成中文空格路径解压、启动、品牌保存、模型未配置提示、正常退出释放端口和重启保留。安装更新后原 8 个账号记录、6 篇内容和 13 条发布任务保留。
+本版以完整自动化回归和本机交接任务测试为准。最终 ZIP 的解压、启动、保存、退出、重启和数据扫描回执随发行附带。公众号任务仅保存本机交接与用户报告链接，不等同于平台发表回执。
 
 新增掘金纯文本草稿实测、通用 MetaWeblog 接口和账号布局优化；掘金公开发布与图片未开放，MetaWeblog、WordPress、Typecho 真实兼容站点仍待验收。静态个人官网使用独立已配置的通道。其余平台能力见对应版本的逐平台文档，36 个目录入口不等于全部支持自动发布。
 
-SHA-256：`32322aa3c79273a7437e677259dab2b29698991eadede8c6a571a5953468975f`。大小 123,618,976 字节。
+最终 SHA-256 与文件大小以本页下载的校验文件为准。
 
-桌面实现仍在 PR #2，未合并主分支。复现本安装包请使用 v0.49.0-beta.3 标签，对应提交 f82c9af39c7998813e78bada8efc0cfbc45e9191。旧 beta.2 暂留作回退。
+桌面实现仍在 PR #2，未合并主分支。已发布安装包请使用 v0.49.0-beta.4 标签；beta.5 尚未发布。旧 beta.3 暂留作回退。

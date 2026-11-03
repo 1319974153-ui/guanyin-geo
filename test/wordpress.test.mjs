@@ -31,3 +31,47 @@ test('manual state updates cannot forge external receipts or rewrite their verif
 test('front-end preserves uncertain draft identity and refuses a stale workspace form',async()=>{const store=new Map(),g={accessInfo:{current:{owner:'owner'}},sessionStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)},brand:()=>({id:'b1'}),document:{addEventListener(){}},runtimeFlush:async()=>{},apiRequest:async()=>{throw new Error('response lost')}};vm.createContext(g);vm.runInContext(fs.readFileSync(new URL('../public/wordpress.js',import.meta.url),'utf8'),g);const payload={id:'stable-draft-uuid',brandId:'b1',contentId:'c1'};await assert.rejects(g.wordpressCreate(payload),/response lost/);assert.deepEqual(JSON.parse(JSON.stringify(g.wordpressPending())),payload);g.accessInfo.current.owner='other';await assert.rejects(g.wordpressCreate(payload,'owner||b1'),/已切换/);});
 test('remote unpublishing updates receipt status; retest settings change independently from protected publication identity',async()=>{const e=env();await seed(e);await fixture(async({posts})=>{await connect(e);const r=(await create(e)).data.record;await action(e,'publish',r.id);let p=(await state(e)).state.publications[0];assert.equal((await call(e,'/api/wordpress/retest','POST',{brandId:'b1',publicationId:p.id,autoRetest:true,retestEveryHours:6,retestWindowDays:7})).status,200);p=(await state(e)).state.publications[0];assert.equal(p.retestEveryHours,6);posts.get(1).status='draft';await action(e,'reconcile',r.id);p=(await state(e)).state.publications[0];assert.match(p.status,/draft/);assert.equal(p.autoRetest,false);posts.get(1).status='publish';posts.get(1).content.raw+='remote changes';await action(e,'reconcile',r.id);assert.match((await state(e)).state.publications[0].status,/远端内容已变化/);});});
 test('lost configuration response can be retried without resetting verified permissions or exposing credentials',async()=>{const e=env();await seed(e);await fixture(async()=>{const c=await connect(e),r=await call(e,'/api/wordpress/connection','POST',config);assert.equal(r.status,200);assert.equal(r.data.existing,true);assert.equal(r.data.connection.verifiedAt,c.verifiedAt);assert.ok(!JSON.stringify(r).includes(config.password));assert.equal((await call(e,'/api/wordpress/connection','POST',{...config,username:'different'})).status,409);});});
+
+test('multiple publishing accounts preserve the legacy connection and isolate drafts, credentials and receipts',async()=>{
+ const e=env();await seed(e);await fixture(async({calls})=>{
+  const legacy=await connect(e),accountId='wp-'+crypto.randomUUID();
+  assert.equal((await call(e,'/api/wordpress/connection','POST',{...config,accountId,username:'second-author',password:'second-fixture-password'})).status,200);
+  assert.equal((await call(e,'/api/wordpress/verify','POST',{brandId:'b1',accountId})).status,200);
+  const catalog=(await call(e,'/api/publishing-center?brandId=b1')).data;assert.equal(catalog.accounts.length,2);assert.deepEqual(new Set(catalog.accounts.map(a=>a.username)),new Set(['publisher','second-author']));
+  assert.equal((await call(e,'/api/wordpress?brandId=b1')).data.connection.revision,legacy.revision);
+  assert.equal((await state(e)).connections.length,0);
+  const id=crypto.randomUUID(),a=(await create(e,{id,brandId:'b1',contentId:'c1',accountId})).data.record;
+  assert.equal(a.accountId,accountId);assert.equal((await call(e,'/api/wordpress?brandId=b1')).data.records.length,0);
+  assert.equal((await call(e,'/api/wordpress?brandId=b1&accountId='+accountId)).data.records.length,1);
+  assert.equal((await call(e,'/api/wordpress/detail?brandId=b1&id='+id)).status,404);
+  assert.equal((await action(e,'publish',id)).status,404);
+  assert.equal((await create(e,{id,brandId:'b1',contentId:'c1'})).status,409);
+  const lastWrite=calls.filter(c=>c.method==='POST').at(-1);assert.equal(atob(lastWrite.headers.authorization.slice(6)),'second-author:second-fixture-password');
+  const r=await call(e,'/api/wordpress/publish','POST',{brandId:'b1',id,accountId});assert.equal(r.status,200);assert.equal(r.data.record.state,'published');
+  assert.equal((await state(e)).state.publications[0].wordpressAccountId,accountId);
+  const serialized=JSON.stringify(catalog);assert.ok(!serialized.includes('second-fixture-password'));
+ });e.db.close();
+});
+test('invalid account selectors, edits without fresh credentials, and switched remote identity cannot publish',async()=>{
+ const e=env();await seed(e);await fixture(async()=>{
+  await connect(e);for(const accountId of ['',null,{},'wordpress:b2','wp-../../other'])assert.equal((await call(e,'/api/wordpress/connection','POST',{...config,accountId})).status,400);
+  const accountId='wp-'+crypto.randomUUID();const cfg=(await call(e,'/api/wordpress/connection','POST',{...config,accountId})).data.connection;
+  await call(e,'/api/wordpress/verify','POST',{brandId:'b1',accountId});const draft=(await create(e,{brandId:'b1',contentId:'c1',accountId,id:crypto.randomUUID()})).data.record;
+  assert.equal((await call(e,'/api/wordpress/connection','POST',{...config,accountId,username:'changed',password:'',revision:cfg.revision})).status,400);
+  const r=await call(e,'/api/wordpress/connection','POST',{...config,accountId,username:'changed',password:'another-fixture-password',revision:cfg.revision});assert.equal(r.status,200);
+  assert.equal((await call(e,'/api/wordpress/publish','POST',{brandId:'b1',accountId,id:draft.id})).status,409);
+  e.db.prepare("UPDATE connections SET model=json_set(model,'$.verifiedAt','2026-10-16T00:00:00Z','$.userId',999,'$.canPublish',json('true')) WHERE provider=?").run('wordpress:b1:'+accountId);
+  assert.equal((await call(e,'/api/wordpress/reconcile','POST',{brandId:'b1',accountId,id:draft.id})).status,409);
+ });e.db.close();
+});
+test('restoring backups disables every publishing account and deleting a brand clears only its connections',async()=>{
+ const e=env();await seed(e);await fixture(async()=>{
+  await connect(e);const accountId='wp-'+crypto.randomUUID();await call(e,'/api/wordpress/connection','POST',{...config,accountId});await call(e,'/api/wordpress/connection','POST',{...config,brandId:'b2',accountId});
+  const backup=(await call(e,'/api/manage/backups','POST',{label:'multi-account'})).data,w=await state(e);
+  assert.equal((await call(e,'/api/manage/backups/restore','POST',{id:backup.id,revision:w.revision})).status,200);
+  assert.ok((await call(e,'/api/publishing-center?brandId=b1')).data.accounts.every(a=>a.status==='disabled'));
+  assert.equal((await call(e,'/api/manage/brands/delete','POST',{brandId:'b1',confirmName:'品牌甲'})).status,200);
+  assert.equal(e.db.prepare("SELECT count(*) n FROM connections WHERE provider='wordpress:b1' OR provider LIKE 'wordpress:b1:%'").get().n,0);
+  assert.equal(e.db.prepare("SELECT count(*) n FROM connections WHERE provider LIKE 'wordpress:b2:%'").get().n,1);
+ });e.db.close();
+});

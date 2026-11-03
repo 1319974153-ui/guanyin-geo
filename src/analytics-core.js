@@ -31,6 +31,21 @@ export function aggregate(answers,brand){
  const recommendation=answers.filter(a=>a.recommendationLabeled===true&&typeof a.recommended==='boolean'),citations=answers.filter(a=>a.citationKnown===true),site=domain(canonicalUrl(brand.site));
  return {n:answers.length,mention:answers.filter(a=>hasName(a.text,brand)).length,first:answers.filter(a=>hasName(firstParagraph(a.text),brand)).length,recommendationN:recommendation.length,rec:recommendation.filter(a=>a.recommended).length,citationN:citations.length,official:citations.filter(a=>site&&(a.citations||[]).some(c=>canonicalUrl(c.url)&&domain(c.url)===site)).length,cited:citations.filter(a=>(a.citations||[]).some(c=>canonicalUrl(c.url))).length,unlabeledRecommendation:answers.length-recommendation.length,unknownCitation:answers.length-citations.length};
 }
+// Free-text mode names may explicitly negate search. Unknown modes stay unverified.
+export function isSearchMode(mode){
+ const normalized=String(mode||'').normalize('NFKC').toLowerCase().replace(/\s+/g,'');
+ return new Set(['联网','联网搜索','搜索','搜索模式','深度思考+联网搜索','深度思考+搜索','web联网搜索','app联网搜索','web搜索','app搜索','search','websearch','deepsearch']).has(normalized);
+}
+// Only saved original questions qualify. Never substitute today's edited question.
+export function goalEvidence(answers,brand){
+ const normalize=v=>String(v||'').normalize('NFKC').trim().replace(/[？?。\s]+$/,'');
+ const goal=normalize(brand.goalQuery),prompted=!!goal&&hasName(goal,brand);
+ const rows=goal?answers.filter(a=>a.brandId===brand.id&&!a.demo&&a.surface==='import'&&a.status==='ok'&&a.text?.trim()&&typeof a.questionText==='string'&&normalize(a.questionText)===goal):[];
+ const search=rows.filter(a=>['web','app'].includes(a.entry)&&isSearchMode(a.mode));
+ const reviewed=search.filter(a=>a.recommendationLabeled===true&&typeof a.recommended==='boolean');
+ const recommended=prompted?[]:reviewed.filter(a=>a.recommended===true&&hasName(a.text,brand));
+ return {rows,search,reviewed,recommended,prompted,unknown:rows.length-reviewed.length,metrics:aggregate(rows,brand)};
+}
 function dimensions(a){if(!a.promptId||!a.questionVersion||!a.platform||!a.mode||entryOf(a)==='unknown')return null;return JSON.stringify([a.promptId,a.questionVersion,productScope(a),a.platform,entryOf(a),a.mode,a.region||'未记录',a.language||'未记录',a.model||'未记录']);}
 export function comparePeriods(current,previous,brand){
  const groups=list=>{const m=new Map();for(const a of list){const key=dimensions(a);if(key){if(!m.has(key))m.set(key,[]);m.get(key).push(a)}}return m},a=groups(current),b=groups(previous),keys=[...a.keys()].filter(k=>b.has(k));

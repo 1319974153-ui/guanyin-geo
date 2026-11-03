@@ -4,7 +4,7 @@ export function productFor(brand,id){return (brand?.productLines||[]).find(p=>p.
 export function productFields(brand,productId=''){const p=productFor(brand,productId);return {productId:productId||'',productSnapshot:p?{id:p.id,name:p.name,version:p.version||1}:null};}
 export function productScope(record){return Object.hasOwn(record,'productId')?(record.productId||BRAND_SCOPE):UNKNOWN_SCOPE;}
 export function matchesProduct(record,filter){return !filter||productScope(record)===filter;}
-export function productLabel(brand,filter){return !filter?'全部产品线':filter===BRAND_SCOPE?'品牌通用':filter===UNKNOWN_SCOPE?'归属未记录':productFor(brand,filter)?.name||'历史产品线';}
+export function productLabel(brand,filter){return !filter?'全部产品线':filter===BRAND_SCOPE?({person:'个人通用',product:'产品通用'}[brand?.entityType]||'品牌通用'):filter===UNKNOWN_SCOPE?'归属未记录':productFor(brand,filter)?.name||'历史产品线';}
 export function validateProductFilter(brand,filter){if(filter&&![BRAND_SCOPE,UNKNOWN_SCOPE].includes(filter)&&!productFor(brand,filter))throw new Error('产品线不存在或不属于当前品牌');}
 export function factsForProduct(facts,productId){return facts.filter(f=>!f.productId||f.productId===productId);}
 export function productLinkMetadata(state){return Object.fromEntries(['answers','contents'].map(kind=>[kind,state[kind].map(record=>Object.fromEntries(['id','productId','productSnapshot','questionVersion',...(kind==='answers'?['questionText']:[])].filter(key=>Object.hasOwn(record,key)).map(key=>[key,record[key]])))]));}

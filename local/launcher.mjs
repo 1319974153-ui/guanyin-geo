@@ -31,7 +31,10 @@ async function health(s){
  if(!s||!Number.isInteger(s.port)||s.port<1024||s.port>65535||typeof s.token!=='string')return null;
  try{const r=await fetch(`http://127.0.0.1:${s.port}/__local/health`,{signal:AbortSignal.timeout(1000)});const h=await r.json();return r.ok&&h.app==='guanyin-geo'&&h.controlId===hash(s.token)&&h.instance===s.instance?h:null}catch{return null}
 }
-async function port(){return new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p))})})}
+async function port(preferred=0){
+ return new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',e=>{if(preferred&&e.code==='EADDRINUSE')port().then(resolve,reject);else reject(e)});s.listen(preferred,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p))})});
+}
+function savedPort(i){try{const p=JSON.parse(fs.readFileSync(path.join(i.data,'endpoint.json'),'utf8')).port;return Number.isInteger(p)&&p>=1024&&p<=65535?p:0}catch{return 0}}
 function openPage(url){if(process.argv.includes('--no-open'))return;const cmd=process.platform==='win32'?'rundll32':process.platform==='darwin'?'open':'xdg-open';const args=process.platform==='win32'?['url.dll,FileProtocolHandler',url]:[url];const p=spawn(cmd,args,{stdio:'ignore',detached:true});p.on('error',()=>console.log('请在浏览器打开：'+url));p.unref()}
 async function start(i){
  let old=state(i);if(await health(old)){console.log('已在运行：http://127.0.0.1:'+old.port);openPage('http://127.0.0.1:'+old.port);return}
@@ -44,7 +47,12 @@ async function start(i){
  try{
   old=state(i);if(await health(old)){console.log('已在运行：http://127.0.0.1:'+old.port);openPage('http://127.0.0.1:'+old.port);return}
   const log=path.join(i.data,'service.log');if(fs.existsSync(log)&&fs.statSync(log).size>5*1024*1024)fs.renameSync(log,log+'.previous');
-  const out=fs.openSync(log,'a',0o600),s={instance:i.id,port:await port(),token:randomBytes(32).toString('hex')};
+  const preferred=savedPort(i),selected=await port(preferred);
+  // Preserve the exact loopback origin used by the paired extension across normal restarts.
+  // If occupied, leave that service alone and migrate safely to a new port.
+  atomic(path.join(i.data,'endpoint.json'),{port:selected});
+  if(preferred&&preferred!==selected)console.log('原端口被占用，已使用新端口；浏览器发布连接需要重新配对。');
+  const out=fs.openSync(log,'a',0o600),s={instance:i.id,port:selected,token:randomBytes(32).toString('hex')};
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GEO_')));
   Object.assign(env,{GEO_PORT:String(s.port),GEO_DATA_DIR:i.data,GEO_CONTROL_TOKEN:s.token,GEO_INSTANCE_ID:i.id});
   const child=spawn(process.execPath,[path.join(root,'app','server.mjs')],{cwd:path.join(root,'app'),env,stdio:['ignore',out,out],detached:true});fs.closeSync(out);

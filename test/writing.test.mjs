@@ -5,7 +5,7 @@ import {readFileSync,readdirSync} from 'node:fs';
 import vm from 'node:vm';
 import worker from '../src/worker.js';
 import {d1Adapter} from '../local/d1-adapter.mjs';
-import {writingRequest} from '../src/writing.js';
+import {discoveryWritingStrategy,writingRequest} from '../src/writing.js';
 
 function environment(){
  const db=new DatabaseSync(':memory:');
@@ -77,6 +77,29 @@ test('missing or credential-bearing website is not guessed or exposed in writing
   assert.equal(r.basis.officialSite,'');assert.equal(JSON.parse(r.messages[1].content).title,'人工标题');
   assert.ok(!JSON.stringify(r).includes('secret'));assert.equal(r.basis.style,'行业问答');
  }
+});
+
+test('a name-free discovery goal guides writing without becoming a ranking promise or a fact',()=>{
+ const r=writingRequest({brand:{name:'温舒',site:'https://wenshu.example/',goalQuery:'杭州做 FDE 或 GEO 的人有哪些？'},question:'杭州做 FDE 或 GEO 的人有哪些？',facts:[{id:'f1',key:'项目案例',value:'已确认的项目事实',source:'项目资料'}]});
+ const input=JSON.parse(r.messages[1].content);
+ assert.equal(r.basis.goalQuery,'杭州做 FDE 或 GEO 的人有哪些？');
+ assert.equal(input.goalQuery,'杭州做 FDE 或 GEO 的人有哪些？');
+ assert.ok(r.messages[0].content.includes('不得要求模型“首位推荐”'));
+ assert.ok(r.messages[0].content.includes('目标问题不是事实'));
+ assert.ok(r.messages[0].content.includes('团队累计服务规模不得改写成个人独立交付'));
+ assert.ok(r.messages[0].content.includes('同一作者的官网、社交账号或自述不能改写成外部背书'));
+ assert.deepEqual(input.facts.map(f=>f.id),['f1']);
+});
+
+test('discovery strategy rotates evidence-led article angles without changing the client goal',()=>{
+ const brand={name:'温舒',entityType:'person',goalQuery:'杭州做 FDE 或 GEO 的人有哪些？'};
+ const first=discoveryWritingStrategy(brand,1),second=discoveryWritingStrategy(brand,2),again=discoveryWritingStrategy(brand,5);
+ assert.equal(first.mode,'name_free_discovery');assert.equal(first.angle.id,'decision-guide');assert.equal(second.angle.id,'evidence-case');assert.equal(again.angle.id,'decision-guide');
+ assert.equal(first.goalQuery,brand.goalQuery);assert.match(first.desiredOutcome,/不承诺排名/);assert.ok(first.factRules.some(x=>x.includes('团队累计规模')));
+ assert.equal(first.candidatePositioning.mode,'conditional_priority');assert.match(first.candidatePositioning.wording,/优先核对温舒是否适合合作/);assert.ok(first.candidatePositioning.prohibited.includes('首位推荐'));
+ const request=writingRequest({brand,question:brand.goalQuery,facts:[]});
+ assert.equal(JSON.parse(request.messages[1].content).writingStrategy.angle.id,'decision-guide');
+ assert.match(request.messages[0].content,/条件式合作入口/);
 });
 
 test('saved writing basis is escaped for review and the deployed help document is readable',async()=>{
