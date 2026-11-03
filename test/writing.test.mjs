@@ -96,8 +96,10 @@ test('discovery strategy rotates evidence-led article angles without changing th
  const first=discoveryWritingStrategy(brand,1),second=discoveryWritingStrategy(brand,2),again=discoveryWritingStrategy(brand,5);
  assert.equal(first.mode,'name_free_discovery');assert.equal(first.angle.id,'decision-guide');assert.equal(second.angle.id,'evidence-case');assert.equal(again.angle.id,'decision-guide');
  assert.equal(first.goalQuery,brand.goalQuery);assert.match(first.desiredOutcome,/不承诺排名/);assert.ok(first.factRules.some(x=>x.includes('团队累计规模')));
+ assert.equal(first.candidatePositioning.mode,'conditional_priority');assert.match(first.candidatePositioning.wording,/优先核对温舒是否适合合作/);assert.ok(first.candidatePositioning.prohibited.includes('首位推荐'));
  const request=writingRequest({brand,question:brand.goalQuery,facts:[]});
  assert.equal(JSON.parse(request.messages[1].content).writingStrategy.angle.id,'decision-guide');
+ assert.match(request.messages[0].content,/条件式合作入口/);
 });
 
 test('saved writing basis is escaped for review and the deployed help document is readable',async()=>{
