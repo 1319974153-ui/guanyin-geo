@@ -9,6 +9,7 @@ export const PLATFORMS = {
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
  segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
@@ -24,6 +25,7 @@ export function editorEvidence(platform,url){
  if(platform==='zhihu')return u.pathname==='/write'||/^\/p\/\d+\/edit$/.test(u.pathname);
  if(platform==='segmentfault')return u.pathname==='/write'&&!u.search;
  if(platform==='oschina')return u.origin==='https://my.oschina.net'&&u.pathname==='/u/0/blog/write'&&!u.search;
+ if(platform==='jianshu')return u.origin==='https://www.jianshu.com'&&u.pathname==='/writer'&&!u.search;
  if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
  return u.pathname==='/publish/publish';
  }catch{return false}

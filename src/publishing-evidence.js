@@ -4,10 +4,10 @@ export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入�
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','segmentfault','oschina','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
+ const browser=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
  const tested=['csdn','toutiao','zhihu','douyin'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:wechat?true:['segmentfault','oschina'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
+  const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:wechat?true:['segmentfault','oschina','jianshu'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
   const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],

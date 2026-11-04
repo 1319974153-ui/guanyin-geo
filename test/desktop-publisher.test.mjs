@@ -73,6 +73,15 @@ test('OSCHINA desktop connection permits only its official editor and preparatio
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('Jianshu desktop connection permits only its official writer and preparation workflow',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'jianshu'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('jianshu')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'jianshu');
+ assert.equal(navigationAllowed('jianshu','https://www.jianshu.com/writer'),true);
+ assert.equal(navigationAllowed('jianshu','https://www.jianshu.com.evil.test/writer'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};
