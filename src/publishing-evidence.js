@@ -9,7 +9,8 @@ export function publishingEvidence(id){
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
   const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:wechat?true:['segmentfault','oschina','jianshu'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
-  const status=!implemented?'not_implemented':passed?'passed':id==='xiaohongshu'?'paused':'pending';
+  // 小红书已恢复开发，但只有正确账号完成实机核对后才会开放草稿或公开提交。
+  const status=!implemented?'not_implemented':passed?'passed':'pending';
   return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
    evidence:passed?{reference:id==='personal-site'?'docs/PERSONAL-SITE.md':receipt,connectorVersion:id==='zhihu'&&action==='draft'?'0.2.7':null,scope:id==='douyin'?'2026-10-29 Mac 桌面：自动识别21037695064、上传两图并填入全文；观引自动暂存离开、重新打开原图文核对标题、完整正文及图片数量，回执自动回收。仅确认当前设备暂存，未取得云端草稿编号；图片内容人工核对。两图正式稿7701977994482437414经本人短信验证后已公开，原任务自动找回作品编号并通过匿名全文核对，观引显示发布成功':id==='juejin'?'2026-10-28 Mac 桌面：账号1202233484255738自动识别；观引勾选掘金后自动填入纯文本与AI声明，编号草稿7701511332076519424重开核对完整正文及行数，产品显示草稿已保存；隔离实例正常退出重开后登录保留；公开提交和图片稿未开放':id==='aliyun'?'2026-10-26 Mac 桌面 r61：账号 lcl4vykma3p5c 自动识别；唯一非公开稿 1694249 由观引填写并保存，从草稿箱定位编号后重新打开核对全文及 AI 声明，产品显示草稿已保存。会话恢复有人工导航，登录回跳全自动与重启持久性未通过；图片未开放；公开提交代码已接入，实机验收待完成':id==='51cto'?'2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测':id==='tencentcloud'?'2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功':id==='personal-site'?'2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网':id==='cnblogs'?'r19 真账号发布与匿名公开正文核验通过，原文 23402288':id==='zhihu'&&action==='publish'?'真实公开文章 2096634179358401344 已人工核对；产品公开正文自动核验尚未通过':id==='csdn'&&action==='draft'?'原稿 168768477 已保存并在草稿箱核对；公开提交因平台当日额度未完成':'专用非公开稿件验收'}:null}];
  }));
@@ -31,7 +32,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};
  if(actions.draft.liveAcceptance==='passed')return {stage:'平台草稿已实测',note:'账号、填稿与平台草稿已验收；公开提交仍待验收'};
  if(actions.prepare.liveAcceptance==='passed')return {stage:'已实测填稿',note:actions.draft.implemented?'账号与填稿已验收；平台草稿已实现待实机验收，公开提交待实机验收':'账号与填稿已验收；平台草稿待接入，公开提交待实机验收'};
- if(actions.prepare.liveAcceptance==='paused')return {stage:'验收已暂停',note:'已有适配代码；按用户要求暂停实机验收，尚不能宣称已可发布'};
+ if(id==='xiaohongshu')return {stage:'等待正确账号实机验收',note:'图文登录、图片上传与填稿保护已实现；需在预定账号完成登录、图片预览、填稿、草稿和回执逐项核对后，才会开放公开提交。'};
  if(actions.prepare.implemented)return {stage:'接入验收中',note:'已有适配代码；账号、图片与填稿仍须实机验收'};
  return {stage:'待开发',note:'已列入完整接入计划，尚不能自动填稿或发布'};
 }

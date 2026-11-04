@@ -13,6 +13,8 @@ test('platform acceptance records distinguish verified publication, blocked draf
 
  assert.equal(rows.find(p=>p.id==='csdn').actionEvidence.publish.liveAcceptance,'pending');
  assert.match(rows.find(p=>p.id==='toutiao').note,/完善账号信息/);
- assert.equal(rows.find(p=>p.id==='xiaohongshu').actionEvidence.prepare.liveAcceptance,'paused');
+ const xiaohongshu=rows.find(p=>p.id==='xiaohongshu');
+ assert.equal(xiaohongshu.actionEvidence.prepare.liveAcceptance,'pending');
+ assert.match(xiaohongshu.note,/预定账号/);
  for(const p of rows.filter(p=>p.implementation==='planned'))assert.ok(Object.values(p.actionEvidence).every(a=>!a.implemented));
 });
