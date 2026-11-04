@@ -27,7 +27,7 @@ function fixture(platform,options={}){
   if(s==='button,[role="button"]')return[button];
   if(s==='*'&&platform==='douyin')return [...(options.missingMedia?[]:[element('已添加1张图片')]),...(options.douyinDeclared?[element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')]:[])];
   if(s==='label'&&platform==='douyin')return (options.privateOnly?['仅自己可见','立即发布']:['公开','立即发布']).map(v=>element(v,{querySelector:()=>({})}));
-  if(s.startsWith('.image-item img'))return[element('图片')];
+  if(s.startsWith('.image-item img'))return Array.from({length:options.imagePreviews??1},()=>element('图片'));
   if(s==='div,span'&&options.douyinDeclared)return [element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')];
   if(s==='div,span')return options.restoredDraft?[element('你还有上次未发布的图文，是否继续编辑？')]:[];
   if(s.includes('placeholder')&&s.includes('标题'))return options.wrappedTitle&&s.split(',').some(x=>x.trim()==='.WriteIndex-titleInput')?[element('标题外层'),titleEl]:[titleEl];
@@ -89,6 +89,10 @@ test('Jianshu reads only the signed-in profile link and never exposes a submit c
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
  assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
  const missing=fixture('jianshu',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
+test('Xiaohongshu waits for the exact selected image previews before writing text',async()=>{
+ const one=fixture('xiaohongshu',{imagePreviews:1});const ready=await one.run('media-ready');assert.equal(ready.mediaCount,1);assert.equal(one.clicks,0);
+ const mismatch=fixture('xiaohongshu',{imagePreviews:1});assert.match((await mismatch.run('media-ready',{media:[{name:'one.png'},{name:'two.png'}]})).connectorError,/图片预览数量未匹配/);assert.equal(mismatch.clicks,0);
 });
 test('read-only editor diagnostics exclude user title and body content',async()=>{
  const f=fixture('toutiao');const r=await f.run('inspect');assert.equal(r.platform,'toutiao');assert.equal(r.bodyMatches,1);assert.equal(r.bodyVisibleChars[0],4);assert.ok(!JSON.stringify(r).includes('测试正文'));assert.ok(!JSON.stringify(r).includes('测试文章'));assert.equal(f.clicks,0);

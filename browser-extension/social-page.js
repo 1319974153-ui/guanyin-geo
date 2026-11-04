@@ -113,6 +113,13 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   const dt=new DataTransfer();for(const image of media){const raw=atob(image.dataUrl.split(',')[1]),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));dt.items.add(new File([bytes],image.name,{type:image.type}))}
   inputs[0].files=dt.files;inputs[0].dispatchEvent(new Event('change',{bubbles:true}));return {uploaded:media.length};
  }
+ if(platform==='xiaohongshu'&&action==='media-ready'){
+  if(!media.length)fail('图文发布需要图片');
+  if(many('.uploading,[class*="upload-progress"],[class*="upload-error"]').length)fail('图片仍在上传或上传失败，已保留原编辑页');
+  const previews=many('.image-item img,.img-preview img,[class*="image-preview"] img,.image-preview');
+  if(previews.length!==media.length)fail('图片预览数量未匹配（检测 '+previews.length+' 张，需要 '+media.length+' 张），未继续填稿');
+  return {...evidence,mediaCount:previews.length};
+ }
  if(platform==='douyin'&&action==='check-retained-media'){
   const counts=[...new Set(many('*').filter(e=>!e.closest('[contenteditable="true"],textarea')).map(e=>(e.textContent||'').replace(/\s+/g,'').match(/^已添加(\d+)张图片(?:继续添加)?$/)?.[1]).filter(Boolean))];
   if(!media.length||counts.length!==1||Number(counts[0])!==media.length)fail('原稿图片数量未匹配（检测 '+(counts.join('/')||'未知')+'，需要 '+media.length+'），未补填、未重新上传');

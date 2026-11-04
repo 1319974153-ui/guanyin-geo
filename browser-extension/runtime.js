@@ -240,7 +240,13 @@ async function run(platform='csdn'){
    await page(tabId,'preflight',article,job.accountId,platform,job.media||[]);
    await submitPrepared(platform,job,tabId,article,call);return;
   }
-  editorTouched=true;if(job.media?.length&&platform!=='51cto'){await page(tabId,'media',article,job.accountId,platform,job.media);await delay(3000)}await page(tabId,'fill',article,job.accountId,platform,job.media);
+  editorTouched=true;if(job.media?.length&&platform!=='51cto'){
+   await page(tabId,'media',article,job.accountId,platform,job.media);
+   if(platform==='xiaohongshu'){
+    let confirmed,last;for(let i=0;i<20;i++){try{confirmed=await page(tabId,'media-ready',article,job.accountId,platform,job.media);if(confirmed.mediaCount===job.media.length)break}catch(e){last=e}await delay(500)}
+    if(!confirmed||confirmed.mediaCount!==job.media.length)throw last||new Error('图片上传状态待核对，未继续填稿');
+   }else await delay(3000)
+  }await page(tabId,'fill',article,job.accountId,platform,job.media);
   if(platform==='51cto'&&job.media?.length){const result=await page(tabId,'media',article,job.accountId,platform,job.media);article.mediaProof=result.mediaProof;const entry=await journal(platform);entry.mediaProof=result.mediaProof;await saveJournal(platform,entry);}
   if(job.mode==='prepare'&&platform==='douyin'&&chrome.runtime.id==='desktop'){await temporarySaveDouyin(job,tabId,call);return}
   if(job.mode==='prepare'){const evidence=await page(tabId,'prepared',article,job.accountId,platform,job.media),preparation=preparationEvidence(platform,evidence);if(!preparation||preparation.accountId!==job.accountId)throw new Error('填稿回执与任务身份不匹配');await call('report',{id:job.id,lease:job.lease,state:'prepared',preparation:{...preparation,sourceHash:job.sourceHash}});await saveJournal(platform,null);await setStatus('稿件已填入编辑器，尚未提交');return}
