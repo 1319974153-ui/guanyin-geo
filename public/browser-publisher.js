@@ -1,4 +1,4 @@
-const browserPlatformNames={juejin:'掘金',aliyun:'阿里云开发者社区','51cto':'51CTO',tencentcloud:'腾讯云开发者社区',csdn:'CSDN',toutiao:'头条',zhihu:'知乎',segmentfault:'思否',douyin:'抖音图文',xiaohongshu:'小红书图文'};
+const browserPlatformNames={juejin:'掘金',aliyun:'阿里云开发者社区','51cto':'51CTO',tencentcloud:'腾讯云开发者社区',csdn:'CSDN',toutiao:'头条',zhihu:'知乎',segmentfault:'思否',oschina:'开源中国',douyin:'抖音图文',xiaohongshu:'小红书图文'};
 let desktopAccountTimer=null;
 function desktopPublisherAvailable(){return !!window.guanyinDesktop?.available&&browserPublisherAvailable()}
 let browserPublisherData=null,browserPublisherScope='',browserPublisherLoading=false,browserPublisherError='';

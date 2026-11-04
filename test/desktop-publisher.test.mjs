@@ -64,6 +64,15 @@ test('SegmentFault desktop connection uses the official editor and allows prepar
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('OSCHINA desktop connection permits only its official editor and preparation workflow',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'oschina'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('oschina')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'oschina');
+ assert.equal(navigationAllowed('oschina','https://my.oschina.net/u/0/blog/write'),true);
+ assert.equal(navigationAllowed('oschina','https://my.oschina.net.evil.test/u/0/blog/write'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};

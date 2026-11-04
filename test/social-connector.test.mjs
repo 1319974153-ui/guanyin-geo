@@ -78,6 +78,12 @@ test('SegmentFault reads the signed-in identity from its rendered Next session s
  assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
  const missing=fixture('segmentfault');assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
+test('OSCHINA reads only the signed-in profile link and never exposes a submit control',async()=>{
+ const f=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});
+ const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
+ assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ const missing=fixture('oschina',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
 test('read-only editor diagnostics exclude user title and body content',async()=>{
  const f=fixture('toutiao');const r=await f.run('inspect');assert.equal(r.platform,'toutiao');assert.equal(r.bodyMatches,1);assert.equal(r.bodyVisibleChars[0],4);assert.ok(!JSON.stringify(r).includes('测试正文'));assert.ok(!JSON.stringify(r).includes('测试文章'));assert.equal(f.clicks,0);
 });
