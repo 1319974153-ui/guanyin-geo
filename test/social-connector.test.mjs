@@ -21,6 +21,7 @@ function fixture(platform,options={}){
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
   if(s==='[aria-label^="点击打开"][aria-label$="的主页"]')return (options.profileLabels||[]).map(label=>element('',{getAttribute:()=>label,closest:()=>null}));
+  if(s==='script#__NEXT_DATA__')return (options.sessionUsers||[]).map(user=>element(JSON.stringify({props:{pageProps:{initialState:{global:{sessionUser:user}}}}})));
   if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return[button];
@@ -70,6 +71,12 @@ test('paragraph and list boundaries match visible editor newlines',async()=>{
 
 test('Zhihu own-profile URLs tolerate the editor tracking parameter and bare host',async()=>{
  for(const host of ['www.zhihu.com','zhihu.com']){const f=fixture('zhihu',{profileUrl:'https://'+host+'/people/author?utm_source=article-pc-editor'});assert.equal((await f.run('identity')).accountId,'author')}
+});
+test('SegmentFault reads the signed-in identity from its rendered Next session state and never exposes a submit control',async()=>{
+ const f=fixture('segmentfault',{sessionUsers:[{id:'author',name:'思否验收账号'}]});
+ const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'思否验收账号');
+ assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ const missing=fixture('segmentfault');assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
 test('read-only editor diagnostics exclude user title and body content',async()=>{
  const f=fixture('toutiao');const r=await f.run('inspect');assert.equal(r.platform,'toutiao');assert.equal(r.bodyMatches,1);assert.equal(r.bodyVisibleChars[0],4);assert.ok(!JSON.stringify(r).includes('测试正文'));assert.ok(!JSON.stringify(r).includes('测试文章'));assert.equal(f.clicks,0);

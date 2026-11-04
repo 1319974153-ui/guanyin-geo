@@ -7,6 +7,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  const cfg={
   toutiao:{origin:'https://mp.toutiao.com',paths:[/^\/profile_v4\/graphic\/publish$/],title:'.publish-editor-title textarea, textarea[placeholder*="文章标题"]',body:'.ProseMirror[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?toutiao.com\/c\/user\/(\d+)\//,publish:['预览并发布','发布文章'],confirm:['确认发布'],images:false},
   zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
+  segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
   douyin:{origin:'https://creator.douyin.com',paths:[/^\/creator-micro\/content\/(?:upload|post\/image)$/],title:'input[placeholder*="标题"]',body:'[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'发布图文',id:/抖音号\s*[:：]\s*([\w-]+)/},
   xiaohongshu:{origin:'https://creator.xiaohongshu.com',paths:[/^\/publish\/publish$/],title:'input[placeholder*="标题"]',body:'.tiptap[contenteditable="true"], .ql-editor[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'上传图文',id:/小红书号\s*[:：]\s*([\w-]+)/}
  }[platform];if(!cfg)fail('平台适配器不存在');
@@ -52,7 +53,11 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  }
  // Never infer identity from an article author, a display name, or a login cookie.
  const identities=[];
- if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
+ if(cfg.sessionUser){
+  const visit=(value,found=[])=>{if(!value||typeof value!=='object')return found;if(Array.isArray(value)){for(const item of value)visit(item,found);return found}if(value.sessionUser&&typeof value.sessionUser==='object')found.push(value.sessionUser);for(const item of Object.values(value))visit(item,found);return found};
+  const users=[];for(const node of many('script#__NEXT_DATA__')){try{users.push(...visit(JSON.parse(node.textContent||'')))}catch{}}
+  for(const user of users){const id=String(user?.id||'').trim(),name=String(user?.name||user?.nickname||user?.username||'').trim();if(/^[\w-]{1,100}$/.test(id)&&name)identities.push({accountId:id,name:name.slice(0,100)})}
+ }else if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
  else {for(const e of many('header,[class*="user-info"],[class*="userInfo"],.creator-info,[class*="account-info"]')){const m=text(e).match(cfg.id);if(m)identities.push({accountId:m[1],name:m[1]})}}
  if(platform==='douyin'&&profileEvidence){
   if(profileEvidence.evidenceUrl!=='https://creator.douyin.com/creator-micro/home'||profileEvidence.accountVerified!==true||!/^[-\w]{1,64}$/.test(profileEvidence.accountId||'')||typeof profileEvidence.name!=='string'||!profileEvidence.name.trim())fail('抖音本人主页身份依据不完整');

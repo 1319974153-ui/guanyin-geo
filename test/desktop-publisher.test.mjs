@@ -55,6 +55,15 @@ test('Xiaohongshu desktop connection uses isolated own login and remains prepara
  for(const mode of ['publish','draft'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('SegmentFault desktop connection uses the official editor and allows preparation only',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'segmentfault'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('segmentfault')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'segmentfault');
+ assert.equal(navigationAllowed('segmentfault','https://segmentfault.com/write'),true);
+ assert.equal(navigationAllowed('segmentfault','https://segmentfault.com.evil.test/write'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};
