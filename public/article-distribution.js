@@ -83,14 +83,18 @@ function distributionWechatRecoveryButton(row){
  return `<p><button type="button" class="button small" data-distribution-wechat-open="${esc(row.id)}">打开公众号原任务</button><span class="helper">只恢复原任务，不会新建稿件或重复点击发表</span></p>`;
 }
 async function distributionRecoverWechatTask(f,task){
- if(!task?.active||!/^gy-[a-f0-9]{64}$/.test(task.taskId||''))return false;
+ // The task file outlives renderer storage. Restore both an in-flight task and
+ // a terminal draft/submission receipt, but only when this exact article
+ // revision derives the same original task ID. A terminal record is a result
+ // to display, never a reason to reopen or replay a platform action.
+ if(!task||!/^gy-[a-f0-9]{64}$/.test(task.taskId||''))return false;
  const record=distributionArticle(f),scope=distributionScope();if(!record||articleEditorDirty())return false;
  const target=(f.distributionTargets||[]).find(t=>t.platform==='wechat'&&t.transport==='desktop_personal');if(!target)return false;
  const id=await GEO_DISPATCH.dispatchId(record,target);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
  const key=f.distributionKey||await distributionKey(record,scope);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
  const current=f.distributionJournal||{},existing=current[target.key];
  if(existing&&existing.id!==task.taskId)return false;
- if(existing?.id===task.taskId&&['draft','submitted','published'].includes(existing.state))return false;
+ if(existing?.id===task.taskId&&existing.state==='published')return false;
  const state=distributionWechatTaskState(task.state);if(!state)return false;
  current[target.key]={...(existing||{}),id:task.taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state,stage:task.mode,error:task.message||''};
  localStorage.setItem(key,JSON.stringify(current));f.distributionJournal=current;f.distributionKey=key;f.distributionWatchState=GEO_DISPATCH.dispatchNeedsRefresh(current)?'watching':'complete';distributionResults(f);distributionWatch(f);return true;

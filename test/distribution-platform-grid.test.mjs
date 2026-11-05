@@ -129,3 +129,16 @@ test('personal WeChat task states recover as preparation, submission, or user at
  assert.equal(x.g.distributionWechatTaskState('publish_submitted'),'submitted');
  assert.equal(x.g.distributionWechatTaskState('published'),null);
 });
+
+test('a terminal personal WeChat task restores its exact draft receipt after renderer storage is lost',async()=>{
+ const x=fixture(),saved=new Map(),article={id:'article',brandId:'brand',status:'已审核',title:'恢复稿',text:'完整正文',ai:false,factSnapshots:[]};
+ x.g.localStorage={getItem:key=>saved.get(key)||null,setItem:(key,value)=>saved.set(key,value)};
+ x.g.crypto=globalThis.crypto;x.g.TextEncoder=TextEncoder;x.g.wordpressBaseScope=()=> 'scope';x.g.brand=()=>({id:'brand'});x.g.own=()=>[article];
+ Object.assign(x.f,{isConnected:true,distributionScope:'scope'});x.f.dataset.brand='brand';
+ const target={key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',transport:'desktop_personal',modes:['draft','publish']};
+ x.f.distributionTargets.push(target);
+ const taskId=await dispatch.dispatchId(article,target);
+ const restored=await x.g.distributionRecoverWechatTask(x.f,{taskId,mode:'draft',state:'draft_saved',active:false,message:'公众号页面已确认草稿保存'});
+ assert.equal(restored,true);assert.equal(x.f.distributionJournal[target.key].state,'draft');assert.equal(x.f.distributionJournal[target.key].id,taskId);
+ assert.match(x.get('[data-distribution-results]').innerHTML,/草稿已保存/);assert.match([...saved.values()][0],/draft/);
+});
