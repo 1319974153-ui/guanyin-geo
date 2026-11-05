@@ -67,8 +67,8 @@ test('desktop offers Douyin and Xiaohongshu login without implying publication s
 
 test('desktop exposes preparation-only community adapters through the same connect control',()=>{
  const x=fixture();x.g.window.guanyinDesktop={available:true};x.g.distributionRenderTargets(x.f,new Set());
- for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease'])assert.match(x.html(),new RegExp('data-distribution-connect="'+platform+'"'));
- for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease'])assert.match(x.html(),new RegExp('value="catalog:'+platform+'"[^>]*disabled'));
+ for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao'])assert.match(x.html(),new RegExp('data-distribution-connect="'+platform+'"'));
+ for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao'])assert.match(x.html(),new RegExp('value="catalog:'+platform+'"[^>]*disabled'));
 });
 
 test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{

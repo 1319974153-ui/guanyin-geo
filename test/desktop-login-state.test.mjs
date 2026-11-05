@@ -29,12 +29,14 @@ test('expired login detection recognizes exact official routes, not redirect par
  assert.equal(loginPageRequired('weibo','https://passport.weibo.com/login?entry=account'),true);
   assert.equal(loginPageRequired('sohu','https://mp.sohu.com/mpfe/v4/login'),true);
   assert.equal(loginPageRequired('netease','https://mp.163.com/login.html'),true);
+  assert.equal(loginPageRequired('baijiahao','https://baijiahao.baidu.com/builder/theme/bjh/login'),true);
  for(const url of ['https://developer.aliyun.com/article/new?edit=123','https://account-s.aliyun.com/pass/adding','https://account.aliyun.com.evil.test/login/login.htm','https://user:secret@account.aliyun.com/login/login.htm','http://account.aliyun.com/login/login.htm','https://account.aliyun.com:8443/login/login.htm','https://account.aliyun.com/other?url=/login/login.htm'])assert.equal(loginPageRequired('aliyun',url),false);
  for(const url of ['https://segmentfault.com.evil.test/user/login','https://segmentfault.com/user/login/other','http://segmentfault.com/user/login','https://user:secret@segmentfault.com/user/login'])assert.equal(loginPageRequired('segmentfault',url),false);
  for(const url of ['https://passport.bilibili.com.evil.test/login','https://passport.bilibili.com/login/other','http://passport.bilibili.com/login','https://user:secret@passport.bilibili.com/login'])assert.equal(loginPageRequired('bilibili',url),false);
  for(const url of ['https://passport.weibo.com.evil.test/login','https://passport.weibo.com/login/other','http://passport.weibo.com/login','https://user:secret@passport.weibo.com/login'])assert.equal(loginPageRequired('weibo',url),false);
   for(const url of ['https://mp.sohu.com.evil.test/mpfe/v4/login','https://mp.sohu.com/mpfe/v4/login/other','http://mp.sohu.com/mpfe/v4/login','https://user:secret@mp.sohu.com/mpfe/v4/login'])assert.equal(loginPageRequired('sohu',url),false);
   for(const url of ['https://mp.163.com.evil.test/login.html','https://mp.163.com/login.html/other','http://mp.163.com/login.html','https://user:secret@mp.163.com/login.html'])assert.equal(loginPageRequired('netease',url),false);
+  for(const url of ['https://baijiahao.baidu.com.evil.test/builder/theme/bjh/login','https://baijiahao.baidu.com/builder/theme/bjh/login/other','http://baijiahao.baidu.com/builder/theme/bjh/login','https://user:secret@baijiahao.baidu.com/builder/theme/bjh/login'])assert.equal(loginPageRequired('baijiahao',url),false);
  assert.equal(loginPageRequired('51cto','https://account.aliyun.com/login/login.htm'),false);
 });
 

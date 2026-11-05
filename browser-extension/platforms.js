@@ -14,6 +14,7 @@ export const PLATFORMS = {
  weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ baijiahao:{name:'百家号图文',editor:'https://baijiahao.baidu.com/builder/rc/edit?type=news',hosts:['https://baijiahao.baidu.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
@@ -53,6 +54,7 @@ export function editorEvidence(platform,url){
  if(platform==='weibo')return u.origin==='https://weibo.com'&&u.pathname==='/ttarticle/p/editor'&&!u.search;
  if(platform==='sohu')return u.origin==='https://mp.sohu.com'&&u.pathname==='/mpfe/v4/contentManagement/news/addarticle'&&!u.search;
  if(platform==='netease')return u.origin==='https://mp.163.com'&&u.pathname==='/subscribe_v4/index.html'&&!u.search&&(u.hash==='#/article-publish'||!!neteaseAccountFromHash(u.hash,'/article-publish'));
+ if(platform==='baijiahao')return u.origin==='https://baijiahao.baidu.com'&&u.pathname==='/builder/rc/edit'&&u.search==='?type=news';
  if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
  return u.pathname==='/publish/publish';
  }catch{return false}
@@ -81,6 +83,7 @@ export function preparationEditorUrl(platform,url){
    const accountId=neteaseAccountFromHash(u.hash,'/article-publish');
    return accountId?base+'#/article-publish?wemediaId='+encodeURIComponent(accountId):null;
   }
+  if(platform==='baijiahao')return base+u.search;
   if(['tencentcloud','51cto','juejin'].includes(platform))return u.href;
   if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
   const ids=u.searchParams.getAll('pgc_id');

@@ -23,6 +23,7 @@ export function loginPageRequired(platform,value){
   if(platform==='weibo')return u.hostname==='passport.weibo.com'&&u.pathname==='/login';
   if(platform==='sohu')return u.hostname==='mp.sohu.com'&&u.pathname==='/mpfe/v4/login';
   if(platform==='netease')return u.hostname==='mp.163.com'&&u.pathname==='/login.html';
+  if(platform==='baijiahao')return u.hostname==='baijiahao.baidu.com'&&u.pathname==='/builder/theme/bjh/login';
   return false;
  }catch{return false}
 }

@@ -34,8 +34,8 @@ function fixture(platform,options={}){
   if(s.includes('contenteditable'))return[bodyEl];
   return[];
  }};
- const u=new URL(PLATFORMS[platform].editor);if(options.hash!==undefined)u.hash=options.hash;
- const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname,hash:u.hash},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
+ const u=new URL(options.editorUrl||PLATFORMS[platform].editor);if(options.hash!==undefined)u.hash=options.hash;
+ const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname,search:u.search,hash:u.hash},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
  const run=(action,patch={})=>vm.runInContext('('+socialPage.toString()+')',context)({platform,action,media:[{name:'fixture.png'}],article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:false},accountId:platform==='toutiao'?'123':'author',...patch});
  if(platform==='toutiao')account='123';
  return {run,context,setTitle:v=>title=v,get clicks(){return clicks},get draftOpens(){return draftOpens},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
@@ -121,6 +121,17 @@ test('Netease article editor accepts only its exact official account fragment an
  for(const hash of ['#/home?wemediaId=W12345678','#/article-publish?wemediaId=W12345678&wemediaId=W87654321','#/article-publish?wemediaId=short']){
   const blocked=fixture('netease',{hash});assert.ok((await blocked.run('identity',task)).connectorError);assert.equal(blocked.clicks,0);
  }
+});
+test('Baijiahao article editor accepts only a visible exact official app_id link and never exposes submission',async()=>{
+ const task={accountId:'1234567890123456'};
+ const f=fixture('baijiahao',{profileUrl:'https://baijiahao.baidu.com/u?app_id=1234567890123456'});
+ const me=await f.run('identity',task);assert.equal(me.accountId,task.accountId);assert.equal(me.name,'本人');
+ assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ const prepared=preparationEvidence('baijiahao',await f.run('prepared',task));assert.equal(prepared.editorUrl,PLATFORMS.baijiahao.editor);assert.equal(f.clicks,0);
+ for(const profileUrl of ['https://baijiahao.baidu.com/u?app_id=1234567890123456&from=editor','https://baijiahao.baidu.com/u?app_id=123456789','https://baijiahao.baidu.com.evil.test/u?app_id=1234567890123456']){
+  const blocked=fixture('baijiahao',{profileUrl});assert.match((await blocked.run('identity',task)).connectorError,/唯一账号 ID/);assert.equal(blocked.clicks,0);
+ }
+ const wrongRoute=fixture('baijiahao',{editorUrl:'https://baijiahao.baidu.com/builder/rc/edit?type=video',profileUrl:'https://baijiahao.baidu.com/u?app_id=1234567890123456'});assert.match((await wrongRoute.run('identity',task)).connectorError,/当前不是支持的创作页/);assert.equal(wrongRoute.clicks,0);
 });
 test('Xiaohongshu waits for the exact selected image previews before writing text',async()=>{
  const one=fixture('xiaohongshu',{imagePreviews:1});const ready=await one.run('media-ready');assert.equal(ready.mediaCount,1);assert.equal(one.clicks,0);

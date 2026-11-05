@@ -5,7 +5,7 @@ export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from
 // expose only `prepare`: an editor fill is useful, but it is not a platform
 // draft or a public submission until that platform has a separately verified
 // receipt protocol.
-const localPublisherPlatforms=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
+const localPublisherPlatforms=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};

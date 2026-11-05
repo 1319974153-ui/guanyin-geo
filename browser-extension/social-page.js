@@ -25,6 +25,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // 网易号当前创作者由官方单页应用片段中的 wemediaId 选择。它仅作为本机
   // 账号键：路由、键名、长度和唯一性均需匹配，不能从作者文字或 Cookie 推断。
   netease:{origin:'https://mp.163.com',paths:[/^\/subscribe_v4\/index\.html$/],hash:/^#\/article-publish(?:\?wemediaId=W[A-Za-z0-9_-]{7,99})?$/,title:'.article-title-container textarea, .newtitle-wrapper .newtitle-container textarea, textarea[placeholder*="标题"]',body:'.rich-editor .public-DraftEditor-content[contenteditable="true"]',hashQuery:{path:'/article-publish',param:'wemediaId',pattern:/^W[A-Za-z0-9_-]{7,99}$/},publish:[],confirm:[],images:false},
+  // 百家号只接受当前官方图文编辑路由。账号键来自编辑器外可见的官方
+  // 个人主页 app_id 链接；它是本机匹配键，不读取 Cookie、开发者密钥或接口响应。
+  // 编辑器字段尚待真实账号验收，因此没有草稿、图片或公开提交动作。
+  baijiahao:{origin:'https://baijiahao.baidu.com',paths:[/^\/builder\/rc\/edit$/],query:{param:'type',value:'news'},title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .ql-editor[contenteditable="true"], .editor-content [contenteditable="true"]',profileQuery:{path:'/u',param:'app_id',pattern:/^[1-9]\d{9,29}$/,exact:true},publish:[],confirm:[],images:false},
   douyin:{origin:'https://creator.douyin.com',paths:[/^\/creator-micro\/content\/(?:upload|post\/image)$/],title:'input[placeholder*="标题"]',body:'[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'发布图文',id:/抖音号\s*[:：]\s*([\w-]+)/},
   xiaohongshu:{origin:'https://creator.xiaohongshu.com',paths:[/^\/publish\/publish$/],title:'input[placeholder*="标题"]',body:'.tiptap[contenteditable="true"], .ql-editor[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'上传图文',id:/小红书号\s*[:：]\s*([\w-]+)/}
  }[platform];if(!cfg)fail('平台适配器不存在');
@@ -59,7 +63,8 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   return {state:'submitted',articleId:ids[0],url:matches[0].url};
  }
  const draftList=platform==='toutiao'&&location.pathname==='/profile_v4/manage/draft'&&['draft-list-inspect','draft-list-open'].includes(action);
- const editorRoute=cfg.paths.some(p=>p.test(location.pathname))&&(!cfg.hash||cfg.hash.test(String(location.hash||'')));
+ const queryRoute=!cfg.query||(()=>{try{const u=new URL(location.href),values=u.searchParams.getAll(cfg.query.param);return u.searchParams.size===1&&values.length===1&&values[0]===cfg.query.value}catch{return false}})();
+ const editorRoute=cfg.paths.some(p=>p.test(location.pathname))&&(!cfg.hash||cfg.hash.test(String(location.hash||'')))&&queryRoute;
  if(!draftList&&!editorRoute)fail('当前不是支持的创作页，未继续');verifyChallenge();
  if(platform==='douyin'&&!['inspect','temporary-reopen'].includes(action)&&many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会放弃、覆盖或上传测试图片');
  if(action==='inspect'){
@@ -75,7 +80,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   const visit=(value,found=[])=>{if(!value||typeof value!=='object')return found;if(Array.isArray(value)){for(const item of value)visit(item,found);return found}if(value.sessionUser&&typeof value.sessionUser==='object')found.push(value.sessionUser);for(const item of Object.values(value))visit(item,found);return found};
   const users=[];for(const node of many('script#__NEXT_DATA__')){try{users.push(...visit(JSON.parse(node.textContent||'')))}catch{}}
   for(const user of users){const id=String(user?.id||'').trim(),name=String(user?.name||user?.nickname||user?.username||'').trim();if(/^[\w-]{1,100}$/.test(id)&&name)identities.push({accountId:id,name:name.slice(0,100)})}
- }else if(cfg.profileQuery){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;try{const u=new URL(a.href,location.href),q=cfg.profileQuery,ids=u.origin===cfg.origin&&u.pathname===q.path&&!u.username&&!u.password&&!u.hash?u.searchParams.getAll(q.param):[];if(ids.length===1&&q.pattern.test(ids[0]))identities.push({accountId:ids[0],name:(text(a)||a.title||'搜狐号').slice(0,100)})}catch{}}}
+ }else if(cfg.profileQuery){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;try{const u=new URL(a.href,location.href),q=cfg.profileQuery,ids=u.origin===cfg.origin&&u.pathname===q.path&&!u.username&&!u.password&&!u.hash&&(!q.exact||u.searchParams.size===1)?u.searchParams.getAll(q.param):[];if(ids.length===1&&q.pattern.test(ids[0]))identities.push({accountId:ids[0],name:(text(a)||a.title||(cfg.origin==='https://baijiahao.baidu.com'?'百家号':'搜狐号')).slice(0,100)})}catch{}}}
  else if(cfg.hashQuery){try{const q=cfg.hashQuery,prefix='#'+q.path,hash=String(location.hash||'');if(hash.startsWith(prefix)){const tail=hash.slice(prefix.length);if(tail.startsWith('?')){const entries=[...new URL('https://params.invalid/'+tail).searchParams.entries()];if(entries.length===1&&entries[0][0]===q.param&&q.pattern.test(entries[0][1]))identities.push({accountId:entries[0][1],name:'网易号'})}}}catch{}}
  else if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
  else {for(const e of many('header,[class*="user-info"],[class*="userInfo"],.creator-info,[class*="account-info"]')){const m=text(e).match(cfg.id);if(m)identities.push({accountId:m[1],name:m[1]})}}

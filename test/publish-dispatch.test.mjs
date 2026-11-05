@@ -46,7 +46,7 @@ test('CSDN preparation preserves tags and reads actual queued/fill states withou
 });
 
 test('community editor adapters dispatch only a prepared task and reconcile its original editor receipt',async()=>{
- for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease']){
+ for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao']){
   const target={key:platform+':s',platform,sessionId:'s',accountId:'author',name:'作者',modes:['prepare']},journal={},calls=[];
   const request=async(path,init)=>{
    calls.push({path,init});

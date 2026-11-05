@@ -63,6 +63,16 @@ test('Netease retains the exact official creator key when it returns to the arti
  assert.equal(loginReturned('netease','https://mp.163.com/subscribe_v4/index.html#/home?wemediaId=W12345678&other=1'),false);
 });
 
+test('Baijiahao returns from the official creator home to the exact article editor',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'baijiahao-login',platform:'baijiahao'});await d.openLogin();
+ const w=x.windows[0];assert.equal(w.webContents.url,LOGIN_URLS.baijiahao);
+ await w.loadURL('https://baijiahao.baidu.com/builder/rc/home');await new Promise(r=>setImmediate(r));
+ assert.equal(w.webContents.url,'https://baijiahao.baidu.com/builder/rc/edit?type=news');
+ assert.equal(d.loginEditorReady(),true);assert.equal(w.webContents.lastScript,undefined);
+ assert.equal(loginReturned('baijiahao','https://baijiahao.baidu.com/builder/rc/home'),true);
+ assert.equal(loginReturned('baijiahao','https://baijiahao.baidu.com/builder/rc/edit?type=news&from=home'),false);
+});
+
 
 test('open original shows the journal window without login or creating a second draft',async t=>{
  const x=fixture(t),d=x.create();assert.equal(d.showOriginal(),false);
