@@ -20,6 +20,7 @@ test('platform acceptance records distinguish verified publication, blocked draf
  assert.equal(wechat.actionEvidence.publish.liveAcceptance,'pending');
  assert.match(wechat.stage,/原任务可恢复/);
  assert.match(wechat.note,/重启后/);assert.match(wechat.note,/不会新建任务或重复点击发表/);
+ assert.match(wechat.note,/不会覆盖/);assert.match(wechat.note,/不会被误当作平台回执/);
  assert.match(wechat.note,/真实账号草稿、发表及公开链接回执仍待验收/);
  for(const p of rows.filter(p=>p.implementation==='planned'))assert.ok(Object.values(p.actionEvidence).every(a=>!a.implemented));
 });
