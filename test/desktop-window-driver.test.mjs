@@ -53,6 +53,16 @@ test('SegmentFault redirects to its exact official login and resumes the same ed
  assert.equal(w.webContents.lastScript,undefined);
 });
 
+test('Netease retains the exact official creator key when it returns to the article editor',async t=>{
+ const x=fixture(t),d=x.create({sessionId:'netease-login',platform:'netease'});await d.openLogin();
+ const w=x.windows[0];assert.equal(w.webContents.url,LOGIN_URLS.netease);
+ await w.loadURL('https://mp.163.com/subscribe_v4/index.html#/home?wemediaId=W12345678');await new Promise(r=>setImmediate(r));
+ assert.equal(w.webContents.url,'https://mp.163.com/subscribe_v4/index.html#/article-publish?wemediaId=W12345678');
+ assert.equal(d.loginEditorReady(),true);assert.equal(w.webContents.lastScript,undefined);
+ assert.equal(loginReturned('netease','https://mp.163.com/subscribe_v4/index.html#/home?wemediaId=W12345678'),true);
+ assert.equal(loginReturned('netease','https://mp.163.com/subscribe_v4/index.html#/home?wemediaId=W12345678&other=1'),false);
+});
+
 
 test('open original shows the journal window without login or creating a second draft',async t=>{
  const x=fixture(t),d=x.create();assert.equal(d.showOriginal(),false);

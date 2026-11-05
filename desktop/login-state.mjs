@@ -22,6 +22,7 @@ export function loginPageRequired(platform,value){
   if(platform==='bilibili')return u.hostname==='passport.bilibili.com'&&u.pathname==='/login';
   if(platform==='weibo')return u.hostname==='passport.weibo.com'&&u.pathname==='/login';
   if(platform==='sohu')return u.hostname==='mp.sohu.com'&&u.pathname==='/mpfe/v4/login';
+  if(platform==='netease')return u.hostname==='mp.163.com'&&u.pathname==='/login.html';
   return false;
  }catch{return false}
 }

@@ -13,12 +13,32 @@ export const PLATFORMS = {
  bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/platform/upload/text/apply',hosts:['https://member.bilibili.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
+const neteaseAccountId=/^W[A-Za-z0-9_-]{7,99}$/;
+function neteaseAccountFromHash(hash,route){
+ try{
+  const prefix='#'+route;if(typeof hash!=='string'||!hash.startsWith(prefix))return null;
+  const tail=hash.slice(prefix.length);if(!tail.startsWith('?'))return null;
+  const entries=[...new URL('https://params.invalid/'+tail).searchParams.entries()];
+  return entries.length===1&&entries[0][0]==='wemediaId'&&neteaseAccountId.test(entries[0][1])?entries[0][1]:null;
+ }catch{return null}
+}
+// 网易号把当前创作者选择放在官方单页应用的片段参数中。该值只作为本机
+// 账号键使用；只接受一项、精确路由和官方域名，绝不读取 Cookie 或解码它。
+export function loginEditorUrl(platform,value){
+ const p=platformConfig(platform);if(platform!=='netease')return p.editor;
+ try{
+  const u=new URL(value);if(u.origin!=='https://mp.163.com'||u.username||u.password||u.port||u.pathname!=='/subscribe_v4/index.html'||u.search)return null;
+  const accountId=neteaseAccountFromHash(u.hash,'/home');
+  return accountId?p.editor+'?wemediaId='+encodeURIComponent(accountId):null;
+ }catch{return null}
+}
 export function editorEvidence(platform,url){
- try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.username||u.password||u.hash&&!(platform==='aliyun'&&u.hash==='#/'))return false;
+ try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.username||u.password||u.hash&&!((platform==='aliyun'&&u.hash==='#/')||platform==='netease'))return false;
  if(platform==='juejin')return u.pathname==='/editor/drafts/new'&&u.search==='?v=2'||/^\/editor\/drafts\/[1-9]\d{0,29}$/.test(u.pathname)&&!u.search;
  if(platform==='aliyun')return u.pathname==='/article/new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('edit')));
  if(platform==='51cto')return u.pathname==='/blogger/publish'&&u.search==='?old=1'||/^\/blogger\/draft\/[1-9]\d{0,19}$/.test(u.pathname)&&!u.search;
@@ -32,6 +52,7 @@ export function editorEvidence(platform,url){
  if(platform==='bilibili')return u.origin==='https://member.bilibili.com'&&u.pathname==='/platform/upload/text/apply'&&!u.search;
  if(platform==='weibo')return u.origin==='https://weibo.com'&&u.pathname==='/ttarticle/p/editor'&&!u.search;
  if(platform==='sohu')return u.origin==='https://mp.sohu.com'&&u.pathname==='/mpfe/v4/contentManagement/news/addarticle'&&!u.search;
+ if(platform==='netease')return u.origin==='https://mp.163.com'&&u.pathname==='/subscribe_v4/index.html'&&!u.search&&(u.hash==='#/article-publish'||!!neteaseAccountFromHash(u.hash,'/article-publish'));
  if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
  return u.pathname==='/publish/publish';
  }catch{return false}
@@ -56,6 +77,10 @@ export function preparationEditorUrl(platform,url){
   const u=new URL(url);if(u.username||u.password||!editorEvidence(platform,u.href))return null;
   const base=u.origin+u.pathname;
   if(platform==='aliyun')return base+u.search;
+  if(platform==='netease'){
+   const accountId=neteaseAccountFromHash(u.hash,'/article-publish');
+   return accountId?base+'#/article-publish?wemediaId='+encodeURIComponent(accountId):null;
+  }
   if(['tencentcloud','51cto','juejin'].includes(platform))return u.href;
   if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
   const ids=u.searchParams.getAll('pgc_id');

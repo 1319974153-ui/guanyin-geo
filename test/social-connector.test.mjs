@@ -30,12 +30,12 @@ function fixture(platform,options={}){
   if(s.startsWith('.image-item img'))return Array.from({length:options.imagePreviews??1},()=>element('图片'));
   if(s==='div,span'&&options.douyinDeclared)return [element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')];
   if(s==='div,span')return options.restoredDraft?[element('你还有上次未发布的图文，是否继续编辑？')]:[];
-  if(s.includes('placeholder')&&s.includes('标题'))return options.wrappedTitle&&s.split(',').some(x=>x.trim()==='.WriteIndex-titleInput')?[element('标题外层'),titleEl]:[titleEl];
+  if((s.includes('placeholder')&&s.includes('标题'))||(platform==='netease'&&s.includes('.article-title-container')))return options.wrappedTitle&&s.split(',').some(x=>x.trim()==='.WriteIndex-titleInput')?[element('标题外层'),titleEl]:[titleEl];
   if(s.includes('contenteditable'))return[bodyEl];
   return[];
  }};
- const u=new URL(PLATFORMS[platform].editor);
- const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
+ const u=new URL(PLATFORMS[platform].editor);if(options.hash!==undefined)u.hash=options.hash;
+ const context=vm.createContext({URL,document:doc,location:{href:u.href,origin:u.origin,pathname:u.pathname,hash:u.hash},getComputedStyle:()=>({visibility:'visible'}),setTimeout:fn=>{fn();return 1},DOMParser:class{parseFromString(h){return{body:{textContent:h.replace(/<[^>]+>/g,'')}}}}});
  const run=(action,patch={})=>vm.runInContext('('+socialPage.toString()+')',context)({platform,action,media:[{name:'fixture.png'}],article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:false},accountId:platform==='toutiao'?'123':'author',...patch});
  if(platform==='toutiao')account='123';
  return {run,context,setTitle:v=>title=v,get clicks(){return clicks},get draftOpens(){return draftOpens},setAccount:v=>account=v,setCaptcha:v=>captcha=v,setBody:v=>body=v};
@@ -112,6 +112,15 @@ test('Sohu article editor keeps its visible profile selector opaque and never ex
  const missing=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=short'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
  const ambiguous=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=opaqueAccount9&xpt=otherAccount9'});assert.match((await ambiguous.run('identity')).connectorError,/唯一账号 ID/);
  const hostile=fixture('sohu',{profileUrl:'https://mp.sohu.com.evil.test/profile?xpt=opaqueAccount9'});assert.match((await hostile.run('identity')).connectorError,/唯一账号 ID/);
+});
+test('Netease article editor accepts only its exact official account fragment and never exposes submission',async()=>{
+ const task={accountId:'W12345678'};
+ const f=fixture('netease',{hash:'#/article-publish?wemediaId=W12345678'});
+ const me=await f.run('identity',task);assert.equal(me.accountId,'W12345678');assert.equal(me.name,'网易号');
+ assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ for(const hash of ['#/home?wemediaId=W12345678','#/article-publish?wemediaId=W12345678&wemediaId=W87654321','#/article-publish?wemediaId=short']){
+  const blocked=fixture('netease',{hash});assert.ok((await blocked.run('identity',task)).connectorError);assert.equal(blocked.clicks,0);
+ }
 });
 test('Xiaohongshu waits for the exact selected image previews before writing text',async()=>{
  const one=fixture('xiaohongshu',{imagePreviews:1});const ready=await one.run('media-ready');assert.equal(ready.mediaCount,1);assert.equal(one.clicks,0);

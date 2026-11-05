@@ -5,7 +5,7 @@ import {aliyunSecureReturn} from './platform-preview.mjs';
 import path from 'node:path';
 import {randomInt} from 'node:crypto';
 import {navigationAllowed,connectionPartition,LOGIN_URLS,loginReturned} from './security.mjs';
-import {editorEvidence,platformConfig} from '../browser-extension/platforms.js';
+import {editorEvidence,platformConfig,loginEditorUrl} from '../browser-extension/platforms.js';
 import {readLoginWarning,loginPageRequired,pageLoadFailure} from './login-state.mjs';
 // No Chrome profiles, remote debugging port, arbitrary renderer scripts, or credential exports.
 export function windowDriver({BrowserWindow,session,root,connection,partition,onStatus=()=>{},onLoginReady=()=>{},onLoginRequired=()=>{},onLoadError=()=>{}}){
@@ -37,7 +37,8 @@ export function windowDriver({BrowserWindow,session,root,connection,partition,on
    if(id===loginTab&&!win.isDestroyed()&&!wc.isLoadingMainFrame()&&editorEvidence(connection.platform,wc.getURL()))onLoginReady()};
   wc.on('did-finish-load',loginReady);wc.on('did-stop-loading',loginReady);win.on('focus',loginReady);wc.on('did-navigate-in-page',(_e,_url,main)=>{if(main)loginReady()});
   wc.setWindowOpenHandler(({url})=>{if(navigationAllowed(connection.platform,url))createWindow(url,{openerTabId:id,active:true});return {action:'deny'}});
-  wc.on('did-navigate',(_e,url)=>{saveTab(id,url,openerTabId);if(id===loginTab&&returnToEditor&&loginReturned(connection.platform,url)){returnToEditor=false;void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{})};});wc.on('did-navigate-in-page',(_e,url,main)=>{if(main){saveTab(id,url,openerTabId);if(id===loginTab&&returnToEditor&&loginReturned(connection.platform,url)){returnToEditor=false;void wc.loadURL(platformConfig(connection.platform).editor).catch(()=>{})}}});
+  const resumeEditor=url=>{if(id!==loginTab||!returnToEditor||!loginReturned(connection.platform,url))return;const editor=loginEditorUrl(connection.platform,url);if(!editor)return;returnToEditor=false;void wc.loadURL(editor).catch(()=>{})};
+  wc.on('did-navigate',(_e,url)=>{saveTab(id,url,openerTabId);resumeEditor(url)});wc.on('did-navigate-in-page',(_e,url,main)=>{if(main){saveTab(id,url,openerTabId);resumeEditor(url)}});
   win.on('closed',()=>{windows.delete(id);loadFailures.delete(id);resources.reset(id);domReady.delete(id)});win.loadURL(url).catch(()=>onStatus('平台页面未加载完成，请检查网络或登录状态'));
   return {id,url,...(openerTabId?{openerTabId}:{})};
  }

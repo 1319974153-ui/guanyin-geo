@@ -113,6 +113,17 @@ test('Sohu desktop connection permits official article preparation only',async t
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'opaqueAccount9'})).status,409);
 });
 
+test('Netease desktop connection permits only official article preparation',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'netease'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('netease','W12345678')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'netease');
+ assert.equal(navigationAllowed('netease','https://mp.163.com/subscribe_v4/index.html#/article-publish'),true);
+ assert.equal(navigationAllowed('netease','https://mp.163.com/login.html'),true);
+ assert.equal(navigationAllowed('netease','https://id.163.com/login'),true);
+ assert.equal(navigationAllowed('netease','https://mp.163.com.evil.test/subscribe_v4/index.html'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'W12345678'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};
