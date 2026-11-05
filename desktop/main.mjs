@@ -18,6 +18,7 @@ import {desktopDataRoot} from './data-root.mjs';
 import {wechatPersonalCommand,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
 import {WECHAT_PERSONAL_PARTITION,persistWechatPersonalSession} from './wechat-personal-session.mjs';
 import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive,wechatPersonalTaskSummary} from './wechat-personal-task.mjs';
+import {resumePendingWechatPersonalTask} from './wechat-personal-startup.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
 app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
@@ -57,6 +58,10 @@ async function start(){
  bind('wechat-personal-task',async()=>wechatPersonalTaskSummary(dataRoot));
  bind('wake',async()=>{void poll();return {ok:true}});
  bindMainQuit(main);await main.loadURL(origin+'/#today');
+ // A restart resumes only the one retained original WeChat task in its visible
+ // official window. If the request marker was already recorded, the page
+ // helper observes the original result instead of clicking save/publish again.
+ void resumePendingWechatPersonalTask({root:dataRoot,openTask:openWechatPersonalTask}).catch(error=>console.error('公众号原任务恢复：'+error.message));
  for(const c of await rpc('desktop-list'))await control(c);
  pollTimer=setInterval(()=>void poll(),4000);
  console.log('Guanyin desktop ready: '+origin);
