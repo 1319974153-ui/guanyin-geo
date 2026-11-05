@@ -59,7 +59,9 @@ body[data-view="simple"] .button{min-height:38px}.focus-workspace .button.primar
 
 /* Account setup keeps the selected platform readable in a narrow app panel. */
 .browser-account-connect .panel-head{flex-wrap:wrap;gap:12px}.browser-account-connect .browser-account-heading{flex:1 1 240px}.browser-account-connect .panel-head>.field{flex:1 1 160px;min-width:160px;margin:0}.browser-account-connect .panel-head select{width:100%}.browser-account-connect .panel-head>.button{flex-shrink:0}
+.desktop-account-directory{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}.desktop-account-directory summary{cursor:pointer;color:var(--muted);font-size:14px;padding:8px 0}.desktop-account-directory-body{display:flex;align-items:end;gap:10px;max-width:520px}.desktop-account-directory-body .field{flex:1;margin:0}.desktop-account-directory-body select{width:100%}.desktop-account-directory p{margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.65}
 @media(max-width:700px){.browser-account-connect .browser-account-heading{flex-basis:100%}.browser-account-connect .panel-head>.field{flex-basis:100%;min-width:0}.browser-account-connect .panel-head>.button.primary{flex:1}.browser-account-connect .panel-head>.button{min-height:44px}}
+@media(max-width:700px){.desktop-account-directory-body{align-items:stretch;flex-direction:column}.desktop-account-directory-body .button{width:100%;min-height:44px}}
 
 /* Keep account setup actions readable as more supported destinations are added. */
 .publishing-accounts-panel>.panel-head{flex-wrap:wrap;gap:10px}

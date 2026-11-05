@@ -44,21 +44,23 @@ test('desktop status polling updates only account rows and never replaces the se
  assert.doesNotMatch(vm.runInContext('renderBrowserPublisher()',ctx),/配对信息|核验当前账号|安装连接器/);
 });
 
-test('desktop account selector exposes preparation-only community adapters without claiming publication',()=>{
+test('desktop account directory keeps first-login platforms discoverable without claiming publication',()=>{
  const {ctx}=ui();ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;
  const html=vm.runInContext('renderBrowserPublisher()',ctx);
+ assert.match(html,/添加账号或查看更多平台/);
  assert.match(html,/微信公众号（个人主体）/);
  for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）','哔哩哔哩图文（自动填稿验收）','微博头条文章（自动填稿验收）','搜狐号图文（自动填稿验收）','网易号图文（自动填稿验收）','百家号图文（自动填稿验收）'])assert.match(html,new RegExp(label));
  assert.match(html,/尚未开放草稿或公开提交/);
 });
 
-test('desktop account list keeps personal WeChat in the same unified article flow',()=>{
+test('desktop account list only shows connected accounts while WeChat stays in the same add-account directory',()=>{
  const {ctx}=ui();
  const html=vm.runInContext("desktopAccountTable({accounts:[]})",ctx);
- assert.match(html,/微信公众号/);
- assert.match(html,/与其他平台同一勾选列表/);
- assert.match(html,/去登录/);
- assert.doesNotMatch(html,/公众号稿件/);
+ assert.doesNotMatch(html,/微信公众号/);
+ const directory=vm.runInContext('desktopAccountDirectory()',ctx);
+ assert.match(directory,/微信公众号（个人主体）/);
+ assert.match(directory,/登录并添加/);
+ assert.doesNotMatch(directory,/公众号稿件/);
 });
 
 test('desktop WeChat first-login opens the official session without creating a generic platform connection',async()=>{
