@@ -36,6 +36,14 @@ export function saveWechatPersonalTask(root,value){
 
 export function wechatPersonalTaskActive(task){return !!task&&!TERMINAL.has(task.state);}
 
+// The renderer only needs enough information to reconnect a visible result
+// card to its own original article. Article HTML and any browser session data
+// remain inside the local desktop task record.
+export function wechatPersonalTaskSummary(root){
+ const task=loadWechatPersonalTask(root);if(!task)return null;
+ return {taskId:task.taskId,mode:task.mode,state:task.state,requested:task.requested,message:task.message,updatedAt:task.updatedAt,active:wechatPersonalTaskActive(task)};
+}
+
 // A later verification prompt is ambiguous: it may precede a click, or it may
 // be the platform's follow-up after it received one. Keep a true marker so an
 // app restart can only observe the original page. A false marker remains false

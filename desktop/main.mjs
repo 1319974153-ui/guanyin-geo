@@ -17,7 +17,7 @@ import {installQuitFlow} from './quit-flow.mjs';
 import {desktopDataRoot} from './data-root.mjs';
 import {wechatPersonalCommand,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
 import {WECHAT_PERSONAL_PARTITION,persistWechatPersonalSession} from './wechat-personal-session.mjs';
-import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive} from './wechat-personal-task.mjs';
+import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive,wechatPersonalTaskSummary} from './wechat-personal-task.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
 app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
@@ -54,6 +54,7 @@ async function start(){
  bind('copy-content',input=>{clipboard.write(clipboardContent(input));return {ok:true}});
  bind('wechat-personal-publish',async input=>openWechatPersonalPublisher(input));
  bind('wechat-personal-resume',async input=>resumeWechatPersonalPublisher(input));
+ bind('wechat-personal-task',async()=>wechatPersonalTaskSummary(dataRoot));
  bind('wake',async()=>{void poll();return {ok:true}});
  bindMainQuit(main);await main.loadURL(origin+'/#today');
  for(const c of await rpc('desktop-list'))await control(c);

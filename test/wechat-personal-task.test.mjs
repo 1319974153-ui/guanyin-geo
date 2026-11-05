@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalTaskActive,wechatPersonalTaskPath,wechatPersonalRequestMarker} from '../desktop/wechat-personal-task.mjs';
+import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalTaskActive,wechatPersonalTaskPath,wechatPersonalRequestMarker,wechatPersonalTaskSummary} from '../desktop/wechat-personal-task.mjs';
 
 const taskId=letter=>'gy-'+letter.repeat(64);
 const command=letter=>({taskId:taskId(letter),title:'验收稿 '+letter,html:'<p>仅用于本机恢复测试</p>',mode:'draft'});
@@ -23,6 +23,8 @@ test('personal WeChat task persists a single active original task and keeps its 
  assert.throws(()=>beginWechatPersonalTask(root,{...command('a'),title:'改过的标题'},3),/版本不同/);
  assert.equal(wechatPersonalTaskActive(loadWechatPersonalTask(root)),true);
  assert.equal(path.basename(wechatPersonalTaskPath(root)),'wechat-personal-task.json');
+ assert.deepEqual(wechatPersonalTaskSummary(root),{taskId:first.taskId,mode:'draft',state:'requesting',requested:true,message:'已登记请求',updatedAt:2,active:true});
+ assert.equal('html' in wechatPersonalTaskSummary(root),false);
 });
 
 test('a completed personal WeChat task can be replaced, while a missing or different task cannot be resumed',t=>{

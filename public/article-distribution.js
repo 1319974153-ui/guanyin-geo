@@ -1,5 +1,6 @@
 // One article, explicit targets, independent receipts. No paid synchronization service.
 const distributionStateLabels={not_queued:'未发送',ready:'未发送',sending:'发布中',draft:'草稿已保存',published:'发布成功',queued:'等待处理',preparing:'正在准备',submitting:'正在提交',prepared:'已填稿，未发布',submitted:'已提交，待确认',uncertain:'结果待确认',needs_attention:'需要处理',cancelled:'已取消'};
+function distributionWechatTaskState(state){return ({opening_editor:'preparing',waiting_editor:'preparing',ready_to_request:'preparing',requesting:'submitting',waiting_receipt:'submitting',draft_requested:'submitting',publish_requested:'submitting',verification_required:'needs_attention',blocked:'needs_attention',filled:'needs_attention',draft_saved:'draft',publish_submitted:'submitted'})[state]||null}
 function distributionPanel(){return `<section class="article-distribution" aria-label="发布账号与结果"><div class="distribution-heading"><div><h3>发布到哪些平台</h3><p>勾选平台，发布后在这里查看结果。</p></div><button type="button" class="button small" data-distribution-refresh>刷新</button></div><div class="distribution-account-tools"><label class="distribution-mode">操作<select name="distributionMode" data-distribution-mode aria-label="发布操作"><option value="publish">发布文章</option><option value="draft">保存平台草稿</option><option value="prepare">仅填入编辑器</option></select></label><button type="button" class="button small" data-distribution-select-all>全选可用</button><span data-distribution-count aria-live="polite">已选 0 个</span></div><div class="distribution-submit-bar"><p data-distribution-hint class="helper" aria-live="polite">请选择平台。</p><input type="checkbox" name="distributionConfirmed" hidden><div class="distribution-actions"><button type="button" class="button primary" data-distribution-send="publish" disabled>发布</button></div></div><div data-distribution-accounts role="group" aria-label="全部发布平台"><p role="status">正在读取平台…</p></div><label class="field distribution-tags" hidden>文章标签<input name="distributionTags" placeholder="例如：软件测试，最多 5 个" maxlength="110"></label><label class="field distribution-media" hidden>图文图片<input type="file" name="distributionMedia" accept="image/png,image/jpeg,image/webp" multiple><span class="helper">51CTO 可选文末配图；图文平台需要图片。选择 1–9 张图片；单张最多 2 MB，合计最多 8 MB。</span><span data-distribution-media-status role="status"></span></label><p class="form-error" data-distribution-error role="alert"></p><div data-distribution-results aria-live="polite"></div><details class="distribution-more"><summary>账号设置与更多操作</summary><p>账号只需首次连接；登录失效时再处理。未接入的平台暂不能勾选。</p><button type="button" class="button small" data-distribution-manage>管理账号</button><button type="button" class="button small" data-distribution-manual>下载稿件</button></details></section>`}
 function distributionResultLabel(row){if(row?.preparation?.temporaryVerified)return '已暂存，未发布';return distributionStateLabels[row.state]||row.state}
 function distributionTone(row){return row?.state==='published'?'success':['needs_attention','uncertain'].includes(row?.state)?'attention':row?.state==='draft'?'saved':'neutral'}
@@ -40,7 +41,7 @@ function distributionUpdate(f){
 async function distributionLoad(f){
  if(!f?.isConnected)return;const scope=distributionScope(),box=f.querySelector('[data-distribution-accounts]');f.distributionScope=scope;
  const selected=new Set(distributionSelected(f).map(t=>t.key));box.innerHTML='<p role="status">正在读取账号…</p>';
- const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]})];
+ const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]}),window.guanyinDesktop?.wechatPersonalTask?window.guanyinDesktop.wechatPersonalTask():Promise.resolve(null)];
  const results=await Promise.allSettled(requests);if(!f.isConnected||scope!==distributionScope())return;
  const targets=[],errors=[];
  results.forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
@@ -63,6 +64,7 @@ async function distributionLoad(f){
   finally{f.distributionMediaLoading=false;distributionUpdate(f);}
  }
  await distributionRestore(f);
+ await distributionRecoverWechatTask(f,results[2].status==='fulfilled'?results[2].value:null);
 }
 async function distributionKey(c,scope){
  const fields=[c.brandId,c.id,c.title,c.text,!!c.ai,c.factSnapshots||[]];if(c.media?.length)fields.push(c.media.map(m=>m.sha256));const bytes=new TextEncoder().encode(JSON.stringify(fields));
@@ -79,6 +81,19 @@ function distributionWechatRecoveryButton(row){
  if(row?.platform!=='wechat'||row.transport!=='desktop_personal'||!/^gy-[a-f0-9]{64}$/.test(row.id||'')||!window.guanyinDesktop?.wechatPersonalResume)return '';
  if(!['preparing','submitting','needs_attention'].includes(row.state))return '';
  return `<p><button type="button" class="button small" data-distribution-wechat-open="${esc(row.id)}">打开公众号原任务</button><span class="helper">只恢复原任务，不会新建稿件或重复点击发表</span></p>`;
+}
+async function distributionRecoverWechatTask(f,task){
+ if(!task?.active||!/^gy-[a-f0-9]{64}$/.test(task.taskId||''))return false;
+ const record=distributionArticle(f),scope=distributionScope();if(!record||articleEditorDirty())return false;
+ const target=(f.distributionTargets||[]).find(t=>t.platform==='wechat'&&t.transport==='desktop_personal');if(!target)return false;
+ const id=await GEO_DISPATCH.dispatchId(record,target);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
+ const key=f.distributionKey||await distributionKey(record,scope);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
+ const current=f.distributionJournal||{},existing=current[target.key];
+ if(existing&&existing.id!==task.taskId)return false;
+ if(existing?.id===task.taskId&&['draft','submitted','published'].includes(existing.state))return false;
+ const state=distributionWechatTaskState(task.state);if(!state)return false;
+ current[target.key]={...(existing||{}),id:task.taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state,stage:task.mode,error:task.message||''};
+ localStorage.setItem(key,JSON.stringify(current));f.distributionJournal=current;f.distributionKey=key;f.distributionWatchState=GEO_DISPATCH.dispatchNeedsRefresh(current)?'watching':'complete';distributionResults(f);distributionWatch(f);return true;
 }
 async function distributionOpenOriginal(f,key){
  if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id)throw Error('工作区已变化，请重新打开稿件');
@@ -185,8 +200,7 @@ async function distributionSend(f,mode){
 }
 function distributionWechatStatus(status){
  if(!status?.taskId)return;
- const map={opening_editor:'preparing',waiting_editor:'preparing',waiting_receipt:'submitting',draft_requested:'submitting',publish_requested:'submitting',draft_saved:'draft',publish_submitted:'submitted',verification_required:'needs_attention',blocked:'needs_attention',filled:'needs_attention'};
- const state=map[status.state];if(!state)return;
+ const state=distributionWechatTaskState(status.state);if(!state)return;
  for(const f of document.querySelectorAll?.('[data-article-editor]')||[]){
   const row=Object.values(f.distributionJournal||{}).find(v=>v.platform==='wechat'&&v.id===status.taskId);if(!row)continue;
   row.state=state;row.error=status.message||'';localStorage.setItem(f.distributionKey,JSON.stringify(f.distributionJournal));distributionResults(f);distributionInlineResults(f);

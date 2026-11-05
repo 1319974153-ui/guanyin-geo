@@ -119,3 +119,13 @@ test('a personal WeChat result can reopen only its recorded original task',()=>{
  assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'published'}),'');
  assert.equal(x.g.distributionWechatRecoveryButton({...active,id:'wrong'}),'');
 });
+
+test('personal WeChat task states recover as preparation, submission, or user attention without claiming a public result',()=>{
+ const x=fixture();
+ assert.equal(x.g.distributionWechatTaskState('waiting_editor'),'preparing');
+ assert.equal(x.g.distributionWechatTaskState('requesting'),'submitting');
+ assert.equal(x.g.distributionWechatTaskState('verification_required'),'needs_attention');
+ assert.equal(x.g.distributionWechatTaskState('draft_saved'),'draft');
+ assert.equal(x.g.distributionWechatTaskState('publish_submitted'),'submitted');
+ assert.equal(x.g.distributionWechatTaskState('published'),null);
+});
