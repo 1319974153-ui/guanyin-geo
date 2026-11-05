@@ -102,6 +102,17 @@ test('Weibo long-form desktop connection permits official editor preparation onl
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('Sohu desktop connection permits official article preparation only',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'sohu'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('sohu','opaqueAccount9')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'sohu');
+ assert.equal(navigationAllowed('sohu','https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle'),true);
+ assert.equal(navigationAllowed('sohu','https://mp.sohu.com/mpfe/v4/login'),true);
+ assert.equal(navigationAllowed('sohu','https://v4.passport.sohu.com/i/login'),true);
+ assert.equal(navigationAllowed('sohu','https://mp.sohu.com.evil.test/mpfe/v4/contentManagement/news/addarticle'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'opaqueAccount9'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};

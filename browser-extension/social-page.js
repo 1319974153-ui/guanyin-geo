@@ -18,6 +18,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // Until an account validates its actual fields, it can only prepare a unique
   // empty original article and can never save or submit it.
   weibo:{origin:'https://weibo.com',paths:[/^\/ttarticle\/p\/editor$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/(?:www\.)?weibo\.com\/u\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // The public profile route carries an opaque account selector. Keep it opaque:
+  // it is used only as a stable local account key and is never decoded or sent
+  // to a third party. Broad contenteditable fallbacks are intentionally absent.
+  sohu:{origin:'https://mp.sohu.com',paths:[/^\/mpfe\/v4\/contentManagement\/news\/addarticle$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ql-editor[contenteditable="true"]',profileQuery:{path:'/profile',param:'xpt',pattern:/^[A-Za-z0-9_-]{8,100}$/},publish:[],confirm:[],images:false},
   douyin:{origin:'https://creator.douyin.com',paths:[/^\/creator-micro\/content\/(?:upload|post\/image)$/],title:'input[placeholder*="标题"]',body:'[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'发布图文',id:/抖音号\s*[:：]\s*([\w-]+)/},
   xiaohongshu:{origin:'https://creator.xiaohongshu.com',paths:[/^\/publish\/publish$/],title:'input[placeholder*="标题"]',body:'.tiptap[contenteditable="true"], .ql-editor[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'上传图文',id:/小红书号\s*[:：]\s*([\w-]+)/}
  }[platform];if(!cfg)fail('平台适配器不存在');
@@ -67,7 +71,8 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   const visit=(value,found=[])=>{if(!value||typeof value!=='object')return found;if(Array.isArray(value)){for(const item of value)visit(item,found);return found}if(value.sessionUser&&typeof value.sessionUser==='object')found.push(value.sessionUser);for(const item of Object.values(value))visit(item,found);return found};
   const users=[];for(const node of many('script#__NEXT_DATA__')){try{users.push(...visit(JSON.parse(node.textContent||'')))}catch{}}
   for(const user of users){const id=String(user?.id||'').trim(),name=String(user?.name||user?.nickname||user?.username||'').trim();if(/^[\w-]{1,100}$/.test(id)&&name)identities.push({accountId:id,name:name.slice(0,100)})}
- }else if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
+ }else if(cfg.profileQuery){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;try{const u=new URL(a.href,location.href),q=cfg.profileQuery,ids=u.origin===cfg.origin&&u.pathname===q.path&&!u.username&&!u.password&&!u.hash?u.searchParams.getAll(q.param):[];if(ids.length===1&&q.pattern.test(ids[0]))identities.push({accountId:ids[0],name:(text(a)||a.title||'搜狐号').slice(0,100)})}catch{}}}
+ else if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
  else {for(const e of many('header,[class*="user-info"],[class*="userInfo"],.creator-info,[class*="account-info"]')){const m=text(e).match(cfg.id);if(m)identities.push({accountId:m[1],name:m[1]})}}
  if(platform==='douyin'&&profileEvidence){
   if(profileEvidence.evidenceUrl!=='https://creator.douyin.com/creator-micro/home'||profileEvidence.accountVerified!==true||!/^[-\w]{1,64}$/.test(profileEvidence.accountId||'')||typeof profileEvidence.name!=='string'||!profileEvidence.name.trim())fail('抖音本人主页身份依据不完整');

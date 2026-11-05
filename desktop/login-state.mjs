@@ -21,6 +21,7 @@ export function loginPageRequired(platform,value){
   if(platform==='segmentfault')return u.hostname==='segmentfault.com'&&u.pathname==='/user/login';
   if(platform==='bilibili')return u.hostname==='passport.bilibili.com'&&u.pathname==='/login';
   if(platform==='weibo')return u.hostname==='passport.weibo.com'&&u.pathname==='/login';
+  if(platform==='sohu')return u.hostname==='mp.sohu.com'&&u.pathname==='/mpfe/v4/login';
   return false;
  }catch{return false}
 }
