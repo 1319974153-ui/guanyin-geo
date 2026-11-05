@@ -44,6 +44,13 @@ test('desktop status polling updates only account rows and never replaces the se
  assert.doesNotMatch(vm.runInContext('renderBrowserPublisher()',ctx),/配对信息|核验当前账号|安装连接器/);
 });
 
+test('desktop account selector exposes preparation-only community adapters without claiming publication',()=>{
+ const {ctx}=ui();ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;
+ const html=vm.runInContext('renderBrowserPublisher()',ctx);
+ for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）'])assert.match(html,new RegExp(label));
+ assert.match(html,/尚未开放草稿或公开提交/);
+});
+
 test('desktop heartbeat times do not repaint account rows or article choices',async()=>{
  const {ctx}=ui();let updates=0,tick=0;ctx.window.guanyinDesktop={available:true};ctx.document.getElementById=()=>({set innerHTML(v){updates++}});
  ctx.apiRequest=async()=>({jobs:[],accounts:[{id:'desktop-a',transport:'desktop',platform:'zhihu',connectionState:'connected',lastSeen:++tick,account:{accountId:'author',name:'温舒',checkedAt:tick}}]});

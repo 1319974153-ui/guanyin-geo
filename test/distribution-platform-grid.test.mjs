@@ -65,6 +65,12 @@ test('desktop offers Douyin and Xiaohongshu login without implying publication s
  assert.match(x.html(),/data-distribution-connect="douyin"/);assert.match(x.html(),/data-distribution-connect="xiaohongshu"/);assert.doesNotMatch(x.html(),/桌面版待接入/);assert.match(x.html(),/data-distribution-connect="toutiao"/);
 });
 
+test('desktop exposes preparation-only community adapters through the same connect control',()=>{
+ const x=fixture();x.g.window.guanyinDesktop={available:true};x.g.distributionRenderTargets(x.f,new Set());
+ for(const platform of ['segmentfault','oschina','jianshu'])assert.match(x.html(),new RegExp('data-distribution-connect="'+platform+'"'));
+ for(const platform of ['segmentfault','oschina','jianshu'])assert.match(x.html(),new RegExp('value="catalog:'+platform+'"[^>]*disabled'));
+});
+
 test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{
  const x=fixture(),calls=[];x.g.window.guanyinDesktop={available:true,openAccount:async id=>calls.push(id)};
  x.g.wordpressBaseScope=()=> 'scope';x.g.brand=()=>({id:'brand'});
