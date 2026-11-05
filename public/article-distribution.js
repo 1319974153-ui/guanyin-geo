@@ -14,7 +14,7 @@ function distributionRenderTargets(f,selected=new Set(distributionSelected(f).ma
  f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
-  const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','segmentfault','oschina','jianshu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
+  const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
   return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
  }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
@@ -51,7 +51,7 @@ async function distributionLoad(f){
    if(i===1){const loginRequired=a.transport==='desktop'&&a.connectionState!=='connected';targets.push({loginRequired,key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,transport:a.transport,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account&&!loginRequired?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):a.transport==='desktop'?'请先登录账号':'请在连接器核验身份'});}
   }
  });
- if(window.guanyinDesktop?.wechatPersonalPublish)targets.push({key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',detail:'个人主体',transport:'desktop_personal',modes:['draft','publish'],status:'登录一次后自动运行'});
+ if(window.guanyinDesktop?.wechatPersonalPublish)targets.push({key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',detail:'个人主体',transport:'desktop_personal',modes:['draft','publish'],status:'官方窗口登录后自动处理'});
  f.distributionTargets=targets;f.distributionRemoteJobs=[...(results[1].status==='fulfilled'?results[1].value.jobs||[]:[]),...(results[0].status==='fulfilled'?results[0].value.receipts||[]:[])];
  f.distributionCatalog=results[0].status==='fulfilled'?results[0].value.platforms||[]:[];f.distributionLoadErrors=errors;
  distributionRenderTargets(f,selected);

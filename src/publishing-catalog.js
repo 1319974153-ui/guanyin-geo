@@ -15,7 +15,7 @@ const groups = {
  vertical: [['xueqiu','雪球'],['eastmoney','东方财富'],['smzdm','什么值得买'],['sohufocus','搜狐焦点']]
 };
 import {publishingEvidence,publishingEvidenceSummary,PUBLISHING_EVIDENCE_DATE} from './publishing-evidence.js';
-const browserAdapters=new Set(['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']);
+const browserAdapters=new Set(['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']);
 const desktopPersonalBrowser=new Set(['wechat']);
 export function publishingCatalog(){
  return Object.entries(groups).flatMap(([group,entries])=>entries.map(([id,name])=>{
@@ -25,7 +25,7 @@ export function publishingCatalog(){
    implementation:['cnblogs','typecho','metaweblog','personal-site'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':desktopPersonalBrowser.has(id)?'desktop_personal_browser':browser?'browser_adapter_acceptance':'planned',
    contentTypes:wp||browser||desktopPersonalBrowser.has(id)||['cnblogs','typecho','metaweblog','personal-site'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:id==='personal-site'?'scoped_ssh':['typecho','metaweblog'].includes(id)?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':desktopPersonalBrowser.has(id)?'desktop_personal_browser':['tencentcloud','51cto','aliyun','juejin','segmentfault','oschina','jianshu'].includes(id)?'desktop_browser':browser?'local_browser_extension':null,
+   connectionMethod:id==='personal-site'?'scoped_ssh':['typecho','metaweblog'].includes(id)?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':desktopPersonalBrowser.has(id)?'desktop_personal_browser':['tencentcloud','51cto','aliyun','juejin','segmentfault','oschina','jianshu','bilibili'].includes(id)?'desktop_browser':browser?'local_browser_extension':null,
    acceptance:actions.publish.liveAcceptance==='passed'?'public_acceptance_recorded':wp?'account_verification_required':tested?'identity_and_prepare_tested':actions.identity.implemented?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,

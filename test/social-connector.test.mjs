@@ -90,6 +90,13 @@ test('Jianshu reads only the signed-in profile link and never exposes a submit c
  assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
  const missing=fixture('jianshu',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
+test('Bilibili text creator reads only a visible space profile and never exposes submission',async()=>{
+ const f=fixture('bilibili',{profileUrl:'https://space.bilibili.com/123456'});
+ const task={accountId:'123456'};
+ const me=await f.run('identity',task);assert.equal(me.accountId,'123456');assert.equal(me.name,'本人');
+ assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ const missing=fixture('bilibili',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
 test('Xiaohongshu waits for the exact selected image previews before writing text',async()=>{
  const one=fixture('xiaohongshu',{imagePreviews:1});const ready=await one.run('media-ready');assert.equal(ready.mediaCount,1);assert.equal(one.clicks,0);
  const mismatch=fixture('xiaohongshu',{imagePreviews:1});assert.match((await mismatch.run('media-ready',{media:[{name:'one.png'},{name:'two.png'}]})).connectorError,/图片预览数量未匹配/);assert.equal(mismatch.clicks,0);

@@ -82,6 +82,16 @@ test('Jianshu desktop connection permits only its official writer and preparatio
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('Bilibili desktop connection permits creator-center preparation only',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'bilibili'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('bilibili')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'bilibili');
+ assert.equal(navigationAllowed('bilibili','https://member.bilibili.com/platform/upload/text/apply'),true);
+ assert.equal(navigationAllowed('bilibili','https://passport.bilibili.com/login?gourl=https%3A%2F%2Fmember.bilibili.com%2Fplatform%2Fupload%2Ftext%2Fapply'),true);
+ assert.equal(navigationAllowed('bilibili','https://member.bilibili.com.evil.test/platform/upload/text/apply'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};

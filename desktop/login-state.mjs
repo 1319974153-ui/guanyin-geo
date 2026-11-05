@@ -19,6 +19,7 @@ export function loginPageRequired(platform,value){
   if(platform==='juejin')return u.hostname==='juejin.cn'&&u.pathname==='/login';
   if(platform==='csdn')return u.hostname==='passport.csdn.net'&&u.pathname==='/login';
   if(platform==='segmentfault')return u.hostname==='segmentfault.com'&&u.pathname==='/user/login';
+  if(platform==='bilibili')return u.hostname==='passport.bilibili.com'&&u.pathname==='/login';
   return false;
  }catch{return false}
 }
