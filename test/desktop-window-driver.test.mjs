@@ -45,6 +45,14 @@ test('late login signals readiness only from its own editor window, without writ
  assert.equal(login.webContents.lastScript,undefined);
 });
 
+test('SegmentFault redirects to its exact official login and resumes the same editor after the user returns',async t=>{
+ const x=fixture(t);let expired=0,ready=0;const d=x.create({sessionId:'segmentfault-login',platform:'segmentfault'},{onLoginRequired:()=>expired++,onLoginReady:()=>ready++});
+ await d.openLogin();const w=x.windows[0];
+ await w.loadURL('https://segmentfault.com/user/login');w.webContents.emit('did-finish-load');w.webContents.emit('did-stop-loading');assert.equal(expired,1);assert.equal(d.loginEditorReady(),false);
+ await w.loadURL('https://segmentfault.com/write');await new Promise(r=>setImmediate(r));w.webContents.emit('did-finish-load');assert.equal(ready,1);assert.equal(d.loginEditorReady(),true);
+ assert.equal(w.webContents.lastScript,undefined);
+});
+
 
 test('open original shows the journal window without login or creating a second draft',async t=>{
  const x=fixture(t),d=x.create();assert.equal(d.showOriginal(),false);

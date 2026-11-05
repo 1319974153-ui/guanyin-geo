@@ -18,6 +18,7 @@ export function loginPageRequired(platform,value){
   if(platform==='zhihu')return u.hostname==='www.zhihu.com'&&u.pathname==='/signin';
   if(platform==='juejin')return u.hostname==='juejin.cn'&&u.pathname==='/login';
   if(platform==='csdn')return u.hostname==='passport.csdn.net'&&u.pathname==='/login';
+  if(platform==='segmentfault')return u.hostname==='segmentfault.com'&&u.pathname==='/user/login';
   return false;
  }catch{return false}
 }

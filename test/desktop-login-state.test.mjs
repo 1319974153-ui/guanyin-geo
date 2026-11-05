@@ -24,7 +24,9 @@ test('expired login detection recognizes exact official routes, not redirect par
  assert.equal(loginPageRequired('aliyun','https://account.aliyun.com/login/login.htm?oauth_callback=http%3A%2F%2Fdeveloper.aliyun.com'),true);
  assert.equal(loginPageRequired('zhihu','https://www.zhihu.com/signin'),true);
  assert.equal(loginPageRequired('csdn','https://passport.csdn.net/login'),true);
+ assert.equal(loginPageRequired('segmentfault','https://segmentfault.com/user/login'),true);
  for(const url of ['https://developer.aliyun.com/article/new?edit=123','https://account-s.aliyun.com/pass/adding','https://account.aliyun.com.evil.test/login/login.htm','https://user:secret@account.aliyun.com/login/login.htm','http://account.aliyun.com/login/login.htm','https://account.aliyun.com:8443/login/login.htm','https://account.aliyun.com/other?url=/login/login.htm'])assert.equal(loginPageRequired('aliyun',url),false);
+ for(const url of ['https://segmentfault.com.evil.test/user/login','https://segmentfault.com/user/login/other','http://segmentfault.com/user/login','https://user:secret@segmentfault.com/user/login'])assert.equal(loginPageRequired('segmentfault',url),false);
  assert.equal(loginPageRequired('51cto','https://account.aliyun.com/login/login.htm'),false);
 });
 
