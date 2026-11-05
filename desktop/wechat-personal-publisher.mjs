@@ -53,7 +53,11 @@ export function wechatPersonalPage(command){
  if(input.value!==command.title)setValue(input,command.title);
  const bodyNode=body.tagName==='IFRAME'?body.contentDocument?.body:body;if(!bodyNode)return {state:'waiting_editor',message:'正文编辑器仍在加载'};
  if(bodyNode.innerHTML!==command.html)setValue(bodyNode,command.html);
+ // The desktop process first records that this exact action may be attempted,
+ // then asks this page to click once. If the app exits in-between, recovery
+ // observes the original page instead of risking a second draft/save/publish.
  if(command.requested)return {state:'waiting_receipt',message:'已请求平台操作，正在等待公众号页面反馈'};
+ if(!command.dispatch)return {state:'ready_to_request',message:command.mode==='draft'?'标题和正文已填入，正在登记保存草稿请求':'标题和正文已填入，正在登记发表请求'};
  if(command.mode==='draft'){
   if(clickLabel(['保存草稿','存草稿']))return {state:'draft_requested',message:'已请求保存草稿，正在等待平台回执'};
   return {state:'filled',message:'标题和正文已填入，平台未显示保存草稿按钮'};

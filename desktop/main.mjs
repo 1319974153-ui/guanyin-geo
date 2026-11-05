@@ -17,12 +17,13 @@ import {installQuitFlow} from './quit-flow.mjs';
 import {desktopDataRoot} from './data-root.mjs';
 import {wechatPersonalCommand,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
 import {WECHAT_PERSONAL_PARTITION,persistWechatPersonalSession} from './wechat-personal-session.mjs';
+import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive} from './wechat-personal-task.mjs';
 const here=path.dirname(fileURLToPath(import.meta.url)),bundleRoot=path.resolve(here,'..');
 app.setName('观引桌面版');
 app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
 const dataRoot=desktopDataRoot({args:process.argv,env:process.env,isPackaged:app.isPackaged,appData:app.getPath('appData')});
 fs.mkdirSync(dataRoot,{recursive:true,mode:0o700});app.setPath('userData',dataRoot);
-let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();let wechatPersonalWindow,wechatPersonalTimer,wechatPersonalSession,wechatPersonalFlush;
+let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();let wechatPersonalWindow,wechatPersonalTimer,wechatPersonalSession,wechatPersonalFlush,wechatPersonalTaskId='';
 const upcomingPlatform=platformPreview({BrowserWindow,session});
 const bindMainQuit=installQuitFlow({app,getMain:()=>main,confirmDiscard:win=>dialog.showMessageBoxSync(win,{type:'question',title:'退出观引',message:'当前页面有未保存的修改。',detail:'继续编辑可先保存；退出只会放弃当前页面尚未保存的修改，已保存的稿件、账号和回执保留。',buttons:['继续编辑','放弃修改并退出'],defaultId:0,cancelId:0})===1,shutdown:stopService});
 if(!app.requestSingleInstanceLock()){app.quit()}else{
@@ -52,6 +53,7 @@ async function start(){
  bind('save-prepared',async input=>{const t=targetInput([input])[0];if(typeof input.jobId!=='string'||!/^[-\w]{1,100}$/.test(input.jobId))throw Error('原任务无效');const c=await getConnection(t.sessionId);if(c.platform!=='douyin'||c.accountId!==t.accountId)throw Error('账号已变化');await (await control(c)).savePrepared(input.jobId);return {ok:true}});
  bind('copy-content',input=>{clipboard.write(clipboardContent(input));return {ok:true}});
  bind('wechat-personal-publish',async input=>openWechatPersonalPublisher(input));
+ bind('wechat-personal-resume',async input=>resumeWechatPersonalPublisher(input));
  bind('wake',async()=>{void poll();return {ok:true}});
  bindMainQuit(main);await main.loadURL(origin+'/#today');
  for(const c of await rpc('desktop-list'))await control(c);
@@ -60,27 +62,58 @@ async function start(){
 }
 async function openWechatPersonalPublisher(input){
  const command=wechatPersonalCommand(input);
- if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed()){wechatPersonalWindow.show();wechatPersonalWindow.focus();return {state:'waiting_login',message:'公众号窗口已打开，正在等待登录或编辑器就绪'};}
+ if(!command.taskId)throw Error('公众号原任务编号缺失，未打开发布窗口');
+ if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed()&&wechatPersonalTaskId!==command.taskId)throw Error('当前公众号窗口仍在处理另一篇原稿，请先在该窗口完成或关闭；不会覆盖');
+ const task=beginWechatPersonalTask(dataRoot,command);
+ if(!wechatPersonalTaskActive(task))throw Error('公众号原任务已有完成回执，请先刷新发布结果；不会重复填稿或发表');
+ return openWechatPersonalTask(task);
+}
+async function resumeWechatPersonalPublisher(input){
+ const taskId=String(input?.taskId||'').trim();
+ if(!/^gy-[a-f0-9]{64}$/.test(taskId))throw Error('公众号原任务编号无效');
+ const task=loadWechatPersonalTask(dataRoot);
+ if(!task||task.taskId!==taskId)throw Error('未找到对应公众号原任务；不会新建或重复提交');
+ if(!wechatPersonalTaskActive(task))throw Error('公众号原任务已有完成回执，请先刷新发布结果；不会重复填稿或发表');
+ return openWechatPersonalTask(task);
+}
+async function openWechatPersonalTask(task){
+ if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed()){
+  if(wechatPersonalTaskId!==task.taskId)throw Error('当前公众号窗口仍在处理另一篇原稿，请先完成或关闭；不会覆盖');
+  wechatPersonalWindow.show();wechatPersonalWindow.focus();return {state:'waiting_login',message:'公众号原任务窗口已打开，正在等待登录或编辑器就绪'};
+ }
  const publisherSession=wechatPersonalSession||session.fromPartition(WECHAT_PERSONAL_PARTITION);wechatPersonalSession=publisherSession;
  publisherSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));publisherSession.setPermissionCheckHandler(()=>false);
  const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号',webPreferences:{session:publisherSession,nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
- wechatPersonalWindow=win;const wc=win.webContents;
+ wechatPersonalWindow=win;wechatPersonalTaskId=task.taskId;const wc=win.webContents;
  for(const event of ['will-navigate','will-redirect'])wc.on(event,(e,legacyUrl)=>{const url=e.url||legacyUrl;if(!wechatPersonalUrlAllowed(url))e.preventDefault()});
  wc.on('will-attach-webview',e=>e.preventDefault());wc.setWindowOpenHandler(({url})=>wechatPersonalUrlAllowed(url)?{action:'allow'}:{action:'deny'});
- let attempts=0,busy=false,requested=false;
+ let attempts=0,busy=false,current=task;
+ const notify=result=>{
+  if(!result?.state)return;
+  const requested=wechatPersonalRequestMarker(current.requested,result.state);
+  current=updateWechatPersonalTask(dataRoot,current.taskId,{state:result.state,message:result.message,requested});
+  if(!main.isDestroyed())main.webContents.send('guanyin:wechat-personal-status',{...result,taskId:current.taskId,mode:current.mode});
+ };
  const run=async()=>{
   if(busy||win.isDestroyed()||!wechatPersonalUrlAllowed(wc.getURL())||wc.isLoadingMainFrame())return;
   busy=true;try{
-   const result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify({...command,requested})+')',true);
-   if(['draft_requested','publish_requested'].includes(result?.state))requested=true;
-   if(result?.state)main.webContents.send('guanyin:wechat-personal-status',{...result,taskId:command.taskId||'',mode:command.mode});
+   let result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify({...current,dispatch:false})+')',true);
+   notify(result);
+   if(result?.state==='ready_to_request'&&!current.requested){
+    // Persist the protection before clicking. If the app stops now, later
+    // recovery only reads the retained page instead of repeating a request.
+    current=updateWechatPersonalTask(dataRoot,current.taskId,{state:'requesting',requested:true,message:current.mode==='draft'?'已登记保存草稿请求，正在请求平台操作':'已登记发表请求，正在请求平台操作'});
+    if(!main.isDestroyed())main.webContents.send('guanyin:wechat-personal-status',{state:'requesting',message:current.message,taskId:current.taskId,mode:current.mode});
+    result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify({...current,requested:false,dispatch:true})+')',true);
+    notify(result);
+   }
    if(['draft_saved','publish_submitted','verification_required','filled','blocked'].includes(result?.state)){if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;return;}
    if(++attempts<20)wechatPersonalTimer=setTimeout(()=>void run(),1000);
   }catch{if(++attempts<20)wechatPersonalTimer=setTimeout(()=>void run(),1000)}finally{busy=false}
  };
- wc.on('did-finish-load',()=>void run());wc.on('did-stop-loading',()=>void run());win.on('closed',()=>{if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;wechatPersonalWindow=null;void flushWechatPersonalSession().catch(()=>{})});
+ wc.on('did-finish-load',()=>void run());wc.on('did-stop-loading',()=>void run());win.on('closed',()=>{if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;wechatPersonalWindow=null;wechatPersonalTaskId='';void flushWechatPersonalSession().catch(()=>{})});
  await wc.loadURL('https://mp.weixin.qq.com/');
- return {state:'waiting_login',message:command.mode==='publish'?'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并请求发表':'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并保存草稿'};
+ return {state:'waiting_login',message:task.mode==='publish'?'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并请求发表':'公众号窗口已打开；完成扫码或安全验证后将自动打开图文编辑器并保存草稿'};
 }
 function flushWechatPersonalSession(){
  if(!wechatPersonalSession)return Promise.resolve();

@@ -75,6 +75,11 @@ function distributionRecoveryTarget(f,row){
  return (f.distributionTargets||[]).find(t=>t.transport==='desktop'&&t.sessionId===row.sessionId&&t.platform===row.platform&&t.accountId===row.accountId)||null;
 }
 function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button>${row.retryable&&row.jobId?`<button type="button" class="button small" data-distribution-unstarted="${esc(row.key)}">继续未开始的任务</button>`:''}${row.resumable&&row.jobId?`<button type="button" class="button small" data-distribution-resume="${esc(row.key)}">${row.stage==='prepare'?'补齐原稿文字（不发布）':'继续原稿发布'}</button>`:''}<span class="helper">查看原任务，不会重新发送</span></p>`:'';}
+function distributionWechatRecoveryButton(row){
+ if(row?.platform!=='wechat'||row.transport!=='desktop_personal'||!/^gy-[a-f0-9]{64}$/.test(row.id||'')||!window.guanyinDesktop?.wechatPersonalResume)return '';
+ if(!['preparing','submitting','needs_attention'].includes(row.state))return '';
+ return `<p><button type="button" class="button small" data-distribution-wechat-open="${esc(row.id)}">打开公众号原任务</button><span class="helper">只恢复原任务，不会新建稿件或重复点击发表</span></p>`;
+}
 async function distributionOpenOriginal(f,key){
  if(!f.isConnected||f.distributionScope!==distributionScope()||f.dataset.brand!==brand().id)throw Error('工作区已变化，请重新打开稿件');
  const row=f.distributionJournal?.[key],target=distributionRecoveryTarget(f,row);if(!target)throw Error('原账号连接已变化，请检查账号设置');
@@ -97,7 +102,7 @@ function distributionReceiptLink(row){
 }
 function distributionResults(f){
  const rows=Object.values(f.distributionJournal||{}),box=f.querySelector('[data-distribution-results]');distributionInlineResults(f);
- const markup=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p><details class="distribution-result-details" ${rows.some(r=>['needs_attention','uncertain'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionResultLabel(r))}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${distributionReceiptLink(r)}${distributionRecoveryButton(f,r)}</li>`).join('')}</ul></details><p class="helper" role="status" data-distribution-watch-status></p><p class="helper">结果自动更新。需要处理时可直接打开对应平台；不会自动重复发布。</p>`:'';
+ const markup=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p><details class="distribution-result-details" ${rows.some(r=>['needs_attention','uncertain'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionResultLabel(r))}</span></div>${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${distributionReceiptLink(r)}${distributionRecoveryButton(f,r)}${distributionWechatRecoveryButton(r)}</li>`).join('')}</ul></details><p class="helper" role="status" data-distribution-watch-status></p><p class="helper">结果自动更新。需要处理时可直接打开对应平台；不会自动重复发布。</p>`:'';
  // Polling must not replace an unchanged action button or steal keyboard focus.
  if(box.distributionMarkup!==markup){box.innerHTML=markup;box.distributionMarkup=markup;}
  const watch=box.querySelector?.('[data-distribution-watch-status]');if(watch)watch.textContent=distributionWatchLabel(f);
@@ -214,6 +219,7 @@ document.addEventListener('click',async e=>{
   await distributionReconcile(f);distributionWatch(f);
  }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionResume){try{b.disabled=true;await distributionResumeOriginal(f,b.dataset.distributionResume)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
+ if(b.dataset.distributionWechatOpen){try{b.disabled=true;if(!window.guanyinDesktop?.wechatPersonalResume)throw Error('请在观引桌面版打开公众号原任务');await window.guanyinDesktop.wechatPersonalResume({taskId:b.dataset.distributionWechatOpen});toast('已打开公众号原任务；只核对原稿，不会新建或重复发表')}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
  if(b.dataset.distributionSend){f.elements.distributionConfirmed.checked=true;await distributionSend(f,b.dataset.distributionSend);}
  if(b.hasAttribute('data-distribution-reconcile')){
   try{b.disabled=true;await distributionReconcile(f);distributionWatch(f);}

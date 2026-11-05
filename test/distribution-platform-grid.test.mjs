@@ -109,3 +109,13 @@ test('a connected desktop personal WeChat publisher is a normal selectable publi
  assert.match(x.html(),/登录一次后自动运行/);
  assert.doesNotMatch(x.html(),/data-distribution-wechat/);
 });
+
+test('a personal WeChat result can reopen only its recorded original task',()=>{
+ const x=fixture();x.g.window.guanyinDesktop={wechatPersonalResume:async()=>{}};
+ const active={id:'gy-'+'a'.repeat(64),platform:'wechat',transport:'desktop_personal',state:'needs_attention'};
+ assert.match(x.g.distributionWechatRecoveryButton(active),/data-distribution-wechat-open/);
+ assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'draft'}),'');
+ assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'submitted'}),'');
+ assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'published'}),'');
+ assert.equal(x.g.distributionWechatRecoveryButton({...active,id:'wrong'}),'');
+});

@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('guanyinDesktop',Object.freeze({
  available:true,
  copyContent:input=>ipcRenderer.invoke('guanyin:copy-content',input),
  wechatPersonalPublish:input=>ipcRenderer.invoke('guanyin:wechat-personal-publish',input),
+ wechatPersonalResume:input=>ipcRenderer.invoke('guanyin:wechat-personal-resume',input),
  onWechatPersonalStatus:listener=>{
   if(typeof listener!=='function')throw new TypeError('listener must be a function');
   const receive=(_event,value)=>listener(value);
