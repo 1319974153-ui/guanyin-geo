@@ -92,6 +92,16 @@ test('Bilibili desktop connection permits creator-center preparation only',async
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
+test('Weibo long-form desktop connection permits official editor preparation only',async t=>{
+ const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'weibo'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('weibo')});
+ assert.equal(e.bridge.desktopConnections()[0].platform,'weibo');
+ assert.equal(navigationAllowed('weibo','https://weibo.com/ttarticle/p/editor'),true);
+ assert.equal(navigationAllowed('weibo','https://passport.weibo.com/login?entry=account'),true);
+ assert.equal(navigationAllowed('weibo','https://weibo.com.evil.test/ttarticle/p/editor'),false);
+ for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
+});
+
 test('51CTO prepared article upgrades to read-only draft recovery without a second job',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'51cto'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('51cto'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};

@@ -47,7 +47,7 @@ test('desktop status polling updates only account rows and never replaces the se
 test('desktop account selector exposes preparation-only community adapters without claiming publication',()=>{
  const {ctx}=ui();ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;
  const html=vm.runInContext('renderBrowserPublisher()',ctx);
- for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）','哔哩哔哩图文（自动填稿验收）'])assert.match(html,new RegExp(label));
+ for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）','哔哩哔哩图文（自动填稿验收）','微博头条文章（自动填稿验收）'])assert.match(html,new RegExp(label));
  assert.match(html,/尚未开放草稿或公开提交/);
 });
 

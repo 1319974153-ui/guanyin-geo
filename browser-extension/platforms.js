@@ -11,6 +11,7 @@ export const PLATFORMS = {
  oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/platform/upload/text/apply',hosts:['https://member.bilibili.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
@@ -28,6 +29,7 @@ export function editorEvidence(platform,url){
  if(platform==='oschina')return u.origin==='https://my.oschina.net'&&u.pathname==='/u/0/blog/write'&&!u.search;
  if(platform==='jianshu')return u.origin==='https://www.jianshu.com'&&u.pathname==='/writer'&&!u.search;
  if(platform==='bilibili')return u.origin==='https://member.bilibili.com'&&u.pathname==='/platform/upload/text/apply'&&!u.search;
+ if(platform==='weibo')return u.origin==='https://weibo.com'&&u.pathname==='/ttarticle/p/editor'&&!u.search;
  if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
  return u.pathname==='/publish/publish';
  }catch{return false}

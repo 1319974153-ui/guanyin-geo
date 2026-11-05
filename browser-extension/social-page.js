@@ -14,6 +14,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // Selectors deliberately stay narrow: if the page changes, the task stops
   // before writing rather than guessing among several inputs.
   bilibili:{origin:'https://member.bilibili.com',paths:[/^\/platform\/upload\/text\/apply$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // Keep the official long-form editor separate from the short-post composer.
+  // Until an account validates its actual fields, it can only prepare a unique
+  // empty original article and can never save or submit it.
+  weibo:{origin:'https://weibo.com',paths:[/^\/ttarticle\/p\/editor$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/(?:www\.)?weibo\.com\/u\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   douyin:{origin:'https://creator.douyin.com',paths:[/^\/creator-micro\/content\/(?:upload|post\/image)$/],title:'input[placeholder*="标题"]',body:'[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'发布图文',id:/抖音号\s*[:：]\s*([\w-]+)/},
   xiaohongshu:{origin:'https://creator.xiaohongshu.com',paths:[/^\/publish\/publish$/],title:'input[placeholder*="标题"]',body:'.tiptap[contenteditable="true"], .ql-editor[contenteditable="true"]',publish:['发布'],confirm:[],images:true,switchText:'上传图文',id:/小红书号\s*[:：]\s*([\w-]+)/}
  }[platform];if(!cfg)fail('平台适配器不存在');
