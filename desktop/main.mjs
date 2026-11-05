@@ -24,7 +24,7 @@ app.setName('观引桌面版');
 app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
 const dataRoot=desktopDataRoot({args:process.argv,env:process.env,isPackaged:app.isPackaged,appData:app.getPath('appData')});
 fs.mkdirSync(dataRoot,{recursive:true,mode:0o700});app.setPath('userData',dataRoot);
-let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();let wechatPersonalWindow,wechatPersonalTimer,wechatPersonalSession,wechatPersonalFlush,wechatPersonalTaskId='';
+let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();let wechatPersonalWindow,wechatPersonalLoginWindow,wechatPersonalTimer,wechatPersonalSession,wechatPersonalFlush,wechatPersonalTaskId='';
 const upcomingPlatform=platformPreview({BrowserWindow,session});
 const bindMainQuit=installQuitFlow({app,getMain:()=>main,confirmDiscard:win=>dialog.showMessageBoxSync(win,{type:'question',title:'退出观引',message:'当前页面有未保存的修改。',detail:'继续编辑可先保存；退出只会放弃当前页面尚未保存的修改，已保存的稿件、账号和回执保留。',buttons:['继续编辑','放弃修改并退出'],defaultId:0,cancelId:0})===1,shutdown:stopService});
 if(!app.requestSingleInstanceLock()){app.quit()}else{
@@ -55,6 +55,7 @@ async function start(){
  bind('copy-content',input=>{clipboard.write(clipboardContent(input));return {ok:true}});
  bind('wechat-personal-publish',async input=>openWechatPersonalPublisher(input));
  bind('wechat-personal-resume',async input=>resumeWechatPersonalPublisher(input));
+ bind('wechat-personal-login',async()=>openWechatPersonalLogin());
  bind('wechat-personal-task',async()=>wechatPersonalTaskSummary(dataRoot));
  bind('wake',async()=>{void poll();return {ok:true}});
  bindMainQuit(main);await main.loadURL(origin+'/#today');
@@ -82,17 +83,37 @@ async function resumeWechatPersonalPublisher(input){
  if(!wechatPersonalTaskActive(task))throw Error('公众号原任务已有完成回执，请先刷新发布结果；不会重复填稿或发表');
  return openWechatPersonalTask(task);
 }
+function wechatPersonalBrowserSession(){
+ const publisherSession=wechatPersonalSession||session.fromPartition(WECHAT_PERSONAL_PARTITION);wechatPersonalSession=publisherSession;
+ publisherSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));publisherSession.setPermissionCheckHandler(()=>false);
+ return publisherSession;
+}
+function secureWechatPersonalWindow(win){
+ const wc=win.webContents;
+ for(const event of ['will-navigate','will-redirect'])wc.on(event,(e,legacyUrl)=>{const url=e.url||legacyUrl;if(!wechatPersonalUrlAllowed(url))e.preventDefault()});
+ wc.on('will-attach-webview',e=>e.preventDefault());wc.setWindowOpenHandler(({url})=>wechatPersonalUrlAllowed(url)?{action:'allow'}:{action:'deny'});
+ return wc;
+}
+async function openWechatPersonalLogin(){
+ // A first-party login window is deliberately separate from a content task.
+ // It shares only the isolated local partition, so a later article can reuse
+ // the completed platform login without treating that login as a publication.
+ if(wechatPersonalLoginWindow&&!wechatPersonalLoginWindow.isDestroyed()){
+  wechatPersonalLoginWindow.show();wechatPersonalLoginWindow.focus();return {state:'waiting_login',message:'公众号登录窗口已打开；完成登录后可回到观引勾选公众号'};
+ }
+ const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号登录',webPreferences:{session:wechatPersonalBrowserSession(),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
+ wechatPersonalLoginWindow=win;const wc=secureWechatPersonalWindow(win);
+ win.on('closed',()=>{wechatPersonalLoginWindow=null;void flushWechatPersonalSession().catch(()=>{})});
+ await wc.loadURL('https://mp.weixin.qq.com/');
+ return {state:'waiting_login',message:'公众号官方登录窗口已打开；完成扫码或安全验证后，登录状态仅保存在本机'};
+}
 async function openWechatPersonalTask(task){
  if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed()){
   if(wechatPersonalTaskId!==task.taskId)throw Error('当前公众号窗口仍在处理另一篇原稿，请先完成或关闭；不会覆盖');
   wechatPersonalWindow.show();wechatPersonalWindow.focus();return {state:'waiting_login',message:'公众号原任务窗口已打开，正在等待登录或编辑器就绪'};
  }
- const publisherSession=wechatPersonalSession||session.fromPartition(WECHAT_PERSONAL_PARTITION);wechatPersonalSession=publisherSession;
- publisherSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));publisherSession.setPermissionCheckHandler(()=>false);
- const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号',webPreferences:{session:publisherSession,nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
- wechatPersonalWindow=win;wechatPersonalTaskId=task.taskId;const wc=win.webContents;
- for(const event of ['will-navigate','will-redirect'])wc.on(event,(e,legacyUrl)=>{const url=e.url||legacyUrl;if(!wechatPersonalUrlAllowed(url))e.preventDefault()});
- wc.on('will-attach-webview',e=>e.preventDefault());wc.setWindowOpenHandler(({url})=>wechatPersonalUrlAllowed(url)?{action:'allow'}:{action:'deny'});
+ const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号',webPreferences:{session:wechatPersonalBrowserSession(),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
+ wechatPersonalWindow=win;wechatPersonalTaskId=task.taskId;const wc=secureWechatPersonalWindow(win);
  let attempts=0,busy=false,current=task;
  const notify=result=>{
   if(!result?.state)return;
@@ -143,7 +164,7 @@ async function control(connection){
 let polling=false;async function poll(){if(polling||stopping)return;polling=true;try{const list=await rpc('desktop-list'),active=new Set(list.map(c=>c.sessionId));for(const [id,c]of controllers)if(!active.has(id)){await c.close();controllers.delete(id)}for(const c of list)await (await control(c)).tick()}catch(e){console.error('发布检查：'+e.message)}finally{polling=false}}
 async function stopService(){
  if(stopping)return;stopping=true;clearInterval(pollTimer);
- if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed())wechatPersonalWindow.destroy();const closed=await Promise.allSettled([upcomingPlatform.close(),flushWechatPersonalSession(),...[...controllers.values()].map(c=>c.close())]);if(closed.some(r=>r.status==='rejected'))console.error('部分平台会话保存未完成，账号目录保留');for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('观引已退出，任务未自动重发'))}pending.clear();
+ if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed())wechatPersonalWindow.destroy();if(wechatPersonalLoginWindow&&!wechatPersonalLoginWindow.isDestroyed())wechatPersonalLoginWindow.destroy();const closed=await Promise.allSettled([upcomingPlatform.close(),flushWechatPersonalSession(),...[...controllers.values()].map(c=>c.close())]);if(closed.some(r=>r.status==='rejected'))console.error('部分平台会话保存未完成，账号目录保留');for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('观引已退出，任务未自动重发'))}pending.clear();
  if(service)await new Promise(resolve=>{let done=false,timer;const finish=()=>{if(done)return;done=true;clearTimeout(timer);service?.kill();service=null;resolve()};service.once('exit',finish);timer=setTimeout(finish,3000);try{service.postMessage({id:++sequence,action:'shutdown'})}catch{finish()}});
 }
 app.on('window-all-closed',()=>app.quit());

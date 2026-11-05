@@ -47,6 +47,7 @@ test('desktop status polling updates only account rows and never replaces the se
 test('desktop account selector exposes preparation-only community adapters without claiming publication',()=>{
  const {ctx}=ui();ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;
  const html=vm.runInContext('renderBrowserPublisher()',ctx);
+ assert.match(html,/微信公众号（个人主体）/);
  for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）','哔哩哔哩图文（自动填稿验收）','微博头条文章（自动填稿验收）','搜狐号图文（自动填稿验收）','网易号图文（自动填稿验收）','百家号图文（自动填稿验收）'])assert.match(html,new RegExp(label));
  assert.match(html,/尚未开放草稿或公开提交/);
 });
@@ -56,8 +57,16 @@ test('desktop account list keeps personal WeChat in the same unified article flo
  const html=vm.runInContext("desktopAccountTable({accounts:[]})",ctx);
  assert.match(html,/微信公众号/);
  assert.match(html,/与其他平台同一勾选列表/);
- assert.match(html,/href=\"#inbox\"/);
+ assert.match(html,/去登录/);
  assert.doesNotMatch(html,/公众号稿件/);
+});
+
+test('desktop WeChat first-login opens the official session without creating a generic platform connection',async()=>{
+ const {ctx,calls}=ui();let opened=0;
+ ctx.window.guanyinDesktop={available:true,wechatPersonalLogin:async()=>{opened++},connect:async()=>{throw Error('公众号不应创建通用发布连接')}};
+ ctx.toast=()=>{};
+ await vm.runInContext("browserPublisherAction('browser-publisher-pair',{dataset:{platform:'wechat'}})",ctx);
+ assert.equal(opened,1);assert.deepEqual(calls,[]);
 });
 
 test('desktop heartbeat times do not repaint account rows or article choices',async()=>{
