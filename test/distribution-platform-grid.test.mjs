@@ -25,6 +25,16 @@ test('all 36 platforms are visible while catalog-only destinations cannot be sel
  assert.match(x.html(),/仅支持存草稿/);
  assert.match(x.html(),/微信公众号/);
 });
+test('ordinary publishing is the direct default, while draft and editor-only modes stay available under an expanded choice',()=>{
+ const x=fixture(),panel=x.g.distributionPanel();
+ assert.match(panel,/data-distribution-select-all>全选可发布/);
+ assert.match(panel,/data-distribution-send="publish" disabled>发布到已选平台/);
+ const operation=panel.match(/<details class="distribution-operation">[\s\S]*?<\/details>/)?.[0]||'';
+ assert.match(operation,/data-distribution-mode-summary>改为保存草稿或仅填入/);
+ assert.match(operation,/name="distributionMode"/);
+ assert.match(operation,/value="draft">保存平台草稿/);
+ assert.match(operation,/value="prepare">仅填入编辑器/);
+});
 test('changing to draft only permits draft-capable accounts and never promotes prepare to publish',()=>{
  const x=fixture('draft');x.g.distributionRenderTargets(x.f,new Set(['zhihu:z','csdn:c']));
  assert.match(x.html(),/value="zhihu:z"[^>]*checked/);
@@ -33,7 +43,12 @@ test('changing to draft only permits draft-capable accounts and never promotes p
  x.f.elements.distributionMode.value='publish';x.g.distributionUpdate(x.f);
  assert.equal(x.f.elements.distributionMode.value,'publish');
  assert.equal(x.get('[data-distribution-send]').disabled,true);
- assert.equal(x.get('[data-distribution-send]').textContent,'发布');
+ assert.equal(x.get('[data-distribution-send]').textContent,'发布到已选平台');
+ assert.equal(x.get('[data-distribution-select-all]').textContent,'全选可发布');
+ assert.equal(x.get('[data-distribution-mode-summary]').textContent,'改为保存草稿或仅填入');
+ x.f.elements.distributionMode.value='draft';x.g.distributionUpdate(x.f);
+ assert.equal(x.get('[data-distribution-select-all]').textContent,'全选可存草稿');
+ assert.equal(x.get('[data-distribution-mode-summary]').textContent,'当前：保存平台草稿（点击修改）');
 });
 test('blog API connection is visible, while only a connected draft-capable account is selectable',()=>{
  const x=fixture('draft');x.g.distributionRenderTargets(x.f,new Set());assert.match(x.html(),/data-distribution-connect="cnblogs"/);assert.match(x.html(),/value="catalog:cnblogs"[^>]*disabled/);

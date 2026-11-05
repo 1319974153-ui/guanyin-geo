@@ -46,6 +46,9 @@
 .distribution-receipts p{margin:8px 0;overflow-wrap:anywhere}
 .distribution-more{margin:24px 0;font-size:13px;color:var(--muted)}
 .distribution-more summary{cursor:pointer;padding:8px 0}
+.distribution-operation{margin:0 0 12px;font-size:13px;color:var(--muted)}
+.distribution-operation summary{cursor:pointer;padding:8px 0}
+.distribution-operation .distribution-mode{margin-top:8px}
 [data-distribution-results]:not(:empty){margin-top:28px}
 @media(max-width:760px){.distribution-heading{align-items:flex-start}.distribution-heading h3{font-size:16px}.distribution-account{flex-wrap:wrap;gap:10px}.distribution-capability{flex-basis:100%;text-align:left;margin-left:28px}.distribution-actions{display:grid;grid-template-columns:1fr}.distribution-receipts li>div{flex-direction:column;gap:4px}.article-source textarea{font-family:inherit}.distribution-confirm{font-size:14px}}
 
