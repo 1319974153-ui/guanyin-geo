@@ -15,15 +15,22 @@ function fixture(mode='publish'){
  vm.createContext(g);vm.runInContext(fs.readFileSync(new URL('../public/article-distribution.js',import.meta.url),'utf8'),g);
  return{g,f,get,html:()=>get('[data-distribution-accounts]').innerHTML};
 }
-test('all 36 platforms are visible while catalog-only destinations cannot be selected',()=>{
+test('all 36 platforms remain discoverable in the directory while catalog-only destinations cannot be selected',()=>{
  const x=fixture();x.g.distributionRenderTargets(x.f,new Set());
  assert.equal((x.html().match(/data-distribution-row-key=/g)||[]).length,36);
+ assert.match(x.html(),/添加或查看更多平台（33）/);
  assert.match(x.html(),/value="catalog:wechat"[^>]*disabled/);
  assert.match(x.html(),/value="wp:a"[^>]*>/);
  assert.doesNotMatch(x.html(),/value="wp:a"[^>]*disabled/);
  assert.match(x.html(),/value="zhihu:z"[^>]*disabled/);
  assert.match(x.html(),/仅支持存草稿/);
  assert.match(x.html(),/微信公众号/);
+});
+test('the everyday grid shows only connected accounts and moves unconnected catalog entries into the collapsed directory',()=>{
+ const x=fixture();x.g.distributionRenderTargets(x.f,new Set());
+ const [current,directory]=x.html().split('<details class="distribution-platform-directory">');
+ assert.match(current,/value="wp:a"/);assert.match(current,/value="zhihu:z"/);assert.match(current,/value="csdn:c"/);
+ assert.doesNotMatch(current,/value="catalog:wechat"/);assert.match(directory,/value="catalog:wechat"/);
 });
 test('ordinary publishing is the direct default, while draft and editor-only modes stay available under an expanded choice',()=>{
  const x=fixture(),panel=x.g.distributionPanel();

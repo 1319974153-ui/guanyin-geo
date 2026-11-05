@@ -11,14 +11,17 @@ function distributionPlatformRows(platforms,targets){
  return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
 }
 function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.platform==='wechat'&&t.transport==='desktop_personal'?'官方窗口登录后自动处理':t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
-function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
- const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
- f.querySelector('[data-distribution-accounts]').innerHTML=rows.map(t=>{
+function distributionPlatformRow(f,t,mode,selected){
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
   const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
-  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
- }).join('')+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
+ return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
+}
+function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
+ const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]),connected=rows.filter(t=>!t.placeholder),directory=rows.filter(t=>t.placeholder);
+ const current=connected.length?connected.map(t=>distributionPlatformRow(f,t,mode,selected)).join(''):`<div class="distribution-empty"><strong>还没有已连接账号</strong><p>先完成一次平台登录；之后这里只显示你的账号，勾选后即可发布。</p><button type="button" class="button small" data-distribution-manage>管理账号</button></div>`;
+ const more=directory.length?`<details class="distribution-platform-directory"><summary>添加或查看更多平台（${directory.length}）</summary><p>首次添加才需要登录。标为“待接入”的平台暂不能勾选；登录成功的平台会自动移到上方。</p><div class="distribution-platform-directory-grid">${directory.map(t=>distributionPlatformRow(f,t,mode,selected)).join('')}</div></details>`:'';
+ f.querySelector('[data-distribution-accounts]').innerHTML=current+more+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
 function distributionInlineResults(f){
  const targets=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);
