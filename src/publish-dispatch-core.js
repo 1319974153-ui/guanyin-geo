@@ -1,6 +1,11 @@
 // UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
 // Journal before writes; uncertain work is reconciled, never silently replayed.
 export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from './dispatch-watch.js';
+// These platforms share the local official-window queue. Some intentionally
+// expose only `prepare`: an editor fill is useful, but it is not a platform
+// draft or a public submission until that platform has a separately verified
+// receipt protocol.
+const localPublisherPlatforms=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
@@ -47,7 +52,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
      assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
      const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
     }
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'].includes(target.platform)){
+   }else if(localPublisherPlatforms.includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
     const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu','51cto'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
@@ -76,7 +81,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
    }else if(row.platform==='wechat'&&row.transport==='desktop_personal'){
     // Personal-account browser publishing has no server-side receipt API. Keep the
     // observed state and never turn a window-open action into a publication claim.
-   }else if(['csdn','toutiao','zhihu','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'].includes(row.platform)){
+   }else if(localPublisherPlatforms.includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     assertScope();
     let job=browserStatus.jobs.find(j=>j.id===row.jobId);

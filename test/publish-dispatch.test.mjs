@@ -45,6 +45,29 @@ test('CSDN preparation preserves tags and reads actual queued/fill states withou
  const count=f.calls.length;await reconcileDispatch({article,journal:f.journal,request:f.request,persist:async()=>{},assertScope:()=>{}});assert.equal(f.journal.csdn.state,'prepared');assert.ok(f.calls.slice(count).every(c=>!c[1]));
 });
 
+test('community editor adapters dispatch only a prepared task and reconcile its original editor receipt',async()=>{
+ for(const platform of ['segmentfault','oschina','jianshu']){
+  const target={key:platform+':s',platform,sessionId:'s',accountId:'author',name:'作者',modes:['prepare']},journal={},calls=[];
+  const request=async(path,init)=>{
+   calls.push({path,init});
+   if(path==='/api/local-publisher/enqueue'){
+    const body=JSON.parse(init.body);
+    assert.equal(body.mode,'prepare');assert.equal(body.expectedAccountId,'author');assert.deepEqual(body.media,[]);
+    return {job:{id:platform+'-job',state:'queued'}};
+   }
+   if(path.includes('/api/local-publisher/status?'))return {jobs:[{id:platform+'-job',state:'prepared',preparation:{editorUrl:'https://example.invalid/editor',savedVerified:false}}]};
+   throw Error('unexpected '+path);
+  };
+  await dispatchArticle({article,targets:[target],mode:'prepare',journal,request,persist:async()=>{},assertScope:()=>{}});
+  assert.equal(journal[target.key].state,'queued');
+  await reconcileDispatch({article,journal,request,persist:async()=>{},assertScope:()=>{}});
+  assert.equal(journal[target.key].state,'prepared');
+  assert.equal(journal[target.key].preparation.savedVerified,false);
+  await assert.rejects(dispatchArticle({article,targets:[target],mode:'draft',journal,request,persist:async()=>{},assertScope:()=>{}}),/所选账号/);
+  assert.ok(calls.every(call=>call.path==='/api/local-publisher/enqueue'||call.path.includes('/api/local-publisher/status?')));
+ }
+});
+
 test('separate tabs or cleared browser journals use the same server idempotency ID',async()=>{
  const a=await dispatchId({...article,title:'正文标题',text:'正文'},wp());const b=await dispatchId({...article,title:'正文标题',text:'正文'},wp());assert.equal(a,b);assert.match(a,/^gy-[a-f0-9]{64}$/);assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'改稿'},wp()));assert.notEqual(a,await dispatchId({...article,title:'正文标题',text:'正文'},wp('other')));
 });
