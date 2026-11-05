@@ -51,6 +51,15 @@ test('desktop account selector exposes preparation-only community adapters witho
  assert.match(html,/尚未开放草稿或公开提交/);
 });
 
+test('desktop account list keeps personal WeChat in the same unified article flow',()=>{
+ const {ctx}=ui();
+ const html=vm.runInContext("desktopAccountTable({accounts:[]})",ctx);
+ assert.match(html,/微信公众号/);
+ assert.match(html,/与其他平台同一勾选列表/);
+ assert.match(html,/href=\"#inbox\"/);
+ assert.doesNotMatch(html,/公众号稿件/);
+});
+
 test('desktop heartbeat times do not repaint account rows or article choices',async()=>{
  const {ctx}=ui();let updates=0,tick=0;ctx.window.guanyinDesktop={available:true};ctx.document.getElementById=()=>({set innerHTML(v){updates++}});
  ctx.apiRequest=async()=>({jobs:[],accounts:[{id:'desktop-a',transport:'desktop',platform:'zhihu',connectionState:'connected',lastSeen:++tick,account:{accountId:'author',name:'温舒',checkedAt:tick}}]});

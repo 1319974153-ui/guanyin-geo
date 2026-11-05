@@ -106,7 +106,7 @@ test('a connected desktop personal WeChat publisher is a normal selectable publi
  const x=fixture();x.f.distributionTargets.push({key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',transport:'desktop_personal',modes:['draft','publish']});
  x.g.distributionRenderTargets(x.f,new Set(['wechat:personal-browser']));
  assert.match(x.html(),/value="wechat:personal-browser"[^>]*checked/);
- assert.match(x.html(),/登录一次后自动运行/);
+ assert.match(x.html(),/官方窗口登录后自动处理/);
  assert.doesNotMatch(x.html(),/data-distribution-wechat/);
 });
 
