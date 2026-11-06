@@ -9,7 +9,11 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
   segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
   oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
-  jianshu:{origin:'https://www.jianshu.com',paths:[/^\/writer$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], textarea',body:'.dante-editor [contenteditable="true"], .ProseMirror[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/www\.jianshu\.com\/u\/([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // The current official writer exposes one non-paid “发布文章” control. It
+  // autosaves locally in the editor, then reports a public note link after a
+  // successful release. We keep the product gate closed until that full flow
+  // has passed a real-account acceptance; this adapter never calls its API.
+  jianshu:{origin:'https://www.jianshu.com',paths:[/^\/writer$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], textarea',body:'.dante-editor [contenteditable="true"], .ProseMirror[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/www\.jianshu\.com\/u\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布文章'],confirm:[],images:false,inlineAiDisclosure:true},
   // The supported Bilibili route is the current official article editor. Its
   // static UI exposes “保存为草稿”, but that is not a persistent receipt: we
   // do not click it or expose draft/public actions until a live account proves
@@ -71,7 +75,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // 网易号当前公开文章 URL 和内容管理条目的可读回执尚未在真实账号
   // 验收。绝不把“发布成功”提示或管理页跳转伪造成文章回执。
   if(platform==='netease')return null;
-  const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
+  const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,jianshu:/^https:\/\/www\.jianshu\.com\/p\/([a-f0-9]{12})\/?(?:\?v=\d+)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const receiptId=url=>{
    if(platform!=='weibo'&&platform!=='sohu')return url.match(patterns[platform])?.[1]||null;
    try{
@@ -80,10 +84,12 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
     return u.origin==='https://www.sohu.com'&&!u.username&&!u.password&&!u.port&&!u.search&&!u.hash?u.pathname.match(/^\/a\/([1-9]\d{0,19})_[1-9]\d{0,19}\/?$/)?.[1]||null:null;
    }catch{return null}
   };
-  const candidates=[location.href,...many('a[href]').filter(a=>/^(查看文章|查看作品|查看笔记|查看发布内容)$/.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];
+  const receiptLinkText=platform==='jianshu'?/^(?:点击)?查看文章$/:/^(查看文章|查看作品|查看笔记|查看发布内容)$/;
+  const candidates=[location.href,...many('a[href]').filter(a=>receiptLinkText.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];
   const matches=candidates.map(url=>({url,id:receiptId(url)})).filter(r=>r.id);
   const ids=[...new Set(matches.map(m=>m.id))];if(ids.length!==1)return null;
-  return {state:'submitted',articleId:ids[0],url:matches[0].url};
+  const receiptUrl=platform==='jianshu'?'https://www.jianshu.com/p/'+ids[0]:matches[0].url;
+  return {state:'submitted',articleId:ids[0],url:receiptUrl};
  }
  const draftList=platform==='toutiao'&&location.pathname==='/profile_v4/manage/draft'&&['draft-list-inspect','draft-list-open'].includes(action);
  const queryRoute=!cfg.query||(()=>{try{const u=new URL(location.href),values=u.searchParams.getAll(cfg.query.param);return u.searchParams.size===1&&values.length===1&&values[0]===cfg.query.value}catch{return false}})();
@@ -174,7 +180,9 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  }
  const title=unique(cfg.title,'标题'),editor=unique(cfg.body,'正文');
  const plain=html=>new DOMParser().parseFromString(html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html').body.textContent.replace(/\s+/g,' ').trim();
- const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
+ const inlineDisclosure=cfg.inlineAiDisclosure&&article.ai?'本文包含 AI 辅助生成或整理的内容。':'';
+ const renderedHtml=inlineDisclosure?article.html+'<p>'+inlineDisclosure+'</p>':article.html;
+ const expected=(cfg.images?article.text.replace(/\s+/g,' ').trim():plain(renderedHtml));
  const matches=()=>text(title)===article.title.trim()&&(platform==='douyin'?bodyContent(editor):text(editor))===expected;
  // Some editors may save asynchronously after a short idle period. This is
  // deliberately a read-only observation: a visible notice is useful progress
@@ -243,7 +251,7 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   const proto=title.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(proto,'value').set.call(title,article.title);title.dispatchEvent(new Event('input',{bubbles:true}));title.dispatchEvent(new Event('change',{bubbles:true}));
   editor.focus();const range=document.createRange();range.selectNodeContents(editor);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
-  const data=new DataTransfer();data.setData('text/plain',cfg.images?article.text:plain(article.html));if(!cfg.images)data.setData('text/html',article.html);
+  const data=new DataTransfer();data.setData('text/plain',cfg.images?article.text:plain(renderedHtml));if(!cfg.images)data.setData('text/html',renderedHtml);
   editor.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));await wait(350);
   if(!matches())fail('编辑器未完整接收标题或正文，已停止；请保留现场核对，不会换接口重试');
   // Do not opt into exclusive-first publication, ads, or extra cross-posts.
@@ -256,7 +264,7 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  const aiLabel='包含 AI 辅助创作',aiLabels=[aiLabel,aiLabel+' 作者对内容负责'];
  const aiCombo=()=>{const items=many('[role="combobox"]').filter(e=>!e.closest('[contenteditable],article,aside')&&['无声明',...aiLabels].includes(text(e)));return items.length===1?items[0]:null};
  const douyinDeclared=()=>many('*').some(e=>!e.closest('[contenteditable],article')&&text(e).replace(/\s+/g,'')==='自主声明内容由AI生成');
- const aiDeclared=()=>platform==='douyin'?douyinDeclared():platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
+ const aiDeclared=()=>platform==='jianshu'&&inlineDisclosure?matches():platform==='douyin'?douyinDeclared():platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
  if(action==='preflight'||action==='submit'){
   if(!matches())fail('正文或标题与已确认版本不同');verifyChallenge();
   if(platform==='douyin'&&article.ai&&action==='preflight'&&!aiDeclared()){
@@ -289,6 +297,12 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   if(action==='preflight')return {...evidence,ready:true};
   if(globalThis.__guanyinSubmitAttempted)fail('本页已执行提交，不会再点击');globalThis.__guanyinSubmitAttempted=true;
   b[0].click();
+  if(platform==='jianshu'){
+   await wait(200);verifyChallenge();
+   const blocked=many('[role="alert"],[role="status"],[class*="message"],[class*="toast"],[class*="modal"]').filter(e=>!e.closest('[contenteditable],article,aside')&&/绑定手机|绑定微信|暂不支持手机/.test(text(e)));
+   if(blocked.length===1)fail('简书要求先完成账号绑定，请在官方页面处理后再继续原任务；不会重复点击发布');
+   if(blocked.length>1)fail('简书账号绑定提示不唯一，未重复点击发布');
+  }
   // Some platforms have a preview confirmation. Never fall back to a private API.
   if(cfg.confirm.length){for(let i=0;i<12;i++){await wait(250);verifyChallenge();const c=buttons(cfg.confirm);if(c.length===1){c[0].click();return {attempted:true}}if(c.length>1)fail('确认按钮不唯一，结果待核对')}}
   return {attempted:true};

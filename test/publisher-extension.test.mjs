@@ -68,6 +68,10 @@ test('Sohu public adapter uses one commit and only an official article receipt w
  const f=await fixture(t,{platform:'sohu',receipt:{state:'submitted',articleId:'447508959',url:'https://www.sohu.com/a/447508959_121016662'}});await f.send('run','sohu');
  assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','identity','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflightByPlatform.sohu,undefined);
 });
+test('Jianshu public adapter uses one commit and only a canonical official article receipt when separately enabled',async t=>{
+ const f=await fixture(t,{platform:'jianshu',receipt:{state:'submitted',articleId:'7fa8ca73ac68',url:'https://www.jianshu.com/p/7fa8ca73ac68'}});await f.send('run','jianshu');
+ assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','identity','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflightByPlatform.jianshu,undefined);
+});
 test('preflight failure reports need for user action without a write fallback',async t=>{
  const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(f.stored.inflight);assert.match(f.stored.status,/表单不匹配/);
 });

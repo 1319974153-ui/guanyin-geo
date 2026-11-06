@@ -9,7 +9,11 @@ export const PLATFORMS = {
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
  segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
- jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The visible desktop writer exposes one “发布文章” action. It is implemented
+ // below as a guarded page flow, but the packaged desktop app keeps public
+ // dispatch off until a real account proves its binding requirements and the
+ // public article link can be read back.
+ jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
  bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  // The desktop build still keeps this disabled until a real Weibo account has
  // completed the full editor -> next -> publish -> public-link acceptance.
@@ -97,6 +101,7 @@ export function receiptEvidence(platform,url,articleId){
   return ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')&&ids[0]===String(articleId);
  }
  if(platform==='sohu')return !!(u.origin==='https://www.sohu.com'&&!u.search&&(m=u.pathname.match(/^\/a\/([1-9]\d{0,19})_[1-9]\d{0,19}\/?$/))&&m[1]===String(articleId));
+ if(platform==='jianshu')return !!(u.origin==='https://www.jianshu.com'&&!u.search&&(m=u.pathname.match(/^\/p\/([a-f0-9]{12})\/?$/))&&m[1]===String(articleId));
  if(platform==='douyin')return u.origin==='https://www.douyin.com'&&(m=u.pathname.match(/^\/(?:video|note)\/(\d+)\/?$/))&&m[1]===String(articleId);
  return platform==='xiaohongshu'&&u.origin==='https://www.xiaohongshu.com'&&(m=u.pathname.match(/^\/explore\/([a-fA-F0-9]{24})\/?$/))&&m[1]===String(articleId);
  }catch{return false}

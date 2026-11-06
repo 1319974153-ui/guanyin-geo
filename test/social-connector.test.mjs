@@ -10,7 +10,7 @@ function fixture(platform,options={}){
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
   let value=body;return {get textContent(){return value},querySelectorAll:s=>s==='span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'?[element(options.placeholderText||'请输入正文',{remove(){value=value.replace(options.placeholderText||'请输入正文','')}})]:[]};
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
- const button=element(platform==='toutiao'?'预览并发布':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish';else if(neteaseConfirmation&&options.neteaseConfirm!==false)twoStepStage='confirm'}});
+ const button=element(platform==='toutiao'?'预览并发布':platform==='jianshu'?'发布文章':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish';else if(neteaseConfirmation&&options.neteaseConfirm!==false)twoStepStage='confirm'}});
  if(twoStepPlatform||neteaseConfirmation)Object.defineProperties(button,{textContent:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')},innerText:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')}});
  let declaration='无声明';const combo=element('',{tagName:'BUTTON',value:'',get textContent(){return declaration},get innerText(){return declaration},click(){}});
  Object.defineProperties(combo,{textContent:{get:()=>declaration},innerText:{get:()=>declaration}});
@@ -24,7 +24,7 @@ function fixture(platform,options={}){
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
   if(s==='[aria-label^="点击打开"][aria-label$="的主页"]')return (options.profileLabels||[]).map(label=>element('',{getAttribute:()=>label,closest:()=>null}));
   if(s==='script#__NEXT_DATA__')return (options.sessionUsers||[]).map(user=>element(JSON.stringify({props:{pageProps:{initialState:{global:{sessionUser:user}}}}})));
-  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':platform==='weibo'?(options.profileUrl||'https://weibo.com/u/'+account):(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
+  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':platform==='weibo'?(options.profileUrl||'https://weibo.com/u/'+account):platform==='jianshu'?(options.profileUrl||'https://www.jianshu.com/u/'+account):(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return options.duplicateButtons?[button,button]:[button];
   if(s==='*'&&platform==='douyin')return [...(options.missingMedia?[]:[element('已添加1张图片')]),...(options.douyinDeclared?[element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')]:[])];
@@ -62,9 +62,11 @@ test('editor and receipt evidence cannot cross origins, platform types or dashbo
  for(const url of ['https://weibo.com/ttarticle/p/show?id=230940123456&mod=other','https://weibo.com/ttarticle/p/show?id=230940123456&extra=1','https://weibo.com.evil.test/ttarticle/p/show?id=230940123456'])assert.equal(receiptEvidence('weibo',url,'230940123456'),false);
  assert.ok(receiptEvidence('sohu','https://www.sohu.com/a/447508959_121016662','447508959'));
  for(const url of ['https://www.sohu.com/a/447508959_121016662?from=editor','https://www.sohu.com/a/447508959_short','https://mp.sohu.com/a/447508959_121016662'])assert.equal(receiptEvidence('sohu',url,'447508959'),false);
+ assert.ok(receiptEvidence('jianshu','https://www.jianshu.com/p/7fa8ca73ac68','7fa8ca73ac68'));
+ for(const url of ['https://www.jianshu.com/p/7fa8ca73ac68?v=1770000000000','https://www3.jianshu.com/p/7fa8ca73ac68','https://www.jianshu.com/p/7fa8ca73ac68?from=writer','https://www.jianshu.com/p/not-a-slug'])assert.equal(receiptEvidence('jianshu',url,'7fa8ca73ac68'),false);
 });
 test('success text or dashboard navigation alone never produces a fabricated article receipt',async()=>{
- for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
+ for(const p of ['toutiao','zhihu','jianshu','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
 });
 
 test('exact reviewed identity/body permits one submit attempt and never a second click',async()=>{
@@ -124,10 +126,16 @@ test('OSCHINA uses only the current ai-write editor and observes one exact save-
  }
  const changed=fixture('oschina',{...signed,autosaveStatus:['保存草稿成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
 });
-test('Jianshu reads only the signed-in profile link and never exposes a submit control',async()=>{
+test('Jianshu uses its one visible publish action, retains inline AI disclosure, and only accepts a canonical public article receipt',async()=>{
  const f=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author'});
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
- assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);
+ assert.equal((await f.run('submit')).attempted,true);assert.equal(f.clicks,1);
+ assert.match((await f.run('submit')).connectorError,/不会再点击/);assert.equal(f.clicks,1);
+ const publicUrl='https://www.jianshu.com/p/7fa8ca73ac68?v=1770000000000',u=new URL(publicUrl);Object.assign(f.context.location,{href:u.href,origin:u.origin,pathname:u.pathname,search:u.search,hash:u.hash});
+ const receipt=await f.run('receipt');assert.equal(receipt?.state,'submitted');assert.equal(receipt?.articleId,'7fa8ca73ac68');assert.equal(receipt?.url,'https://www.jianshu.com/p/7fa8ca73ac68');assert.equal(f.clicks,1);
+ const ai=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author'});ai.setBody('测试正文 本文包含 AI 辅助生成或整理的内容。');assert.equal((await ai.run('preflight',{article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:true}})).ready,true);assert.equal(ai.clicks,0);
+ const duplicate=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author',duplicateButtons:true});assert.match((await duplicate.run('preflight')).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
  const missing=fixture('jianshu',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
 test('Bilibili text creator reads only a visible space profile and never exposes submission',async()=>{
