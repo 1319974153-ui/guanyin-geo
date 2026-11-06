@@ -29,7 +29,7 @@ test('automatic desktop verification still binds dispatch to expected account an
 });
 test('the packaged desktop gate never enables public dispatch for a merely implemented candidate',async t=>{
  const e=setup(t,DESKTOP_PUBLIC_PLATFORMS);
- for(const platform of ['csdn','aliyun','weibo']){
+ for(const platform of ['csdn','aliyun','weibo','sohu']){
   const c=e.bridge.connectDesktop({brandId:'a',platform});
   await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity(platform)});
   const result=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',...(platform==='csdn'?{tags:['测试']}:{}),expectedAccountId:'author'});
@@ -134,7 +134,7 @@ test('Weibo long-form desktop connection keeps public dispatch disabled before r
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
-test('Sohu desktop connection permits official article preparation only',async t=>{
+test('Sohu desktop connection keeps public dispatch disabled before real-account acceptance',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'sohu'});
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('sohu','opaqueAccount9')});
  assert.equal(e.bridge.desktopConnections()[0].platform,'sohu');

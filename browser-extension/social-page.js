@@ -23,7 +23,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // The public profile route carries an opaque account selector. Keep it opaque:
   // it is used only as a stable local account key and is never decoded or sent
   // to a third party. Broad contenteditable fallbacks are intentionally absent.
-  sohu:{origin:'https://mp.sohu.com',paths:[/^\/mpfe\/v4\/contentManagement\/news\/addarticle$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ql-editor[contenteditable="true"]',profileQuery:{path:'/profile',param:'xpt',pattern:/^[A-Za-z0-9_-]{8,100}$/},publish:[],confirm:[],images:false},
+  // The official desktop path is editor -> 下一步 -> 发布. It is kept
+  // behind the desktop live-acceptance gate until a real account verifies its
+  // actual required fields and review/public-page transition.
+  sohu:{origin:'https://mp.sohu.com',paths:[/^\/mpfe\/v4\/contentManagement\/news\/addarticle$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ql-editor[contenteditable="true"]',profileQuery:{path:'/profile',param:'xpt',pattern:/^[A-Za-z0-9_-]{8,100}$/},publish:['下一步'],confirm:['发布'],images:false},
   // 网易号当前创作者由官方单页应用片段中的 wemediaId 选择。它仅作为本机
   // 账号键：路由、键名、长度和唯一性均需匹配，不能从作者文字或 Cookie 推断。
   netease:{origin:'https://mp.163.com',paths:[/^\/subscribe_v4\/index\.html$/],hash:/^#\/article-publish(?:\?wemediaId=W[A-Za-z0-9_-]{7,99})?$/,title:'.article-title-container textarea, .newtitle-wrapper .newtitle-container textarea, textarea[placeholder*="标题"]',body:'.rich-editor .public-DraftEditor-content[contenteditable="true"]',hashQuery:{path:'/article-publish',param:'wemediaId',pattern:/^W[A-Za-z0-9_-]{7,99}$/},publish:[],confirm:[],images:false},
@@ -53,20 +56,22 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  const buttons=names=>many('button,[role="button"]').filter(e=>names.includes(text(e))&&!e.disabled&&e.getAttribute('aria-disabled')!=='true');
  const verifyChallenge=()=>{if(many('iframe[src*="captcha"],.geetest_panel,.yidun_modal,[class*="captcha"]').length||many('input[placeholder*="验证码"]').length)fail('平台要求本人验证，请处理后核对状态；不会自动发送验证码')};
  const saveFailure=()=>many('[role="alert"],[role="status"],[class*="message"],[class*="toast"]').some(e=>!e.closest('[contenteditable],article,aside')&&text(e)==='保存失败');
- // A completed Weibo long-form article can land on either official host. That
- // host allowance is read-only and applies only while collecting a receipt;
+ // A completed article can land on a separate official public host. That
+ // allowance is read-only and applies only while collecting a receipt;
  // editing/filling still requires the exact editor origin above.
- if(location.origin!==cfg.origin&&!(action==='receipt'&&platform==='weibo'&&['https://weibo.com','https://www.weibo.com'].includes(location.origin)))fail('页面已跳转，请先完成本人登录');
+ const publicReceiptHost=action==='receipt'&&(platform==='weibo'&&['https://weibo.com','https://www.weibo.com'].includes(location.origin)||platform==='sohu'&&location.origin==='https://www.sohu.com');
+ if(location.origin!==cfg.origin&&!publicReceiptHost)fail('页面已跳转，请先完成本人登录');
  // The official setup page is an account eligibility gate, not a saved draft.
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
   if(['douyin','weibo'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const receiptId=url=>{
-   if(platform!=='weibo')return url.match(patterns[platform])?.[1]||null;
+   if(platform!=='weibo'&&platform!=='sohu')return url.match(patterns[platform])?.[1]||null;
    try{
     const u=new URL(url),ids=u.searchParams.getAll('id'),modes=u.searchParams.getAll('mod');
-    return ['https://weibo.com','https://www.weibo.com'].includes(u.origin)&&!u.username&&!u.password&&!u.port&&!u.hash&&u.pathname==='/ttarticle/p/show'&&ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')?ids[0]:null;
+    if(platform==='weibo')return ['https://weibo.com','https://www.weibo.com'].includes(u.origin)&&!u.username&&!u.password&&!u.port&&!u.hash&&u.pathname==='/ttarticle/p/show'&&ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')?ids[0]:null;
+    return u.origin==='https://www.sohu.com'&&!u.username&&!u.password&&!u.port&&!u.search&&!u.hash?u.pathname.match(/^\/a\/([1-9]\d{0,19})_[1-9]\d{0,19}\/?$/)?.[1]||null:null;
    }catch{return null}
   };
   const candidates=[location.href,...many('a[href]').filter(a=>/^(查看文章|查看作品|查看笔记|查看发布内容)$/.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];

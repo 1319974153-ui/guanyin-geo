@@ -4,14 +4,14 @@ import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
 import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
- let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',weiboStage='next';
+ let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',twoStepStage='next';const twoStepPlatform=['weibo','sohu'].includes(platform);
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,closest:()=>null,focus(){},...extra});
  const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
   let value=body;return {get textContent(){return value},querySelectorAll:s=>s==='span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'?[element(options.placeholderText||'请输入正文',{remove(){value=value.replace(options.placeholderText||'请输入正文','')}})]:[]};
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
- const button=element(platform==='toutiao'?'预览并发布':platform==='weibo'?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(platform==='weibo')weiboStage='publish'}});
- if(platform==='weibo')Object.defineProperties(button,{textContent:{get:()=>weiboStage==='next'?'下一步':'发布'},innerText:{get:()=>weiboStage==='next'?'下一步':'发布'}});
+ const button=element(platform==='toutiao'?'预览并发布':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish'}});
+ if(twoStepPlatform)Object.defineProperties(button,{textContent:{get:()=>twoStepStage==='next'?'下一步':'发布'},innerText:{get:()=>twoStepStage==='next'?'下一步':'发布'}});
  let declaration='无声明';const combo=element('',{tagName:'BUTTON',value:'',get textContent(){return declaration},get innerText(){return declaration},click(){}});
  Object.defineProperties(combo,{textContent:{get:()=>declaration},innerText:{get:()=>declaration}});
  const doc={querySelectorAll(s){
@@ -60,6 +60,8 @@ test('editor and receipt evidence cannot cross origins, platform types or dashbo
  assert.ok(receiptEvidence('xiaohongshu','https://www.xiaohongshu.com/explore/0123456789abcdef01234567','0123456789abcdef01234567'));
  assert.ok(receiptEvidence('weibo','https://weibo.com/ttarticle/p/show?id=230940123456&mod=zwenzhang','230940123456'));
  for(const url of ['https://weibo.com/ttarticle/p/show?id=230940123456&mod=other','https://weibo.com/ttarticle/p/show?id=230940123456&extra=1','https://weibo.com.evil.test/ttarticle/p/show?id=230940123456'])assert.equal(receiptEvidence('weibo',url,'230940123456'),false);
+ assert.ok(receiptEvidence('sohu','https://www.sohu.com/a/447508959_121016662','447508959'));
+ for(const url of ['https://www.sohu.com/a/447508959_121016662?from=editor','https://www.sohu.com/a/447508959_short','https://mp.sohu.com/a/447508959_121016662'])assert.equal(receiptEvidence('sohu',url,'447508959'),false);
 });
 test('success text or dashboard navigation alone never produces a fabricated article receipt',async()=>{
  for(const p of ['toutiao','zhihu','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
@@ -160,11 +162,16 @@ test('Weibo long-form uses one exact next-step and one exact final publish actio
  const duplicate=fixture('weibo',{profileUrl:'https://weibo.com/u/123456',duplicateButtons:true});assert.match((await duplicate.run('preflight',task)).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
  const missing=fixture('weibo',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
-test('Sohu article editor keeps its visible profile selector opaque and never exposes submission',async()=>{
+test('Sohu article editor uses one exact next-step and one exact final publish action, then accepts only its official article URL',async()=>{
  const task={accountId:'opaqueAccount9'};
  const f=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=opaqueAccount9'});
  const me=await f.run('identity',task);assert.equal(me.accountId,'opaqueAccount9');assert.equal(me.name,'本人');
- assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight',task)).ready,true);assert.equal(f.clicks,0);
+ assert.equal((await f.run('submit',task)).attempted,true);assert.equal(f.clicks,2);
+ assert.match((await f.run('submit',task)).connectorError,/发布按钮/);assert.equal(f.clicks,2);
+ const publicUrl='https://www.sohu.com/a/447508959_121016662',u=new URL(publicUrl);Object.assign(f.context.location,{href:u.href,origin:u.origin,pathname:u.pathname,search:u.search,hash:u.hash});
+ const receipt=await f.run('receipt',task);assert.equal(receipt?.state,'submitted');assert.equal(receipt?.articleId,'447508959');assert.equal(receipt?.url,publicUrl);assert.equal(f.clicks,2);
+ const duplicate=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=opaqueAccount9',duplicateButtons:true});assert.match((await duplicate.run('preflight',task)).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
  const missing=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=short'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
  const ambiguous=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=opaqueAccount9&xpt=otherAccount9'});assert.match((await ambiguous.run('identity')).connectorError,/唯一账号 ID/);
  const hostile=fixture('sohu',{profileUrl:'https://mp.sohu.com.evil.test/profile?xpt=opaqueAccount9'});assert.match((await hostile.run('identity')).connectorError,/唯一账号 ID/);
