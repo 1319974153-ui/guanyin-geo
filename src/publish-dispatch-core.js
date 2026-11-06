@@ -6,6 +6,7 @@ export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from
 // draft or a public submission until that platform has a separately verified
 // receipt protocol.
 const localPublisherPlatforms=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
+const apiPublisherPlatforms=['cnblogs','typecho','metaweblog','personal-site','yuque'];
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
@@ -22,13 +23,13 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
  for(const target of targets){
   assertScope();let row=journal[target.key];
   const recoverPrepared=target.platform==='51cto'&&mode==='draft'&&row?.state==='prepared';
-  if(!['wordpress','cnblogs','typecho','metaweblog','personal-site'].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
+  if(!['wordpress',...apiPublisherPlatforms].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
   if(!recoverPrepared&&row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
   let wrote=false;
   try{
-   if(['cnblogs','typecho','metaweblog','personal-site'].includes(target.platform)){
+   if(apiPublisherPlatforms.includes(target.platform)){
     const endpoint='/api/'+target.platform;
     if(row.state!=='draft'){
      const preview=await request(endpoint+'/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
@@ -69,7 +70,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
  for(const row of Object.values(next)){
   assertScope();
   try{
-   if(['cnblogs','typecho','metaweblog','personal-site'].includes(row.platform)){
+   if(apiPublisherPlatforms.includes(row.platform)){
     const endpoint='/api/'+row.platform;
     let data=await request(endpoint+'/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));assertScope();
     if(data.record.state==='submitted'&&Date.now()-Date.parse(data.record.remote?.checkedAt||data.record.publishAcceptedAt)>=60000){data=await request(endpoint+'/reconcile',{method:'POST',body:JSON.stringify({brandId:article.brandId,id:row.id,accountId:row.accountId})});assertScope();}
@@ -108,7 +109,7 @@ export async function recoverDispatchJournal({article,targets,jobs,journal}){
  const next=structuredClone(journal);
  const latest=[...(jobs||[])].sort((a,b)=>b.created-a.created);
  for(const job of latest){
-  if(['cnblogs','typecho','metaweblog','personal-site'].includes(job.platform)){
+  if(apiPublisherPlatforms.includes(job.platform)){
    if(job.currentRevision!==true||job.brandId!==article.brandId||job.contentId!==article.id)continue;
    const target=targets.find(t=>t.platform===job.platform&&t.accountId===job.accountId);if(!target)continue;
    const key=target.key;

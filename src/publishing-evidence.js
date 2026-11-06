@@ -4,10 +4,10 @@ export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入�
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
 export function publishingEvidence(id){
- const browser=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
+ const browser=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site','yuque'].includes(id);
  const tested=['csdn','toutiao','zhihu','douyin'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=id==='juejin'?true:id==='aliyun'?true:id==='51cto'?true:wechat?true:['weibo','sohu','netease','oschina','jianshu','bilibili'].includes(id)?action!=='draft':['segmentfault','baijiahao'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
+  const implemented=id==='juejin'?true:id==='aliyun'?true:id==='51cto'?true:wechat?true:['weibo','sohu','netease','oschina','jianshu','bilibili'].includes(id)?action!=='draft':['segmentfault','baijiahao'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'||id==='yuque'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
   // 小红书已恢复开发，但只有正确账号完成实机核对后才会开放草稿或公开提交。
   const status=!implemented?'not_implemented':passed?'passed':'pending';
@@ -21,6 +21,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='51cto')return {stage:'草稿与提交已实测',note:'Mac 桌面已通过全新两图草稿自动保存与回读；纯文本稿审核后已自动核对匿名全文并显示发布成功。图片稿公开提交仍待实测。'};
  if(id==='tencentcloud')return {stage:'草稿与公开发布已实测',note:'Mac 桌面已自动新建草稿并提交同一篇正式稿；后台已发布，匿名完整正文已核对；r39 已自动核对匿名完整正文并显示发布成功'};
  if(id==='cnblogs')return {stage:'草稿与公开发布已实测',note:'真实账号草稿、公开发布及匿名正文自动核验已通过；每次发送仍须取得自己的回执'};
+ if(id==='yuque')return {stage:'官方 API 已接入 · 待实机验收',note:'客户使用自己的语雀 API Token 和知识库地址连接。连接会核对令牌、当前账号与目标知识库；草稿、公开提交、原任务恢复与匿名公开页全文核对已实现并有自动测试。真实语雀 Token、知识库权限和公开回执尚未验收，不能以代码测试代替。'};
  if(id==='zhihu')return {stage:'草稿与公开发布已实测',note:'已提交真实文章并人工核对公开正文；10月28日修复正文作者提取，原文匹配通过，匿名自动核验仍待通过，产品保持已提交'};
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；10月28日产品只读找回168768477并核对全文，保留禁止重发；当日额度已用完，公开提交仍待验收'};
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};

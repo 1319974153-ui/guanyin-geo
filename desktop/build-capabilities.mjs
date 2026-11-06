@@ -15,7 +15,7 @@ export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(DESKTOP_PUBLIC_CANDIDATES.fi
 export function desktopBuildCapabilities(){
  const catalog=publishingCatalog();
  const publicPublishingPlatforms=catalog.filter(p=>p.actionEvidence.publish.implemented&&(
-  ['wordpress','cnblogs','typecho','metaweblog','personal-site'].includes(p.id)||DESKTOP_PUBLIC_PLATFORMS.includes(p.id)&&PLATFORMS[p.id]&&PLATFORMS[p.id].publishSupported!==false
+  ['wordpress','cnblogs','typecho','metaweblog','personal-site','yuque'].includes(p.id)||DESKTOP_PUBLIC_PLATFORMS.includes(p.id)&&PLATFORMS[p.id]&&PLATFORMS[p.id].publishSupported!==false
  )).map(p=>p.id);
  return {preview:true,publicPublishingEnabled:true,publicPublishingPlatforms,
   draftOnlyPlatforms:Object.entries(PLATFORMS).filter(([id,p])=>p.draftProtocol&&!publicPublishingPlatforms.includes(id)).map(([id])=>id),

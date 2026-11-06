@@ -5,6 +5,7 @@ import {publishingCatalog} from '../src/publishing-catalog.js';
 test('package capability manifest follows actual desktop gates and distinguishes implementation from live acceptance',()=>{
  const c=desktopBuildCapabilities();
  assert.ok(c.publicPublishingPlatforms.includes('metaweblog'));
+ assert.ok(c.publicPublishingPlatforms.includes('yuque'));
  assert.ok(c.draftOnlyPlatforms.includes('juejin'));
  for(const id of ['juejin','toutiao','xiaohongshu','wechat','baijiahao','bilibili','csdn','aliyun','weibo','sohu','netease','oschina','jianshu'])assert.ok(!c.publicPublishingPlatforms.includes(id));
  assert.deepEqual([...DESKTOP_PUBLIC_CANDIDATES],['csdn','zhihu','tencentcloud','51cto','aliyun','douyin','weibo','sohu','netease','oschina','jianshu','bilibili','juejin']);

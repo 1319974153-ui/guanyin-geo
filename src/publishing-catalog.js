@@ -23,10 +23,10 @@ export function publishingCatalog(){
   const wp=id==='wordpress',browser=browserAdapters.has(id),actions=publishingEvidence(id),tested=actions.prepare.liveAcceptance==='passed';
   return {
    id,name,group,referenceIncluded:referencePlatformIds.includes(id),
-   implementation:['cnblogs','typecho','metaweblog','personal-site'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':desktopPersonalBrowser.has(id)?'desktop_personal_browser':browser?'browser_adapter_acceptance':'planned',
-   contentTypes:wp||browser||desktopPersonalBrowser.has(id)||['cnblogs','typecho','metaweblog','personal-site'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
+   implementation:['cnblogs','typecho','metaweblog','personal-site','yuque'].includes(id)?'api_adapter_acceptance':wp?'adapter_available':desktopPersonalBrowser.has(id)?'desktop_personal_browser':browser?'browser_adapter_acceptance':'planned',
+   contentTypes:wp||browser||desktopPersonalBrowser.has(id)||['cnblogs','typecho','metaweblog','personal-site','yuque'].includes(id)?(['douyin','xiaohongshu'].includes(id)?['image_text']:['article']):[],
    plannedContentTypes:['douyin','xiaohongshu'].includes(id)?['image_text']:['article'],
-   connectionMethod:id==='personal-site'?'scoped_ssh':['typecho','metaweblog'].includes(id)?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':wp?'application_password':desktopPersonalBrowser.has(id)?'desktop_personal_browser':browser?'desktop_browser':null,
+   connectionMethod:id==='personal-site'?'scoped_ssh':['typecho','metaweblog'].includes(id)?'xmlrpc_password':id==='cnblogs'?'metaweblog_token':id==='yuque'?'yuque_api_token':wp?'application_password':desktopPersonalBrowser.has(id)?'desktop_personal_browser':browser?'desktop_browser':null,
    acceptance:actions.publish.liveAcceptance==='passed'?'public_acceptance_recorded':wp?'account_verification_required':tested?'identity_and_prepare_tested':actions.identity.implemented?'live_acceptance_pending':'not_implemented',
    ...publishingEvidenceSummary(id,actions),
    actionEvidence:actions,evidenceUpdatedAt:PUBLISHING_EVIDENCE_DATE,

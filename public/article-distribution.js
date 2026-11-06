@@ -30,7 +30,7 @@ function distributionCapabilitySummary(rows,mode){
  const parts=[ready?'可执行 '+ready+' 个账号':'暂无可执行账号'];if(waiting)parts.push('待登录 '+waiting+' 个');if(other)parts.push('需切换操作 '+other+' 个');
  return `<p class="distribution-availability-summary" role="status">当前${esc(distributionActionLabels[mode]||'操作')}：${esc(parts.join(' · '))}</p>`;
 }
-const distributionSelfHostedPlatforms=new Set(['wordpress','cnblogs','typecho','metaweblog','personal-site']);
+const distributionSelfHostedPlatforms=new Set(['wordpress','cnblogs','typecho','metaweblog','personal-site','yuque']);
 const distributionExtensionPlatforms=new Set(['csdn','toutiao','zhihu','douyin','xiaohongshu']);
 function distributionCanConnect(t){
  if(t.implementation==='planned'||!(t.placeholder||!t.accountId||t.loginRequired))return false;
@@ -88,7 +88,7 @@ async function distributionLoad(f){
  const targets=[],errors=[];
  results.slice(0,2).forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
   for(const a of r.value.accounts||[]){
-   if(i===0&&['cnblogs','typecho','metaweblog','personal-site'].includes(a.platform))targets.push({key:a.platform+':'+a.accountId,platform:a.platform,accountId:a.accountId,name:a.username,detail:a.site,modes:[...(a.capabilities?.createDraft?['draft']:[]),...(a.capabilities?.publish?['publish']:[])],status:publishingAccountStates[a.status]||a.status});
+   if(i===0&&['cnblogs','typecho','metaweblog','personal-site','yuque'].includes(a.platform))targets.push({key:a.platform+':'+a.accountId,platform:a.platform,accountId:a.accountId,name:a.username,detail:a.site,modes:[...(a.capabilities?.createDraft?['draft']:[]),...(a.capabilities?.publish?['publish']:[])],status:publishingAccountStates[a.status]||a.status});
    if(i===0&&a.platform==='wordpress')targets.push({key:'wp:'+a.accountId,platform:'wordpress',accountId:a.accountId,name:a.username,detail:a.site,modes:a.status==='verified'?['draft','publish']:a.status==='permission_limited'?['draft']:[],status:publishingAccountStates[a.status]||a.status});
    if(i===1){const loginRequired=a.transport==='desktop'&&a.connectionState!=='connected';targets.push({loginRequired,key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,transport:a.transport,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account&&!loginRequired?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):a.transport==='desktop'?'请先登录账号':'请在连接器核验身份'});}
   }
@@ -268,7 +268,7 @@ document.addEventListener('click',async e=>{
  if(b.hasAttribute('data-distribution-select-all')){const boxes=[...f.querySelectorAll('[data-distribution-target]:not(:disabled)')],select=!boxes.every(x=>x.checked);for(const box of boxes)box.checked=select;distributionUpdate(f);}
  if(b.dataset.distributionConnect){
   const scope=distributionScope();try{b.disabled=true;if(articleEditorDirty()||f.dataset.new==='true'){const saved=await articleEditorSave('save',{reopen:false});if(!saved)return;}if(!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id)return;
-   if(b.dataset.distributionConnect==='personal-site')await personalSiteConfigure();else if(b.dataset.distributionConnect==='metaweblog')await metaweblogConfigure();else if(b.dataset.distributionConnect==='typecho')await typechoConfigure();else if(b.dataset.distributionConnect==='cnblogs')await cnblogsConfigure();else if(b.dataset.distributionConnect==='wordpress')await publishingCenterAction('publishing-account-add',b);else await browserPublisherAction('browser-publisher-pair',{dataset:{platform:b.dataset.distributionConnect,contentId:f.dataset.id}});
+   if(b.dataset.distributionConnect==='personal-site')await personalSiteConfigure();else if(b.dataset.distributionConnect==='metaweblog')await metaweblogConfigure();else if(b.dataset.distributionConnect==='typecho')await typechoConfigure();else if(b.dataset.distributionConnect==='cnblogs')await cnblogsConfigure();else if(b.dataset.distributionConnect==='yuque')await yuqueConfigure();else if(b.dataset.distributionConnect==='wordpress')await publishingCenterAction('publishing-account-add',b);else await browserPublisherAction('browser-publisher-pair',{dataset:{platform:b.dataset.distributionConnect,contentId:f.dataset.id}});
   }catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}
  }
  if(b.dataset.distributionOpenOriginal){try{b.disabled=true;await distributionOpenOriginal(f,b.dataset.distributionOpenOriginal)}catch(error){if(f.isConnected)f.querySelector('[data-distribution-error]').textContent=error.message}finally{b.disabled=false}}
