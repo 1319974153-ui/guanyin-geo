@@ -153,6 +153,20 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  const plain=html=>new DOMParser().parseFromString(html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html').body.textContent.replace(/\s+/g,' ').trim();
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&(platform==='douyin'?bodyContent(editor):text(editor))===expected;
+ // SegmentFault's editor may save asynchronously after a short idle period.
+ // This is deliberately a read-only observation: a visible notice is useful
+ // progress feedback, but it is not a durable draft ID or a publish receipt.
+ if(action==='autosave-observation'){
+  if(platform!=='segmentfault')fail('此平台尚未接入自动保存观察');
+  if(!matches())fail('编辑器正文已变化，未观察自动保存状态');
+  await wait(4500);
+  if(!matches())fail('等待自动保存时正文已变化，未登记状态');
+  const known=new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功']);
+  const notices=many('[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"]')
+   .filter(e=>!e.closest('[contenteditable],article,aside')&&known.has(text(e)));
+  if(notices.length!==1)return {...evidence,contentVerified:true,autosaveObserved:false};
+  return {...evidence,contentVerified:true,autosaveObserved:true,autosaveStatus:'visible_autosave_notice'};
+ }
  if(platform==='douyin'&&action==='fill-body'){if(text(title)!==article.title.trim()||bodyContent(editor)||editor.querySelector('img,video,iframe'))fail('标题未完整填写或原正文非空，未覆盖');editor.focus();return {nativeInsertText:article.text.replace(/\s+/g,' ').trim()};}
  if(platform==='douyin'&&action==='temporary-save'){
   if(location.pathname!=='/creator-micro/content/post/image'||!matches())fail('原图文标题正文已变化，未暂存');

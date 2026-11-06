@@ -269,6 +269,10 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const p=b.preparation;let u;try{u=new URL(p?.editorUrl)}catch{fail(400,'缺少有效编辑页网址')}
      if(preparationEditorUrl(j.platform||'csdn',u.href)!==u.href||p.accountId!==j.accountId||p.sourceHash!==j.sourceHash)fail(400,'填稿回执的平台、账号或稿件不匹配');
      preparation={editorUrl:u.href,accountId:j.accountId,sourceHash:j.sourceHash,observedAt:clock(),verification:'editor_content_match',savedVerified:false};
+     if(Object.hasOwn(p,'autosaveObserved')||Object.hasOwn(p,'autosaveStatus')){
+      if(j.platform!=='segmentfault'||j.mode!=='prepare'||p.autosaveObserved!==true||p.autosaveStatus!=='visible_autosave_notice')fail(400,'自动保存观察回执不完整');
+      Object.assign(preparation,{autosaveObserved:true,autosaveStatus:'visible_autosave_notice',verification:'editor_content_match_and_visible_autosave'});
+     }
      if(p.temporaryVerified===true){
       if(j.platform!=='douyin'||j.mode!=='prepare'||p.verification!=='temporary_reopened_content'||!j.media?.length||p.mediaCount!==j.media.length||u.pathname!=='/creator-micro/content/post/image')fail(400,'暂存重开回执不完整');
       Object.assign(preparation,{temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:p.mediaCount,storageScope:'current_device'});

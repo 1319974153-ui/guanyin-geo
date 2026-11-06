@@ -78,6 +78,7 @@ test('blog API connection is visible, while only a connected draft-capable accou
 test('confirmed publish, draft, submission and failure remain separate in cards and totals',()=>{
  const x=fixture();const states=['published','draft','submitted','uncertain','prepared'];
  assert.equal(x.g.distributionSummary(states.map(state=>({state}))),'发布成功 1 个 · 草稿已保存 1 个 · 已提交，待确认 1 个 · 结果待确认 1 个 · 已填稿，未发布 1 个');
+ assert.equal(x.g.distributionSummary([{state:'prepared',preparation:{autosaveObserved:true}}]),'已观察到平台自动保存，待草稿箱核对 1 个');
  assert.equal(x.g.distributionTone({state:'published'}),'success');
  for(const state of states.slice(1))assert.notEqual(x.g.distributionTone({state}),'success');
 });

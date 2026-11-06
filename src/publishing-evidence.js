@@ -1,5 +1,5 @@
 // Product acceptance evidence only. Never used to grant an account permission.
-export const PUBLISHING_EVIDENCE_DATE='2026-11-05';
+export const PUBLISHING_EVIDENCE_DATE='2026-11-06';
 export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入编辑器',draft:'平台草稿',publish:'公开提交'};
 export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
 const receipt='docs/全平台发布接入计划.md';
@@ -24,6 +24,7 @@ export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
  if(id==='zhihu')return {stage:'草稿与公开发布已实测',note:'已提交真实文章并人工核对公开正文；10月28日修复正文作者提取，原文匹配通过，匿名自动核验仍待通过，产品保持已提交'};
  if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；10月28日产品只读找回168768477并核对全文，保留禁止重发；当日额度已用完，公开提交仍待验收'};
  if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
+ if(id==='segmentfault')return {stage:'自动保存观察已接入 · 待实机验收',note:'思否在填入编辑器后会等待并只读取一个可见的自动保存提示；该提示仅表示本次页面观察，未取得草稿编号、草稿箱记录或重新打开的完整正文。产品不会因此标为“草稿已保存”，也不会开放公开提交。'};
  if(id==='douyin')return {stage:'暂存与公开发布已实测',note:'Mac 桌面两图稿自动填入、设备暂存与重开通过；经本人短信验证后公开提交成功，原任务自动回收编号并匿名核对完整正文。未取得云端草稿编号；遇平台验证仍需本人处理。'};
  if(id==='wechat')return {stage:'官方窗口流程已接入 · 原任务可恢复 · 待实测',note:'个人主体在隔离的公众号官方窗口登录一次后，观引会自动打开图文编辑器、填入标题正文，并请求保存草稿或发表。保存或发表前会登记唯一原任务；中断、页面记录丢失、本人验证或重启后，只会恢复同一篇已审核稿，不会新建任务或重复点击发表。已有不同标题或正文的编辑器会停止，不会覆盖；正文里出现“发布成功”“验证码”等文字也不会被误当作平台回执。页面反馈会回写为“草稿已保存、已提交待确认或需要本人验证”。不读取 Cookie、不代做验证；真实账号草稿、发表及公开链接回执仍待验收。'};
  if(id==='personal-site')return {stage:'官网草稿与发布已实测',note:'Mac 桌面已通过真实官网草稿、公开发布与匿名正文核验；需管理员先绑定受限发布端，其他网站与操作系统须单独验收。'};

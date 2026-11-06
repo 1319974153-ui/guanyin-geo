@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 const fixtureJob={id:'job',lease:'lease',mode:'publish',accountId:'author',sourceHash:'hash',tags:['技术'],snapshot:{title:'文章',html:'<p>正文</p>'}};
 async function fixture(t,options={}){
  const originalChrome=globalThis.chrome,originalFetch=globalThis.fetch;
- let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],opened=[],stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
+ let handler,alarm,installed,startup,polling=options.existingAlarm?{name:'publisher'}:null,alarmCreates=0,clicks=0,lostReport=false,committed=false;const actions=[],requests=[],opened=[],fixtureEditor=options.platform==='segmentfault'?'https://segmentfault.com/write':'https://mp.csdn.net/mp_blog/creation/editor',stored={editorTab:options.editorTab,connection:{origin:'http://127.0.0.1:58729',instance:'instance',token:'fixture-token'},...(options.inflight?{inflight:{job:{...fixtureJob,mode:options.mode||'publish'},tabId:1}}:{})};
  if(options.platform){stored.connections={[options.platform]:stored.connection};if(options.inflight)stored.inflightByPlatform={[options.platform]:stored.inflight};}
  globalThis.chrome={storage:{local:{async setAccessLevel(){if(options.storageFailure)throw new Error('failed')},async get(key){return Array.isArray(key)?Object.fromEntries(key.map(k=>[k,stored[k]])):{[key]:stored[key]}},async set(value){Object.assign(stored,value)},async remove(key){delete stored[key]}}},runtime:{id:'extension',getURL:p=>'chrome-extension://extension/'+p,onMessage:{addListener:h=>handler=h},onStartup:{addListener:h=>startup=h},onInstalled:{addListener:h=>installed=h}},alarms:{async get(){return polling},async create(){alarmCreates++;polling={name:'publisher'}},onAlarm:{addListener:h=>alarm=h}},tabs:{async get(id){actions.push('get-tab');if(options.missingTab)throw new Error('No tab with id: '+id);return options.sameTabDraft&&id===2?{id:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}:{id}},async create({url}){opened.push(url);actions.push(url.includes('/manage/draft')?'draft-list-tab':'new-tab');return{id:url.includes('/manage/draft')?2:options.csdnLookup?(url.includes('/manage/article')?2:url.endsWith('/123')?3:1):1}},async query(filter){assert.deepEqual(filter,{url:'https://mp.toutiao.com/profile_v4/graphic/publish*'});actions.push('query-owned-tabs');return options.sameTabDraft?[]:options.ambiguousChildren?[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'},{id:4,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=124'}]:[{id:3,openerTabId:2,url:'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123'}]}},scripting:{async executeScript({args,target}){
   const action=args[0].action;actions.push(action);
   if(action==='identity'&&Object.hasOwn(options,'identityResult'))return[{result:options.identityResult}];
-  if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='identity')return[{result:{accountId:'author',name:'作者',editorReady:true,evidenceUrl:fixtureEditor}}];
   if(action==='draft-list-inspect'&&options.platform==='toutiao')return[{result:{accountId:options.wrongListAccount?'other':'author',matched:true}}];
   if(action==='draft-list-inspect'&&options.csdnLookup)return[{result:{accountId:'author',url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',draftListed:true}}];
   if(action==='draft-receipt'&&options.csdnLookup&&target.tabId!==3)return[{result:null}];
@@ -16,7 +16,8 @@ async function fixture(t,options={}){
   if(action==='draft-location')return[{result:{accountId:'author',url:'https://mp.toutiao.com/profile_v4/manage/draft',contentVerified:true}}];
   if(action==='draft-receipt'&&options.locateDraft&&target.tabId!==(options.sameTabDraft?2:3))return[{result:options.blankOriginal?{connectorError:'草稿正文或标题与已确认版本不同'}:null}];
   if(action==='draft-receipt')return[{result:options.draftError?{connectorError:'正文已变化'}:{url:options.platform==='csdn'?'https://mp.csdn.net/mp_blog/creation/editor/123':options.platform==='toutiao'?'https://mp.toutiao.com/profile_v4/graphic/publish?pgc_id=123':'https://zhuanlan.zhihu.com/p/123/edit',articleId:'123',accountId:'author',savedVerified:true,contentVerified:true,...(options.csdnLookup?{verification:'draft_list_and_reopened_content'}:{})}}];
-  if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:'https://mp.csdn.net/mp_blog/creation/editor'}}];
+  if(action==='prepared')return[{result:options.preparedError?{connectorError:'原稿已变化'}:{accountId:'author',contentVerified:true,evidenceUrl:fixtureEditor}}];
+  if(action==='autosave-observation')return[{result:{accountId:'author',contentVerified:true,evidenceUrl:fixtureEditor,autosaveObserved:true,autosaveStatus:'visible_autosave_notice'}}];
   if(action==='fill'&&options.partialFillError)return[{result:{connectorError:'填入部分内容后失败'}}];
   if(action==='submit')clicks++;
   if(action==='receipt')return[{result:options.receipt||null}];
@@ -46,6 +47,9 @@ test('lost commit response is not retried; restart/alarm reconciles without open
 });
 test('preparation mode never commits or clicks publish',async t=>{
  const f=await fixture(t,{mode:'prepare'});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(!f.actions.includes('preflight'));assert.equal(f.stored.inflight,undefined);
+});
+test('SegmentFault preparation observes autosave without ever requesting a commit',async t=>{
+ const f=await fixture(t,{mode:'prepare',platform:'segmentfault'});await f.send('run','segmentfault');assert.equal(f.clicks,0);assert.ok(f.actions.includes('autosave-observation'));assert.ok(!f.requests.includes('commit'));assert.equal(f.stored.inflight,undefined);
 });
 test('preflight failure reports need for user action without a write fallback',async t=>{
  const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(f.stored.inflight);assert.match(f.stored.status,/表单不匹配/);

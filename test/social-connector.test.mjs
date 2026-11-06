@@ -16,6 +16,7 @@ function fixture(platform,options={}){
  const doc={querySelectorAll(s){
   if(s==='[role="combobox"]')return options.aiCombo?[combo]:[];
   if(s==='[role="option"],li')return options.aiCombo?Array.from({length:options.duplicateAI?2:1},()=>element(options.aiResponsibility?'包含 AI 辅助创作 作者对内容负责':'包含 AI 辅助创作',{click(){declaration='包含 AI 辅助创作'}})):[];
+  if(s==='[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"]')return (options.autosaveStatus||[]).map(v=>element(v,{closest:()=>options.autosaveInBody?bodyEl:null}));
   if(s==='[role="alert"],[role="status"],[class*="message"],[class*="toast"]')return options.saveFailure?[element('保存失败',{closest:()=>options.failureInBody?bodyEl:null})]:[];
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
@@ -77,6 +78,17 @@ test('SegmentFault reads the signed-in identity from its rendered Next session s
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'思否验收账号');
  assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
  const missing=fixture('segmentfault');assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
+test('SegmentFault observes exactly one outside-editor autosave notice without claiming a draft',async()=>{
+ const signed={sessionUsers:[{id:'author',name:'思否验收账号'}]},f=fixture('segmentfault',{...signed,autosaveStatus:['已自动保存']});
+ const raw=await f.run('autosave-observation'),preparation=preparationEvidence('segmentfault',raw);
+ assert.equal(raw.contentVerified,true);assert.equal(raw.autosaveObserved,true);assert.equal(raw.autosaveStatus,'visible_autosave_notice');
+ assert.equal(preparation.autosaveObserved,true);assert.equal(preparation.savedVerified,undefined);assert.equal(draftEvidence('segmentfault',{...raw,savedVerified:true}),null);assert.equal(f.clicks,0);
+ for(const options of [{...signed},{...signed,autosaveStatus:['已自动保存','自动保存成功']},{...signed,autosaveStatus:['已自动保存'],autosaveInBody:true},{...signed,autosaveStatus:['保存成功']}] ){
+  const observed=await fixture('segmentfault',options).run('autosave-observation');assert.equal(observed.autosaveObserved,false);
+ }
+ const changed=fixture('segmentfault',{...signed,autosaveStatus:['已自动保存']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
+ assert.equal(preparationEvidence('segmentfault',{...raw,autosaveStatus:'unknown'}).autosaveObserved,undefined);
 });
 test('OSCHINA reads only the signed-in profile link and never exposes a submit control',async()=>{
  const f=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});
