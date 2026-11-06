@@ -5,7 +5,14 @@ contextBridge.exposeInMainWorld('guanyinDesktop',Object.freeze({
  wechatPersonalPublish:input=>ipcRenderer.invoke('guanyin:wechat-personal-publish',input),
  wechatPersonalResume:input=>ipcRenderer.invoke('guanyin:wechat-personal-resume',input),
  wechatPersonalLogin:()=>ipcRenderer.invoke('guanyin:wechat-personal-login'),
+ wechatPersonalLoginState:()=>ipcRenderer.invoke('guanyin:wechat-personal-login-state'),
  wechatPersonalTask:()=>ipcRenderer.invoke('guanyin:wechat-personal-task'),
+ onWechatPersonalLoginStatus:listener=>{
+  if(typeof listener!=='function')throw new TypeError('listener must be a function');
+  const receive=(_event,value)=>listener(value);
+  ipcRenderer.on('guanyin:wechat-personal-login-status',receive);
+  return()=>ipcRenderer.removeListener('guanyin:wechat-personal-login-status',receive);
+ },
  onWechatPersonalStatus:listener=>{
   if(typeof listener!=='function')throw new TypeError('listener must be a function');
   const receive=(_event,value)=>listener(value);

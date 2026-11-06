@@ -15,7 +15,7 @@ import {LOGIN_RATE_LIMIT_MESSAGE,LOGIN_EXPIRED_MESSAGE,connectionFailureState} f
 import {trustedFrame,connectionInput,targetInput} from './security.mjs';
 import {installQuitFlow} from './quit-flow.mjs';
 import {desktopDataRoot} from './data-root.mjs';
-import {wechatPersonalCommand,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
+import {wechatPersonalCommand,wechatPersonalLoginPage,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
 import {WECHAT_PERSONAL_PARTITION,persistWechatPersonalSession} from './wechat-personal-session.mjs';
 import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive,wechatPersonalTaskSummary} from './wechat-personal-task.mjs';
 import {resumePendingWechatPersonalTask} from './wechat-personal-startup.mjs';
@@ -25,6 +25,7 @@ app.userAgentFallback=asciiProductUserAgent(app.userAgentFallback);
 const dataRoot=desktopDataRoot({args:process.argv,env:process.env,isPackaged:app.isPackaged,appData:app.getPath('appData')});
 fs.mkdirSync(dataRoot,{recursive:true,mode:0o700});app.setPath('userData',dataRoot);
 let main,service,origin,stopping=false,sequence=0,pollTimer;const pending=new Map(),controllers=new Map();let wechatPersonalWindow,wechatPersonalLoginWindow,wechatPersonalTimer,wechatPersonalSession,wechatPersonalFlush,wechatPersonalTaskId='';
+let wechatPersonalLoginState={state:'unknown',message:'公众号尚未完成本次应用内登录检查',checkedAt:0};
 const upcomingPlatform=platformPreview({BrowserWindow,session});
 const bindMainQuit=installQuitFlow({app,getMain:()=>main,confirmDiscard:win=>dialog.showMessageBoxSync(win,{type:'question',title:'退出观引',message:'当前页面有未保存的修改。',detail:'继续编辑可先保存；退出只会放弃当前页面尚未保存的修改，已保存的稿件、账号和回执保留。',buttons:['继续编辑','放弃修改并退出'],defaultId:0,cancelId:0})===1,shutdown:stopService});
 if(!app.requestSingleInstanceLock()){app.quit()}else{
@@ -56,6 +57,7 @@ async function start(){
  bind('wechat-personal-publish',async input=>openWechatPersonalPublisher(input));
  bind('wechat-personal-resume',async input=>resumeWechatPersonalPublisher(input));
  bind('wechat-personal-login',async()=>openWechatPersonalLogin());
+ bind('wechat-personal-login-state',async()=>wechatPersonalLoginState);
  bind('wechat-personal-task',async()=>wechatPersonalTaskSummary(dataRoot));
  bind('wake',async()=>{void poll();return {ok:true}});
  bindMainQuit(main);await main.loadURL(origin+'/#today');
@@ -94,18 +96,33 @@ function secureWechatPersonalWindow(win){
  wc.on('will-attach-webview',e=>e.preventDefault());wc.setWindowOpenHandler(({url})=>wechatPersonalUrlAllowed(url)?{action:'allow'}:{action:'deny'});
  return wc;
 }
+function setWechatPersonalLoginState(value){
+ const state=['unknown','waiting_login','connected'].includes(value?.state)?value.state:'unknown';
+ const messages={unknown:'公众号尚未完成本次应用内登录检查',waiting_login:'请在公众号官方窗口完成登录',connected:'已进入公众号官方管理页；登录状态仅保存在本机'};
+ const next={state,message:messages[state],checkedAt:Date.now()};
+ const changed=next.state!==wechatPersonalLoginState.state||next.message!==wechatPersonalLoginState.message;
+ wechatPersonalLoginState=next;
+ if(changed&&main&&!main.isDestroyed())main.webContents.send('guanyin:wechat-personal-login-status',next);
+ return next;
+}
+async function observeWechatPersonalLogin(wc){
+ if(!wc||wc.isDestroyed()||!wechatPersonalUrlAllowed(wc.getURL())||wc.isLoadingMainFrame())return wechatPersonalLoginState;
+ try{return setWechatPersonalLoginState(await wc.executeJavaScript('('+wechatPersonalLoginPage.toString()+')()',true))}catch{return wechatPersonalLoginState}
+}
 async function openWechatPersonalLogin(){
  // A first-party login window is deliberately separate from a content task.
  // It shares only the isolated local partition, so a later article can reuse
  // the completed platform login without treating that login as a publication.
  if(wechatPersonalLoginWindow&&!wechatPersonalLoginWindow.isDestroyed()){
-  wechatPersonalLoginWindow.show();wechatPersonalLoginWindow.focus();return {state:'waiting_login',message:'公众号登录窗口已打开；完成登录后可回到观引勾选公众号'};
+  wechatPersonalLoginWindow.show();wechatPersonalLoginWindow.focus();void observeWechatPersonalLogin(wechatPersonalLoginWindow.webContents);return wechatPersonalLoginState;
  }
  const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号登录',webPreferences:{session:wechatPersonalBrowserSession(),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
  wechatPersonalLoginWindow=win;const wc=secureWechatPersonalWindow(win);
  win.on('closed',()=>{wechatPersonalLoginWindow=null;void flushWechatPersonalSession().catch(()=>{})});
+ setWechatPersonalLoginState({state:'waiting_login'});
+ wc.on('did-finish-load',()=>void observeWechatPersonalLogin(wc));wc.on('did-stop-loading',()=>void observeWechatPersonalLogin(wc));
  await wc.loadURL('https://mp.weixin.qq.com/');
- return {state:'waiting_login',message:'公众号官方登录窗口已打开；完成扫码或安全验证后，登录状态仅保存在本机'};
+ return wechatPersonalLoginState;
 }
 async function openWechatPersonalTask(task){
  if(wechatPersonalWindow&&!wechatPersonalWindow.isDestroyed()){
@@ -126,6 +143,8 @@ async function openWechatPersonalTask(task){
   busy=true;try{
    let result=await wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify({...current,dispatch:false})+')',true);
    notify(result);
+   if(['ready_to_request','requesting','waiting_receipt','draft_requested','publish_requested','draft_saved','publish_submitted'].includes(result?.state))setWechatPersonalLoginState({state:'connected'});
+   if(result?.state==='verification_required')setWechatPersonalLoginState({state:'waiting_login'});
    if(result?.state==='ready_to_request'&&!current.requested){
     // Persist the protection before clicking. If the app stops now, later
     // recovery only reads the retained page instead of repeating a request.

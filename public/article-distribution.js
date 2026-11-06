@@ -10,11 +10,11 @@ function distributionPlatformRows(platforms,targets){
  const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
  return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
 }
-function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.platform==='wechat'&&t.transport==='desktop_personal'?'官方窗口登录后自动处理':t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.platform==='wechat'&&t.transport==='desktop_personal'?(t.loginRequired?(t.taskId?'请登录后继续原任务':'需要登录'):'官方窗口登录后自动处理'):t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
 function distributionPlatformRow(f,t,mode,selected){
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
-  const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
+  const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','wechat','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
 }
 function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){
@@ -44,20 +44,28 @@ function distributionUpdate(f){
  f.querySelector('.distribution-tags').hidden=!selected.some(t=>t.platform==='csdn');f.querySelector('.distribution-media').hidden=!selected.some(t=>['douyin','xiaohongshu','51cto'].includes(t.platform));
  f.querySelector('[data-distribution-hint]').textContent=!selected.length?'勾选可用平台后点击发布；未连接的平台可先连接账号。':!canReview&&!reviewed?'稿件尚未审核，请先保存并提交审核。':!Object.values(allowed).some(Boolean)?'所选账号没有共同的发送方式，请按支持的操作分批选择。':mode.value==='prepare'?'当前选择只填入编辑器，仍需在平台提交；不会登记为已发布或已保存平台草稿。':mode.value==='draft'?'保存到所选平台的草稿箱，不公开文章。':'点击发布即确认当前稿件、来源和 AI 声明。每个平台单独显示结果。';
 }
+function distributionWechatTarget(login={},task=null){
+ if(!window.guanyinDesktop?.wechatPersonalPublish)return null;
+ const connected=login?.state==='connected',taskId=/^gy-[a-f0-9]{64}$/.test(task?.taskId||'')?task.taskId:'';
+ if(!connected&&!taskId)return null;
+ return {key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',detail:'个人主体',transport:'desktop_personal',taskId,loginRequired:!connected,modes:connected?['draft','publish']:[],status:connected?'官方窗口登录后自动处理':'需要登录'};
+}
 async function distributionLoad(f){
  if(!f?.isConnected)return;const scope=distributionScope(),box=f.querySelector('[data-distribution-accounts]');f.distributionScope=scope;
  const selected=new Set(distributionSelected(f).map(t=>t.key));box.innerHTML='<p role="status">正在读取账号…</p>';
- const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]}),window.guanyinDesktop?.wechatPersonalTask?window.guanyinDesktop.wechatPersonalTask():Promise.resolve(null)];
+ const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]}),window.guanyinDesktop?.wechatPersonalTask?window.guanyinDesktop.wechatPersonalTask():Promise.resolve(null),window.guanyinDesktop?.wechatPersonalLoginState?window.guanyinDesktop.wechatPersonalLoginState():Promise.resolve({state:'unknown'})];
  const results=await Promise.allSettled(requests);if(!f.isConnected||scope!==distributionScope())return;
  const targets=[],errors=[];
- results.forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
+ results.slice(0,2).forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
   for(const a of r.value.accounts||[]){
    if(i===0&&['cnblogs','typecho','metaweblog','personal-site'].includes(a.platform))targets.push({key:a.platform+':'+a.accountId,platform:a.platform,accountId:a.accountId,name:a.username,detail:a.site,modes:[...(a.capabilities?.createDraft?['draft']:[]),...(a.capabilities?.publish?['publish']:[])],status:publishingAccountStates[a.status]||a.status});
    if(i===0&&a.platform==='wordpress')targets.push({key:'wp:'+a.accountId,platform:'wordpress',accountId:a.accountId,name:a.username,detail:a.site,modes:a.status==='verified'?['draft','publish']:a.status==='permission_limited'?['draft']:[],status:publishingAccountStates[a.status]||a.status});
    if(i===1){const loginRequired=a.transport==='desktop'&&a.connectionState!=='connected';targets.push({loginRequired,key:a.platform+':'+a.id,platform:a.platform,sessionId:a.id,transport:a.transport,accountId:a.account?.accountId,name:a.account?.name||'尚未核验账号',detail:browserPlatformNames[a.platform]||a.platform,modes:a.account&&!loginRequired?(a.modes||['prepare']):[],status:a.account?(a.modes?.includes('publish')?'可执行发布 · 验收开关':a.modes?.includes('draft')?'可保存平台草稿':'可填入 · 平台验收中'):a.transport==='desktop'?'请先登录账号':'请在连接器核验身份'});}
   }
  });
- if(window.guanyinDesktop?.wechatPersonalPublish)targets.push({key:'wechat:personal-browser',platform:'wechat',accountId:'personal-browser',name:'公众号浏览器',detail:'个人主体',transport:'desktop_personal',modes:['draft','publish'],status:'官方窗口登录后自动处理'});
+ if(results[2].status==='rejected')errors.push('公众号原任务读取失败：'+results[2].reason.message);
+ if(results[3].status==='rejected')errors.push('公众号登录状态读取失败：'+results[3].reason.message);
+ const wechat=distributionWechatTarget(results[3].status==='fulfilled'?results[3].value:null,results[2].status==='fulfilled'?results[2].value:null);if(wechat)targets.push(wechat);
  f.distributionTargets=targets;f.distributionRemoteJobs=[...(results[1].status==='fulfilled'?results[1].value.jobs||[]:[]),...(results[0].status==='fulfilled'?results[0].value.receipts||[]:[])];
  f.distributionCatalog=results[0].status==='fulfilled'?results[0].value.platforms||[]:[];f.distributionLoadErrors=errors;
  distributionRenderTargets(f,selected);
@@ -161,6 +169,7 @@ function distributionWatch(f){
  });f.distributionWatcher.start();
 }
 for(const event of ['visibilitychange','online'])window.addEventListener(event,()=>{for(const f of document.querySelectorAll('[data-article-editor]'))f.distributionWatcher?.wake()});
+if(window.guanyinDesktop?.onWechatPersonalLoginStatus)window.guanyinDesktop.onWechatPersonalLoginStatus(()=>{for(const f of document.querySelectorAll?.('[data-article-editor]')||[])if(f.isConnected&&!f.distributionBusy)void distributionLoad(f)});
 async function distributionRestore(f){
  const record=distributionArticle(f);if(!record||articleEditorDirty())return;const epoch=f.distributionEpoch=(f.distributionEpoch||0)+1;distributionStopWatch(f);const c={...record,media:f.distributionMediaFiles||[]};
  const scope=distributionScope(),key=await distributionKey(c,scope);if(!f.isConnected||scope!==distributionScope()||epoch!==f.distributionEpoch||articleEditorDirty())return;

@@ -63,6 +63,12 @@ test('desktop account list only shows connected accounts while WeChat stays in t
  assert.doesNotMatch(directory,/公众号稿件/);
 });
 
+test('an observed official WeChat dashboard turns the personal account into a normal connected row',()=>{
+ const {ctx}=ui();vm.runInContext("desktopWechatLoginState={state:'connected',message:'已进入公众号官方管理页'}",ctx);
+ const html=vm.runInContext("desktopAccountTable({accounts:[]})",ctx);
+ assert.match(html,/微信公众号/);assert.match(html,/已进入官方管理页/);assert.match(html,/打开公众号/);
+});
+
 test('desktop WeChat first-login opens the official session without creating a generic platform connection',async()=>{
  const {ctx,calls}=ui();let opened=0;
  ctx.window.guanyinDesktop={available:true,wechatPersonalLogin:async()=>{opened++},connect:async()=>{throw Error('公众号不应创建通用发布连接')}};

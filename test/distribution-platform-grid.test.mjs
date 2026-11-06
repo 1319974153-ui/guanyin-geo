@@ -132,6 +132,16 @@ test('a connected desktop personal WeChat publisher is a normal selectable publi
  assert.doesNotMatch(x.html(),/data-distribution-wechat/);
 });
 
+test('personal WeChat stays out of the normal account grid until the official dashboard is observed, except for an original task that must be recovered',()=>{
+ const x=fixture();x.g.window.guanyinDesktop={wechatPersonalPublish:async()=>{}};
+ assert.equal(x.g.distributionWechatTarget({state:'waiting_login'},null),null);
+ const connected=x.g.distributionWechatTarget({state:'connected'},null);
+ assert.equal(connected.loginRequired,false);assert.deepEqual([...connected.modes],['draft','publish']);
+ const recovering=x.g.distributionWechatTarget({state:'waiting_login'},{taskId:'gy-'+'b'.repeat(64)});
+ assert.equal(recovering.loginRequired,true);assert.deepEqual([...recovering.modes],[]);
+ assert.equal(x.g.distributionPlatformStatus(recovering,'publish'),'请登录后继续原任务');
+});
+
 test('a personal WeChat result can reopen only its recorded original task',()=>{
  const x=fixture();x.g.window.guanyinDesktop={wechatPersonalResume:async()=>{}};
  const active={id:'gy-'+'a'.repeat(64),platform:'wechat',transport:'desktop_personal',state:'needs_attention'};

@@ -19,6 +19,27 @@ export function wechatPersonalCommand(input={}){
  return taskId?{title,html,mode,taskId}:{title,html,mode};
 }
 
+// This is deliberately a small, visible-page login observation rather than a
+// cookie or account-data read. A normal dashboard control is enough to make
+// the account available in the workbench; a QR/SMS/slider prompt always wins.
+export function wechatPersonalLoginPage(){
+ const text=value=>String(value?.innerText||value?.textContent||'').replace(/\s+/g,' ').trim();
+ const all=selector=>[...document.querySelectorAll(selector)];
+ const visible=node=>{
+  if(!node||node.getAttribute?.('aria-hidden')==='true')return false;
+  if(typeof node.getClientRects==='function'&&!node.getClientRects().length)return false;
+  const style=globalThis.getComputedStyle?.(node);return style?.display!=='none'&&style?.visibility!=='hidden';
+ };
+ if(location.origin!=='https://mp.weixin.qq.com')return {state:'waiting_login',message:'公众号窗口尚未进入官方管理页'};
+ const verification=all('input[placeholder*="验证码"],input[name*="verify"],input[name*="captcha"],iframe[src*="captcha"],iframe[src*="verify"],.geetest_panel,.yidun_modal,[class*="captcha"],[class*="Captcha"],[class*="verify"],[class*="Verify"]').some(node=>visible(node));
+ if(verification)return {state:'waiting_login',message:'公众号要求本人完成扫码、短信或安全验证'};
+ const dashboardLabels=new Set(['新建图文','新建文章','写文章','图文消息','发表内容','新建群发','草稿箱','素材管理']);
+ const dashboard=all('button,a,[role="button"]').some(node=>visible(node)&&dashboardLabels.has(text(node)));
+ return dashboard
+  ?{state:'connected',message:'已进入公众号官方管理页；登录状态仅保存在本机'}
+  :{state:'waiting_login',message:'请在公众号官方窗口完成登录'};
+}
+
 // This function is injected only from the signed desktop bundle, never from
 // IPC or page text. It reports an observed UI state; it never pretends a toast
 // or a click is a public receipt.

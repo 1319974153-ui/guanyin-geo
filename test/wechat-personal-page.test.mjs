@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {wechatPersonalPage} from '../desktop/wechat-personal-publisher.mjs';
+import {wechatPersonalLoginPage,wechatPersonalPage} from '../desktop/wechat-personal-publisher.mjs';
 
 const strip=value=>String(value||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
 
@@ -47,6 +47,16 @@ function fixture({title='',body='',notices=[],verification=[]}={}){
  return {input,editor,run};
 }
 
+function loginFixture({controls=[],verification=[]}={}){
+ const document={querySelectorAll(selector){
+  if(selector.startsWith('input[placeholder*="验证码"]'))return verification;
+  if(selector==='button,a,[role="button"]')return controls;
+  return [];
+ }};
+ const context=vm.createContext({document,location:{hostname:'mp.weixin.qq.com',origin:'https://mp.weixin.qq.com'},getComputedStyle:()=>({display:'block',visibility:'visible'})});
+ return ()=>vm.runInContext('('+wechatPersonalLoginPage.toString()+')()',context);
+}
+
 test('WeChat article text that mentions a successful publication is not mistaken for a platform receipt',async()=>{
  const f=fixture();
  const result=await f.run({title:'测试稿',html:'<p>发布成功前，需要先核对正文。</p>',mode:'publish',dispatch:false});
@@ -79,6 +89,12 @@ test('WeChat requires a real verification control or a visible notice, not artic
  const f=fixture({verification:[notice('验证码输入')]});
  const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'draft',dispatch:false});
  assert.equal(result.state,'verification_required');
+});
+
+test('WeChat login becomes available only after a visible official dashboard control, and verification keeps it pending',()=>{
+ const pending=loginFixture();assert.equal(pending().state,'waiting_login');
+ const connected=loginFixture({controls:[notice('新建图文')]});assert.deepEqual({...connected()},{state:'connected',message:'已进入公众号官方管理页；登录状态仅保存在本机'});
+ const verification=loginFixture({controls:[notice('新建图文')],verification:[notice('验证码')]});assert.equal(verification().state,'waiting_login');
 });
 
 function factory(options){return fixture(options);}
