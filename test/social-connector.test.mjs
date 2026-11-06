@@ -16,7 +16,7 @@ function fixture(platform,options={}){
  const doc={querySelectorAll(s){
   if(s==='[role="combobox"]')return options.aiCombo?[combo]:[];
   if(s==='[role="option"],li')return options.aiCombo?Array.from({length:options.duplicateAI?2:1},()=>element(options.aiResponsibility?'包含 AI 辅助创作 作者对内容负责':'包含 AI 辅助创作',{click(){declaration='包含 AI 辅助创作'}})):[];
-  if(s==='[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"]')return (options.autosaveStatus||[]).map(v=>element(v,{closest:()=>options.autosaveInBody?bodyEl:null}));
+  if(s.includes('[class*="autosave"]')&&s.includes('[class*="message"]'))return (options.autosaveStatus||[]).map(v=>element(v,{closest:()=>options.autosaveInBody?bodyEl:null}));
   if(s==='[role="alert"],[role="status"],[class*="message"],[class*="toast"]')return options.saveFailure?[element('保存失败',{closest:()=>options.failureInBody?bodyEl:null})]:[];
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
@@ -105,6 +105,19 @@ test('OSCHINA reads only the signed-in profile link and never exposes a submit c
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
  assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
  const missing=fixture('oschina',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
+test('OSCHINA uses only the current ai-write editor and observes one exact save-success notice',async()=>{
+ const signed={profileUrl:'https://my.oschina.net/u/author'},f=fixture('oschina',{...signed,autosaveStatus:['保存草稿成功']});
+ const raw=await f.run('autosave-observation'),preparation=preparationEvidence('oschina',raw);
+ assert.equal(raw.contentVerified,true);assert.equal(raw.autosaveObserved,true);assert.equal(raw.autosaveStatus,'visible_autosave_notice');
+ assert.equal(preparation.autosaveObserved,true);assert.equal(preparation.savedVerified,undefined);assert.equal(draftEvidence('oschina',{...raw,savedVerified:true}),null);assert.equal(f.clicks,0);
+ assert.equal(editorEvidence('oschina','https://my.oschina.net/u/0/blog/write'),false);
+ assert.equal(editorEvidence('oschina','https://my.oschina.net/u/123/blog/ai-write'),true);
+ assert.equal(editorEvidence('oschina','https://my.oschina.net/u/123/blog/ai-write?from=editor'),false);
+ for(const options of [{...signed},{...signed,autosaveStatus:['保存草稿成功','保存草稿成功']},{...signed,autosaveStatus:['保存草稿成功'],autosaveInBody:true},{...signed,autosaveStatus:['文章将自动保存至草稿箱']}] ){
+  const observed=await fixture('oschina',options).run('autosave-observation');assert.equal(observed.autosaveObserved,false);
+ }
+ const changed=fixture('oschina',{...signed,autosaveStatus:['保存草稿成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
 });
 test('Jianshu reads only the signed-in profile link and never exposes a submit control',async()=>{
  const f=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author'});

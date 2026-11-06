@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
-import {navigationAllowed,trustedFrame,connectionPartition,connectionInput,targetInput} from '../desktop/security.mjs';
+import {navigationAllowed,loginReturned,trustedFrame,connectionPartition,connectionInput,targetInput} from '../desktop/security.mjs';
 import {PLATFORMS} from '../browser-extension/platforms.js';
 import {DESKTOP_PUBLIC_PLATFORMS} from '../desktop/build-capabilities.mjs';
 const origin='http://127.0.0.1:58729';
@@ -77,7 +77,7 @@ test('SegmentFault desktop connection uses the official editor and allows prepar
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 test('visible autosave observation remains a preparation, never a draft or publish receipt',async t=>{
- for(const platform of ['segmentfault','jianshu']){
+ for(const platform of ['segmentfault','oschina','jianshu']){
   const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity(platform));
   const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};assert.equal((await e.app('enqueue',args)).status,200);const j=(await call('claim')).job;
   const base={id:j.id,lease:j.lease,state:'prepared',preparation:{editorUrl:PLATFORMS[platform].editor,accountId:'author',sourceHash:j.sourceHash}};
@@ -92,8 +92,10 @@ test('OSCHINA desktop connection permits only its official editor and preparatio
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'oschina'});
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('oschina')});
  assert.equal(e.bridge.desktopConnections()[0].platform,'oschina');
- assert.equal(navigationAllowed('oschina','https://my.oschina.net/u/0/blog/write'),true);
- assert.equal(navigationAllowed('oschina','https://my.oschina.net.evil.test/u/0/blog/write'),false);
+ assert.equal(navigationAllowed('oschina','https://my.oschina.net/u/0/blog/ai-write'),true);
+ assert.equal(navigationAllowed('oschina','https://my.oschina.net.evil.test/u/0/blog/ai-write'),false);
+ assert.equal(loginReturned('oschina','https://my.oschina.net/u/123/blog/ai-write'),true);
+ assert.equal(loginReturned('oschina','https://my.oschina.net/u/0/blog/write'),false);
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 

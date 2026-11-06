@@ -8,7 +8,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   toutiao:{origin:'https://mp.toutiao.com',paths:[/^\/profile_v4\/graphic\/publish$/],title:'.publish-editor-title textarea, textarea[placeholder*="文章标题"]',body:'.ProseMirror[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?toutiao.com\/c\/user\/(\d+)\//,publish:['预览并发布','发布文章'],confirm:['确认发布'],images:false},
   zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
   segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
-  oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/0\/blog\/write$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   jianshu:{origin:'https://www.jianshu.com',paths:[/^\/writer$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], textarea',body:'.dante-editor [contenteditable="true"], .ProseMirror[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/www\.jianshu\.com\/u\/([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   // The only supported Bilibili route is the official creator-center text editor.
   // Selectors deliberately stay narrow: if the page changes, the task stops
@@ -64,7 +64,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  }
  const draftList=platform==='toutiao'&&location.pathname==='/profile_v4/manage/draft'&&['draft-list-inspect','draft-list-open'].includes(action);
  const queryRoute=!cfg.query||(()=>{try{const u=new URL(location.href),values=u.searchParams.getAll(cfg.query.param);return u.searchParams.size===1&&values.length===1&&values[0]===cfg.query.value}catch{return false}})();
- const editorRoute=cfg.paths.some(p=>p.test(location.pathname))&&(!cfg.hash||cfg.hash.test(String(location.hash||'')))&&queryRoute;
+ const editorRoute=cfg.paths.some(p=>p.test(location.pathname))&&(!cfg.hash||cfg.hash.test(String(location.hash||'')))&&queryRoute&&(!cfg.strictNoQuery||(!location.search&&!location.hash));
  if(!draftList&&!editorRoute)fail('当前不是支持的创作页，未继续');verifyChallenge();
  if(platform==='douyin'&&!['inspect','temporary-reopen'].includes(action)&&many('div,span').some(e=>text(e)==='你还有上次未发布的图文，是否继续编辑？'))fail('抖音有上次未发布的图文，请先在平台保存或处理；不会放弃、覆盖或上传测试图片');
  if(action==='inspect'){
@@ -159,6 +159,9 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  if(action==='autosave-observation'){
   const autosaveNotices={
    segmentfault:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功']),
+   // 开源中国当前编辑器会静态说明“文章将自动保存至草稿箱”。那是功能
+   // 介绍，不是本次写入的回执；这里只认编辑器外唯一的完成提示。
+   oschina:new Set(['保存草稿成功']),
    // 简书官方产品页说明其创作支持“实时保存”。这里只接受编辑器外的
    // 明确完成态，不能把营销文案、正文文字或普通“保存”按钮当作回执。
    jianshu:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功','保存成功'])
@@ -167,7 +170,7 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   if(!matches())fail('编辑器正文已变化，未观察自动保存状态');
   await wait(4500);
   if(!matches())fail('等待自动保存时正文已变化，未登记状态');
-  const notices=many('[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"]')
+  const notices=many('[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"],[class*="message"],[class*="toast"]')
    .filter(e=>!e.closest('[contenteditable],article,aside')&&autosaveNotices.has(text(e)));
   if(notices.length!==1)return {...evidence,contentVerified:true,autosaveObserved:false};
   return {...evidence,contentVerified:true,autosaveObserved:true,autosaveStatus:'visible_autosave_notice'};
