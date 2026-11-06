@@ -2,15 +2,34 @@
 const distributionStateLabels={not_queued:'未发送',ready:'未发送',sending:'发布中',draft:'草稿已保存',published:'发布成功',queued:'等待处理',preparing:'正在准备',submitting:'正在提交',prepared:'已填稿，未发布',submitted:'已提交，待确认',uncertain:'结果待确认',needs_attention:'需要处理',cancelled:'已取消'};
 const distributionModeLabels={publish:'发布文章',draft:'保存平台草稿',prepare:'仅填入编辑器'};
 const distributionModeSelectLabels={publish:'全选可发布',draft:'全选可存草稿',prepare:'全选可填入'};
+const distributionActionLabels={publish:'可直接发布',draft:'可保存草稿',prepare:'可填入编辑器'};
 function distributionWechatTaskState(state){return ({opening_editor:'preparing',waiting_editor:'preparing',ready_to_request:'preparing',requesting:'submitting',waiting_receipt:'submitting',draft_requested:'submitting',publish_requested:'submitting',verification_required:'needs_attention',blocked:'needs_attention',filled:'needs_attention',draft_saved:'draft',publish_submitted:'submitted'})[state]||null}
 function distributionPanel(){return `<section class="article-distribution" aria-label="发布账号与结果"><div class="distribution-heading"><div><h3>发布到哪些平台</h3><p>勾选已连接账号后直接发布；公众号也在这里使用同一流程，结果会自动回到此处。</p></div><button type="button" class="button small" data-distribution-refresh>刷新</button></div><div class="distribution-account-tools"><button type="button" class="button small" data-distribution-select-all>全选可发布</button><span data-distribution-count aria-live="polite">已选 0 个</span></div><details class="distribution-operation"><summary data-distribution-mode-summary>改为保存草稿或仅填入</summary><label class="distribution-mode">操作<select name="distributionMode" data-distribution-mode aria-label="发布操作"><option value="publish">发布文章</option><option value="draft">保存平台草稿</option><option value="prepare">仅填入编辑器</option></select></label></details><div class="distribution-submit-bar"><p data-distribution-hint class="helper" aria-live="polite">请选择平台。</p><input type="checkbox" name="distributionConfirmed" hidden><div class="distribution-actions"><button type="button" class="button primary" data-distribution-send="publish" disabled>发布到已选平台</button></div></div><div data-distribution-accounts role="group" aria-label="全部发布平台"><p role="status">正在读取平台…</p></div><label class="field distribution-tags" hidden>文章标签<input name="distributionTags" placeholder="例如：软件测试，最多 5 个" maxlength="110"></label><label class="field distribution-media" hidden>图文图片<input type="file" name="distributionMedia" accept="image/png,image/jpeg,image/webp" multiple><span class="helper">51CTO 可选文末配图；图文平台需要图片。选择 1–9 张图片；单张最多 2 MB，合计最多 8 MB。</span><span data-distribution-media-status role="status"></span></label><p class="form-error" data-distribution-error role="alert"></p><div data-distribution-results aria-live="polite"></div><details class="distribution-more"><summary>账号设置与更多操作</summary><p>账号只需首次连接；登录失效时再处理。未接入的平台暂不能勾选。</p><button type="button" class="button small" data-distribution-manage>管理账号</button><button type="button" class="button small" data-distribution-manual>下载稿件</button></details></section>`}
 function distributionResultLabel(row){if(row?.preparation?.temporaryVerified)return '已暂存，未发布';return distributionStateLabels[row.state]||row.state}
 function distributionTone(row){return row?.state==='published'?'success':['needs_attention','uncertain'].includes(row?.state)?'attention':row?.state==='draft'?'saved':'neutral'}
 function distributionPlatformRows(platforms,targets){
  const catalog=[...(platforms||[])];for(const t of targets)if(!catalog.some(p=>p.id===t.platform))catalog.push({id:t.platform,name:t.detail||t.platform,implementation:'unknown'});
- return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id);return accounts.length?accounts.map(t=>({...t,platformName:p.name,implementation:p.implementation})):[{key:'catalog:'+p.id,platform:p.id,platformName:p.name,implementation:p.implementation,modes:[],placeholder:true}]});
+ return catalog.flatMap(p=>{const accounts=targets.filter(t=>t.platform===p.id),meta={platformName:p.name,implementation:p.implementation,actionEvidence:p.actionEvidence};return accounts.length?accounts.map(t=>({...t,...meta})):[{key:'catalog:'+p.id,platform:p.id,modes:[],placeholder:true,...meta}]});
 }
-function distributionPlatformStatus(t,mode,result){return result?distributionResultLabel(result):t.platform==='wechat'&&t.transport==='desktop_personal'?(t.loginRequired?(t.taskId?'请登录后继续原任务':'需要登录'):'官方窗口登录后自动处理'):t.implementation==='planned'?'待接入':t.placeholder?'未连接':t.loginRequired?'需要登录':!t.accountId?'登录待核验':t.modes.includes(mode)?'可选择':mode==='publish'?(t.modes.includes('draft')?'仅支持存草稿':'暂未开放发布'):'暂不支持此操作'}
+function distributionCatalogCapability(t){const actions=t.actionEvidence||{};if(actions.publish?.liveAcceptance==='passed')return '公开发布已验收';if(actions.draft?.liveAcceptance==='passed')return '草稿已验收';if(actions.prepare?.liveAcceptance==='passed')return '填稿已验收';return actions.publish?.implemented||actions.draft?.implemented||actions.prepare?.implemented?'接入待验收':'待接入'}
+function distributionPlatformStatus(t,mode,result){
+ if(result)return distributionResultLabel(result);
+ if(t.platform==='wechat'&&t.transport==='desktop_personal')return t.loginRequired?(t.taskId?'请登录后继续原任务':'需要登录'):'官方窗口登录后自动处理';
+ if(t.implementation==='planned')return '待接入';
+ if(t.placeholder)return '可添加账号 · '+distributionCatalogCapability(t);
+ if(t.loginRequired)return '需要登录';
+ if(!t.accountId)return '登录待核验';
+ if(t.modes.includes(mode))return distributionActionLabels[mode]||'可选择';
+ if(mode==='publish')return t.modes.includes('draft')?'本账号仅可保存草稿':t.modes.includes('prepare')?'本账号仅可填入编辑器':'暂未开放发布';
+ if(mode==='draft')return t.modes.includes('prepare')?'本账号仅可填入编辑器':'暂不支持保存草稿';
+ return '暂不支持填入';
+}
+function distributionCapabilitySummary(rows,mode){
+ if(!rows.length)return '';
+ const ready=rows.filter(t=>!t.loginRequired&&!!t.accountId&&t.modes.includes(mode)).length,waiting=rows.filter(t=>t.loginRequired||!t.accountId).length,other=rows.filter(t=>!t.loginRequired&&!!t.accountId&&!t.modes.includes(mode)).length;
+ const parts=[ready?'可执行 '+ready+' 个账号':'暂无可执行账号'];if(waiting)parts.push('待登录 '+waiting+' 个');if(other)parts.push('需切换操作 '+other+' 个');
+ return `<p class="distribution-availability-summary" role="status">当前${esc(distributionActionLabels[mode]||'操作')}：${esc(parts.join(' · '))}</p>`;
+}
 function distributionPlatformRow(f,t,mode,selected){
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
@@ -21,7 +40,7 @@ function distributionRenderTargets(f,selected=new Set(distributionSelected(f).ma
  const mode=f.elements.distributionMode.value,rows=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]),connected=rows.filter(t=>!t.placeholder),directory=rows.filter(t=>t.placeholder);
  const current=connected.length?connected.map(t=>distributionPlatformRow(f,t,mode,selected)).join(''):`<div class="distribution-empty"><strong>还没有已连接账号</strong><p>先完成一次平台登录；之后这里只显示你的账号，勾选后即可发布。</p><button type="button" class="button small" data-distribution-manage>管理账号</button></div>`;
  const more=directory.length?`<details class="distribution-platform-directory"><summary>添加或查看更多平台（${directory.length}）</summary><p>首次添加才需要登录。标为“待接入”的平台暂不能勾选；登录成功的平台会自动移到上方。</p><div class="distribution-platform-directory-grid">${directory.map(t=>distributionPlatformRow(f,t,mode,selected)).join('')}</div></details>`:'';
- f.querySelector('[data-distribution-accounts]').innerHTML=current+more+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
+ f.querySelector('[data-distribution-accounts]').innerHTML=distributionCapabilitySummary(connected,mode)+current+more+(f.distributionLoadErrors||[]).map(e=>'<p class="form-error">'+esc(e)+'</p>').join('');
 }
 function distributionInlineResults(f){
  const targets=distributionPlatformRows(f.distributionCatalog,f.distributionTargets||[]);

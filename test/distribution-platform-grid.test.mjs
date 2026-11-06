@@ -23,7 +23,7 @@ test('all 36 platforms remain discoverable in the directory while catalog-only d
  assert.match(x.html(),/value="wp:a"[^>]*>/);
  assert.doesNotMatch(x.html(),/value="wp:a"[^>]*disabled/);
  assert.match(x.html(),/value="zhihu:z"[^>]*disabled/);
- assert.match(x.html(),/仅支持存草稿/);
+ assert.match(x.html(),/本账号仅可保存草稿/);
  assert.match(x.html(),/微信公众号/);
 });
 test('the everyday grid shows only connected accounts and moves unconnected catalog entries into the collapsed directory',()=>{
@@ -41,6 +41,19 @@ test('ordinary publishing is the direct default, while draft and editor-only mod
  assert.match(operation,/name="distributionMode"/);
  assert.match(operation,/value="draft">保存平台草稿/);
  assert.match(operation,/value="prepare">仅填入编辑器/);
+});
+test('the grid gives each account a concrete action label and a compact availability summary',()=>{
+ const x=fixture();x.f.distributionTargets=[
+  {key:'cloud:writer',platform:'tencentcloud',accountId:'writer',name:'云作者',modes:['prepare','draft','publish']},
+  {key:'ali:writer',platform:'aliyun',accountId:'writer',name:'云作者',modes:['prepare','draft']},
+  {key:'csdn:login',platform:'csdn',loginRequired:true,modes:[]}
+ ];
+ x.g.distributionRenderTargets(x.f,new Set());
+ assert.match(x.html(),/当前可直接发布：可执行 1 个账号 · 待登录 1 个 · 需切换操作 1 个/);
+ assert.match(x.html(),/可直接发布/);assert.match(x.html(),/本账号仅可保存草稿/);
+ x.f.distributionTargets=[];x.g.distributionRenderTargets(x.f,new Set());
+ assert.match(x.html(),/阿里云开发者社区[\s\S]*?可添加账号 · 草稿已验收/);
+ assert.match(x.html(),/小红书图文笔记[\s\S]*?可添加账号 · 接入待验收/);
 });
 test('changing to draft only permits draft-capable accounts and never promotes prepare to publish',()=>{
  const x=fixture('draft');x.g.distributionRenderTargets(x.f,new Set(['zhihu:z','csdn:c']));
@@ -72,7 +85,7 @@ test('editing article clears old success label from platform card without replac
  const x=fixture(),status={textContent:'发布成功',dataset:{tone:'success'}};
  x.f.querySelectorAll=()=>[{dataset:{distributionRowKey:'wp:a'},querySelector:()=>status}];
  x.g.distributionInlineResults(x.f);
- assert.equal(status.textContent,'可选择');assert.equal(status.dataset.tone,'neutral');
+ assert.equal(status.textContent,'可直接发布');assert.equal(status.dataset.tone,'neutral');
 });
 test('multiple accounts on the same platform retain separate identities and result slots',()=>{
  const x=fixture();x.f.distributionTargets.push({key:'wp:b',platform:'wordpress',accountId:'b',name:'账号 B',modes:['draft']});

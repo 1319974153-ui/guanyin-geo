@@ -49,8 +49,9 @@ test('desktop account directory keeps first-login platforms discoverable without
  const html=vm.runInContext('renderBrowserPublisher()',ctx);
  assert.match(html,/添加账号或查看更多平台/);
  assert.match(html,/微信公众号（个人主体）/);
- for(const label of ['思否（自动填稿验收）','开源中国（自动填稿验收）','简书（自动填稿验收）','哔哩哔哩图文（自动填稿验收）','微博头条文章（自动填稿验收）','搜狐号图文（自动填稿验收）','网易号图文（自动填稿验收）','百家号图文（自动填稿验收）'])assert.match(html,new RegExp(label));
- assert.match(html,/尚未开放草稿或公开提交/);
+ for(const label of ['思否','开源中国','简书','哔哩哔哩图文','微博头条文章','搜狐号图文','网易号图文','百家号图文'])assert.match(html,new RegExp(label));
+ assert.doesNotMatch(html,/自动填稿验收|公开提交验收/);
+ assert.match(html,/可直接发布、可保存草稿，还是仅能填入编辑器/);
 });
 
 test('desktop account list only shows connected accounts while WeChat stays in the same add-account directory',()=>{
