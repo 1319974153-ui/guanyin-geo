@@ -26,15 +26,17 @@ class Editor {
 }
 
 function notice(value){return {innerText:value,textContent:value,offsetParent:{},getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>null};}
+function control(value){let clicks=0;return {innerText:value,textContent:value,offsetParent:{},getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>null,click:()=>clicks++,get clicks(){return clicks}};}
 
-function fixture({title='',body='',notices=[],verification=[]}={}){
+function fixture({title='',body='',notices=[],verification=[],controls=[],extraInputs=0,extraEditors=0}={}){
  const input=new Input(title),editor=new Editor(body);
  const document={
   querySelectorAll(selector){
    if(selector.startsWith('[role="alert"]'))return notices;
    if(selector.startsWith('input[placeholder*="验证码"]'))return verification;
-   if(selector==='input,textarea')return [input];
-   if(selector==='[contenteditable="true"],iframe')return [editor];
+   if(selector==='button,a,[role="button"]')return controls;
+   if(selector==='input,textarea')return [input,...Array.from({length:extraInputs},()=>new Input())];
+   if(selector==='[contenteditable="true"],iframe')return [editor,...Array.from({length:extraEditors},()=>new Editor())];
    return [];
   }
  };
@@ -65,10 +67,29 @@ test('WeChat article text that mentions a successful publication is not mistaken
  assert.equal(f.editor.innerText,'发布成功前，需要先核对正文。');
 });
 
-test('WeChat accepts a visible official status notice as a terminal result',async()=>{
+test('WeChat accepts a visible official status notice only after its original action was recorded',async()=>{
  const f=fixture({notices:[notice('发布成功')]});
- const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false});
+ const initial=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false,requested:false});
+ assert.equal(initial.state,'ready_to_request');
+ const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false,requested:true});
  assert.equal(result.state,'publish_submitted');
+});
+
+test('WeChat ignores ambiguous success notices and never clicks an ambiguous final action',async()=>{
+ const notices=fixture({notices:[notice('发布成功'),notice('发布成功')]});
+ const observed=await notices.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false,requested:true});
+ assert.equal(observed.state,'waiting_receipt');
+ const first=control('保存草稿'),second=control('保存草稿');
+ const f=fixture({controls:[first,second]});
+ const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'draft',dispatch:true,requested:false});
+ assert.equal(result.state,'filled');
+ assert.match(result.message,/唯一/);assert.equal(first.clicks,0);assert.equal(second.clicks,0);
+});
+
+test('WeChat does not guess which of multiple visible editor fields should receive an original task',async()=>{
+ const f=fixture({extraInputs:1});
+ const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'draft',dispatch:false});
+ assert.equal(result.state,'waiting_editor');assert.match(result.message,/字段不唯一/);assert.equal(f.input.value,'');assert.equal(f.editor.innerText,'');
 });
 
 test('WeChat never overwrites a different retained title or body',async()=>{

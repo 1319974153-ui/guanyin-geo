@@ -165,7 +165,10 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
    oschina:new Set(['保存草稿成功']),
    // 简书官方产品页说明其创作支持“实时保存”。这里只接受编辑器外的
    // 明确完成态，不能把营销文案、正文文字或普通“保存”按钮当作回执。
-   jianshu:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功','保存成功'])
+   jianshu:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功','保存成功']),
+   // 哔哩哔哩当前专栏编辑器会异步保存草稿。只观察编辑器外的精确
+   // “保存成功”状态；它没有可验证的草稿编号，不能提升为草稿回执。
+   bilibili:new Set(['保存成功'])
   }[platform];
   if(!autosaveNotices)fail('此平台尚未接入自动保存观察');
   if(!matches())fail('编辑器正文已变化，未观察自动保存状态');

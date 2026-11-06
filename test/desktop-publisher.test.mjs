@@ -81,7 +81,7 @@ test('SegmentFault desktop connection uses the official editor and allows prepar
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 test('visible autosave observation remains a preparation, never a draft or publish receipt',async t=>{
- for(const platform of ['segmentfault','oschina','jianshu']){
+ for(const platform of ['segmentfault','oschina','jianshu','bilibili']){
   const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity(platform));
   const args={sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'prepare',expectedAccountId:'author'};assert.equal((await e.app('enqueue',args)).status,200);const j=(await call('claim')).job;
   const base={id:j.id,lease:j.lease,state:'prepared',preparation:{editorUrl:PLATFORMS[platform].editor,accountId:'author',sourceHash:j.sourceHash}};

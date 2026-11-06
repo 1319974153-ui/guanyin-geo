@@ -135,6 +135,16 @@ test('Bilibili text creator reads only a visible space profile and never exposes
  assert.equal(editorEvidence('bilibili','https://member.bilibili.com/york/read-editor?from=creator'),false);
  const missing=fixture('bilibili',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
+test('Bilibili observes only one exact outside-editor autosave notice without claiming a draft',async()=>{
+ const signed={profileUrl:'https://space.bilibili.com/123456'},f=fixture('bilibili',{...signed,autosaveStatus:['保存成功']});
+ const raw=await f.run('autosave-observation',{accountId:'123456'}),preparation=preparationEvidence('bilibili',raw);
+ assert.equal(raw.contentVerified,true);assert.equal(raw.autosaveObserved,true);assert.equal(raw.autosaveStatus,'visible_autosave_notice');
+ assert.equal(preparation.autosaveObserved,true);assert.equal(draftEvidence('bilibili',{...raw,savedVerified:true}),null);assert.equal(f.clicks,0);
+ for(const options of [{...signed},{...signed,autosaveStatus:['保存成功','保存成功']},{...signed,autosaveStatus:['保存成功'],autosaveInBody:true},{...signed,autosaveStatus:['草稿已保存']}]){
+  const observed=await fixture('bilibili',options).run('autosave-observation',{accountId:'123456'});assert.equal(observed.autosaveObserved,false);
+ }
+ const changed=fixture('bilibili',{...signed,autosaveStatus:['保存成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation',{accountId:'123456'})).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
+});
 test('Weibo long-form creator reads only a visible numeric profile and never exposes submission',async()=>{
  const f=fixture('weibo',{profileUrl:'https://weibo.com/u/123456'});
  const task={accountId:'123456'};

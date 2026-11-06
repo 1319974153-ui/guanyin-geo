@@ -57,31 +57,45 @@ export function wechatPersonalPage(command){
  };
  const inEditor=node=>!!node?.closest?.('[contenteditable="true"],[contenteditable="plaintext-only"],iframe,.rich_media_content,.ProseMirror,.tiptap');
  const notices=()=>all('[role="alert"],[role="status"],[role="dialog"],[aria-live],.weui-toast,.weui-dialog,.weui-tips,.weui-msg,[class*="toast"],[class*="Toast"],[class*="dialog"],[class*="Dialog"],[class*="message"],[class*="Message"],[class*="status"],[class*="Status"]').filter(node=>visible(node)&&!inEditor(node));
- const noticeHas=words=>notices().some(node=>words.some(word=>text(node).includes(word)));
+ const exactVisible=nodes=>{
+  const visibleNodes=nodes.filter(visible);
+  // Status and controls often expose both a wrapper and a child. Keep the
+  // outermost visible element so a single real control does not look like two;
+  // two unrelated controls still deliberately remain ambiguous.
+  return visibleNodes.filter(node=>!visibleNodes.some(other=>other!==node&&typeof other.contains==='function'&&other.contains(node)));
+ };
+ const uniqueNotice=words=>{
+  const matches=exactVisible(notices().filter(node=>words.includes(text(node))));
+  return matches.length===1?matches[0]:null;
+ };
  const verificationControl=()=>all('input[placeholder*="验证码"],input[name*="verify"],input[name*="captcha"],iframe[src*="captcha"],iframe[src*="verify"],.geetest_panel,.yidun_modal,[class*="captcha"],[class*="Captcha"],[class*="verify"],[class*="Verify"]').some(node=>visible(node)&&!inEditor(node));
  const plainHtml=value=>String(value||'').replace(/<(?:br\s*\/?>|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\s+/g,' ').trim();
  const state=()=>{
-  if(verificationControl()||noticeHas(['拖动滑块','验证码','请使用微信扫码','扫码登录','安全验证']))return {state:'verification_required',message:'公众号要求本人完成扫码、短信或安全验证'};
+  if(verificationControl()||notices().some(node=>['拖动滑块','验证码','请使用微信扫码','扫码登录','安全验证'].some(word=>text(node).includes(word))))return {state:'verification_required',message:'公众号要求本人完成扫码、短信或安全验证'};
   if(!location.hostname.endsWith('weixin.qq.com'))return {state:'blocked',message:'页面已离开公众号官方域名'};
   return null;
  };
  const blocked=state();if(blocked)return blocked;
- const confirmed=command.mode==='draft'
-  ?noticeHas(['草稿保存成功','已保存草稿','保存成功'])
-  :noticeHas(['发表成功','发布成功','已群发']);
+ // A stale toast on the dashboard must never close a newly created task. The
+ // terminal state is only reachable after the durable no-repeat marker was
+ // written by the desktop process, and from one exact visible success notice.
+ const confirmed=command.requested===true&&(command.mode==='draft'
+  ?uniqueNotice(['草稿保存成功','已保存草稿','保存成功'])
+  :uniqueNotice(['发表成功','发布成功','已群发']));
  if(confirmed)return command.mode==='draft'
   ?{state:'draft_saved',message:'公众号页面已确认草稿保存；请以公众号草稿箱为准'}
   :{state:'publish_submitted',message:'公众号页面已确认发表提交；公开结果仍以公众号后台为准'};
  const clickLabel=labels=>{
-  const candidates=all('button,a,[role="button"],span').filter(node=>labels.includes(text(node))&&!node.closest('[aria-disabled="true"],:disabled'));
-  const node=candidates.find(node=>node.offsetParent!==null);if(!node)return false;node.click();return true;
+  const candidates=exactVisible(all('button,a,[role="button"]').filter(node=>labels.includes(text(node))&&!node.closest?.('[aria-disabled="true"],:disabled')));
+  if(candidates.length!==1)return null;candidates[0].click();return candidates[0];
  };
- const titleInput=()=>all('input,textarea').find(node=>node.offsetParent!==null&&/标题|title/i.test([node.placeholder,node.getAttribute('aria-label'),node.name].filter(Boolean).join(' ')));
- const editor=()=>all('[contenteditable="true"],iframe').find(node=>node.offsetParent!==null);
+ const titleInputs=()=>exactVisible(all('input,textarea').filter(node=>/标题|title/i.test([node.placeholder,node.getAttribute?.('aria-label'),node.name].filter(Boolean).join(' '))));
+ const editors=()=>exactVisible(all('[contenteditable="true"],iframe'));
  const setValue=(node,value)=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set||Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')?.set;if(node instanceof HTMLInputElement||node instanceof HTMLTextAreaElement)setter.call(node,value);else node.innerHTML=value;node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:value}));node.dispatchEvent(new Event('change',{bubbles:true}));};
- const input=titleInput(),body=editor();
+ const titleCandidates=titleInputs(),bodyCandidates=editors(),input=titleCandidates.length===1?titleCandidates[0]:null,body=bodyCandidates.length===1?bodyCandidates[0]:null;
  if(!input||!body){
   if(clickLabel(['新建图文','写文章','图文消息','发表内容']))return {state:'opening_editor',message:'正在打开公众号图文编辑器'};
+  if(titleCandidates.length>1||bodyCandidates.length>1)return {state:'waiting_editor',message:'公众号编辑器字段不唯一，未填写原稿'};
   return {state:'waiting_editor',message:'请在公众号窗口完成登录；观引会在图文编辑器出现后自动填稿'};
  }
  // A retained or manually edited draft is never an empty template. Stop
@@ -101,8 +115,8 @@ export function wechatPersonalPage(command){
  if(!command.dispatch)return {state:'ready_to_request',message:command.mode==='draft'?'标题和正文已填入，正在登记保存草稿请求':'标题和正文已填入，正在登记发表请求'};
  if(command.mode==='draft'){
   if(clickLabel(['保存草稿','存草稿']))return {state:'draft_requested',message:'已请求保存草稿，正在等待平台回执'};
-  return {state:'filled',message:'标题和正文已填入，平台未显示保存草稿按钮'};
+  return {state:'filled',message:'标题和正文已填入，平台未显示唯一的保存草稿按钮'};
  }
  if(clickLabel(['发表','发布']))return {state:'publish_requested',message:'已请求平台发表，正在等待平台回执'};
- return {state:'filled',message:'标题和正文已填入，平台未显示发表按钮'};
+ return {state:'filled',message:'标题和正文已填入，平台未显示唯一的发表按钮'};
 }
