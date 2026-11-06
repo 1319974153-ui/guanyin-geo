@@ -18,6 +18,18 @@ export const PLATFORMS = {
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
 };
+// The desktop app owns these official-window adapters. Keep the list beside
+// their route contracts so account setup, desktop navigation and the UI cannot
+// quietly drift into three different platform catalogues.
+//
+// This only makes a platform available for first-login and editor preparation.
+// Draft and public-submission permissions remain separately gated by each
+// account's verified action evidence.
+export const DESKTOP_PLATFORM_IDS=Object.freeze([
+ 'toutiao','zhihu','csdn','segmentfault','oschina','jianshu','bilibili',
+ 'weibo','sohu','netease','baijiahao','douyin','xiaohongshu','51cto',
+ 'tencentcloud','juejin','aliyun'
+]);
 export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
 const neteaseAccountId=/^W[A-Za-z0-9_-]{7,99}$/;
 function neteaseAccountFromHash(hash,route){

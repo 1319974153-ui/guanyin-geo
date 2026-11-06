@@ -30,10 +30,21 @@ function distributionCapabilitySummary(rows,mode){
  const parts=[ready?'可执行 '+ready+' 个账号':'暂无可执行账号'];if(waiting)parts.push('待登录 '+waiting+' 个');if(other)parts.push('需切换操作 '+other+' 个');
  return `<p class="distribution-availability-summary" role="status">当前${esc(distributionActionLabels[mode]||'操作')}：${esc(parts.join(' · '))}</p>`;
 }
+const distributionSelfHostedPlatforms=new Set(['wordpress','cnblogs','typecho','metaweblog','personal-site']);
+const distributionExtensionPlatforms=new Set(['csdn','toutiao','zhihu','douyin','xiaohongshu']);
+function distributionCanConnect(t){
+ if(t.implementation==='planned'||!(t.placeholder||!t.accountId||t.loginRequired))return false;
+ if(distributionSelfHostedPlatforms.has(t.platform))return true;
+ // Desktop availability comes from the publishing catalog's implementation
+ // value, so a newly declared official-window adapter appears here without a
+ // second page-side whitelist. The catalog never grants publish permission.
+ if(window.guanyinDesktop?.available)return ['browser_adapter_acceptance','desktop_personal_browser'].includes(t.implementation);
+ return distributionExtensionPlatforms.has(t.platform);
+}
 function distributionPlatformRow(f,t,mode,selected){
   const result=f.distributionJournal?.[t.key],available=t.modes.includes(mode),planned=t.implementation==='planned';
   const status=distributionPlatformStatus(t,mode,result);
-  const connect=!planned&&(t.placeholder||!t.accountId||t.loginRequired)&&((window.guanyinDesktop?.available?['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','wechat','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin']:['wordpress','cnblogs','typecho','metaweblog','personal-site','csdn','toutiao','zhihu','douyin','xiaohongshu']).includes(t.platform));
+  const connect=distributionCanConnect(t);
  return `<div class="distribution-platform" data-distribution-row-key="${esc(t.key)}"><label class="distribution-account"><input type="checkbox" data-distribution-target value="${esc(t.key)}" aria-label="选择 ${esc(t.platformName)}${t.name?' · '+esc(t.name):''}" ${available&&selected.has(t.key)?'checked':''} ${available?'':'disabled'}><span><strong>${esc(t.platformName)}</strong>${t.name?'<span class="sub">'+esc(t.name)+'</span>':''}<span class="distribution-capability" data-distribution-row-status data-tone="${distributionTone(result)}">${esc(status)}</span></span></label>${connect?`<button type="button" class="button small" data-distribution-connect="${esc(t.platform)}" aria-label="连接 ${esc(t.platformName)}">连接</button>`:''}</div>`;
 }
 function distributionRenderTargets(f,selected=new Set(distributionSelected(f).map(t=>t.key))){

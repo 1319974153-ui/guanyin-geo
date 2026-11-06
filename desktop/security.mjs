@@ -1,7 +1,7 @@
 import {aliyunLoginRelay} from './platform-preview.mjs';
 import {createHash} from 'node:crypto';
-import {loginEditorUrl} from '../browser-extension/platforms.js';
-export const DESKTOP_PLATFORMS=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
+import {loginEditorUrl,DESKTOP_PLATFORM_IDS} from '../browser-extension/platforms.js';
+export const DESKTOP_PLATFORMS=DESKTOP_PLATFORM_IDS;
 const sites={juejin:['juejin.cn'],aliyun:['developer.aliyun.com','account.aliyun.com','signin.aliyun.com','passport.aliyun.com'],'51cto':['blog.51cto.com','home.51cto.com'],tencentcloud:['cloud.tencent.com'],csdn:['csdn.net'],toutiao:['toutiao.com','toutiaoimg.com','byteacct.com'],zhihu:['zhihu.com'],segmentfault:['segmentfault.com'],oschina:['oschina.net'],jianshu:['jianshu.com'],bilibili:['bilibili.com'],weibo:['weibo.com'],sohu:['mp.sohu.com','passport.sohu.com','v4.passport.sohu.com'],netease:['mp.163.com','id.163.com','reg.163.com','zc.reg.163.com','dl.reg.163.com'],baijiahao:['baijiahao.baidu.com','passport.baidu.com','wappass.baidu.com'],douyin:['douyin.com'],xiaohongshu:['xiaohongshu.com']};
 export function navigationAllowed(platform,value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&((platform==='aliyun'?sites.aliyun.includes(u.hostname)||aliyunLoginRelay(value):(sites[platform]||[]).some(d=>u.hostname===d||u.hostname.endsWith('.'+d))))}catch{return false}}
 export function trustedFrame(event,contents,origin){try{return event.sender===contents&&event.senderFrame===contents.mainFrame&&new URL(event.senderFrame.url).origin===origin}catch{return false}}

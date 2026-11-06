@@ -1,4 +1,4 @@
-import {PLATFORMS} from '../browser-extension/platforms.js';
+import {PLATFORMS,DESKTOP_PLATFORM_IDS} from '../browser-extension/platforms.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -27,6 +27,13 @@ test('pairing is one-time, expiring and exact-origin/instance bound; no cookie o
  assert.equal((await e.app('pairing',{brandId:'b'},{'x-geo-workspace':'other'})).status,403);
  const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.status,200);assert.ok(!JSON.stringify(status).includes(e.connection.token));
  const p2=(await e.app('pairing',{brandId:'b'})).data;e.advance(300001);assert.equal((await e.ext('pair',{...p2})).status,403);
+});
+test('local status exposes the exact desktop adapter manifest without treating it as a publish grant',async t=>{
+ const e=setup(t,false);const status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');
+ const desktop=status.data.platforms.filter(p=>p.desktopSupported===true);
+ assert.deepEqual(desktop.map(p=>p.id),[...DESKTOP_PLATFORM_IDS]);
+ assert.ok(desktop.every(p=>p.publishEnabled===false));
+ assert.ok(status.data.platforms.every(p=>typeof p.desktopSupported==='boolean'));
 });
 test('hostile origin preflight cannot read a paired bridge and valid preflight has exact CORS',async t=>{
  const e=setup(t);await e.pair();

@@ -44,12 +44,20 @@ test('desktop status polling updates only account rows and never replaces the se
  assert.doesNotMatch(vm.runInContext('renderBrowserPublisher()',ctx),/配对信息|核验当前账号|安装连接器/);
 });
 
-test('desktop account directory keeps first-login platforms discoverable without claiming publication',()=>{
+test('desktop account directory derives first-login platforms from the local adapter manifest without claiming publication',async()=>{
  const {ctx}=ui();ctx.window.guanyinDesktop={available:true};ctx.setInterval=()=>1;
- const html=vm.runInContext('renderBrowserPublisher()',ctx);
+ ctx.apiRequest=async()=>({jobs:[],accounts:[],platforms:[
+  {id:'segmentfault',name:'思否',desktopSupported:true},{id:'oschina',name:'开源中国',desktopSupported:true},
+  {id:'jianshu',name:'简书',desktopSupported:true},{id:'bilibili',name:'哔哩哔哩图文',desktopSupported:true},
+  {id:'weibo',name:'微博头条文章',desktopSupported:true},{id:'sohu',name:'搜狐号图文',desktopSupported:true},
+  {id:'netease',name:'网易号图文',desktopSupported:true},{id:'baijiahao',name:'百家号图文',desktopSupported:true},
+  {id:'not-an-adapter',name:'不应出现',desktopSupported:false}
+ ]});
+ await vm.runInContext('refreshBrowserPublisher()',ctx);const html=vm.runInContext('renderBrowserPublisher()',ctx);
  assert.match(html,/添加账号或查看更多平台/);
  assert.match(html,/微信公众号（个人主体）/);
  for(const label of ['思否','开源中国','简书','哔哩哔哩图文','微博头条文章','搜狐号图文','网易号图文','百家号图文'])assert.match(html,new RegExp(label));
+ assert.doesNotMatch(html,/不应出现/);
  assert.doesNotMatch(html,/自动填稿验收|公开提交验收/);
  assert.match(html,/可直接发布、可保存草稿，还是仅能填入编辑器/);
 });

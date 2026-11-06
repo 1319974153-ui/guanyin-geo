@@ -2,10 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
-import {navigationAllowed,loginReturned,trustedFrame,connectionPartition,connectionInput,targetInput} from '../desktop/security.mjs';
-import {PLATFORMS} from '../browser-extension/platforms.js';
+import {navigationAllowed,loginReturned,trustedFrame,connectionPartition,connectionInput,targetInput,DESKTOP_PLATFORMS} from '../desktop/security.mjs';
+import {PLATFORMS,DESKTOP_PLATFORM_IDS} from '../browser-extension/platforms.js';
 import {DESKTOP_PUBLIC_PLATFORMS} from '../desktop/build-capabilities.mjs';
 const origin='http://127.0.0.1:58729';
+test('desktop security and platform contracts share one adapter manifest',()=>{
+ assert.equal(DESKTOP_PLATFORMS,DESKTOP_PLATFORM_IDS);
+ assert.ok(DESKTOP_PLATFORM_IDS.every(id=>PLATFORMS[id]));
+});
 function setup(t,publishPlatforms=[]){const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=10000;const state={brands:[{id:'a'},{id:'b'}],contents:[{id:'c',brandId:'a',status:'已审核',title:'测试稿',text:'测试正文'}],facts:[]};const opts={db,origin,readState:()=>state,clock:()=>time,publishPlatforms};let bridge=publisherBridge(opts);return {db,state,get bridge(){return bridge},advance:n=>time+=n,restart:(o=origin)=>bridge=publisherBridge({...opts,origin:o}),async app(action,data){const r=await bridge.handle(new Request(origin+'/api/local-publisher/'+action,{method:'POST',headers:{'x-geo-request':'1',origin},body:JSON.stringify(data)}));return {status:r.status,data:await r.json()}}}}
 const identity=(platform='csdn',accountId='author')=>({accountId,name:'验收账号',editorReady:true,evidenceUrl:PLATFORMS[platform].editor,draftProtocol:PLATFORMS[platform].draftProtocol});
 test('desktop connection is private IPC-only, brand isolated and has no browser token',async t=>{

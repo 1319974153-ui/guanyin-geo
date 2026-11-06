@@ -1,4 +1,4 @@
-import {PLATFORMS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
+import {PLATFORMS,DESKTOP_PLATFORM_IDS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable} from '../src/knowledge-core.js';
@@ -102,7 +102,9 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
    if(!extension){
     if(action==='status'){
      const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;for(const j of jobs().filter(j=>j.brandId===brandId))checkPublic(j);
-     return respond({instance,experimentalPublish,platforms:Object.entries(PLATFORMS).map(([id,p])=>({id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id)})),accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
+     const desktopPlatforms=new Set(DESKTOP_PLATFORM_IDS);
+     const platformRows=[...DESKTOP_PLATFORM_IDS,...Object.keys(PLATFORMS).filter(id=>!desktopPlatforms.has(id))].map(id=>{const p=PLATFORMS[id];return {id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id),desktopSupported:desktopPlatforms.has(id)}});
+     return respond({instance,experimentalPublish,platforms:platformRows,accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
     }
     if(action==='media'){
      brand(b.brandId);snapshot(b.brandId,b.contentId,'51cto');

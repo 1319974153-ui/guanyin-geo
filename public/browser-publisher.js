@@ -15,7 +15,7 @@ async function refreshBrowserPublisher(){
 }
 // Preserve the controls the user is using while background receipts refresh.
 function renderPublisherStatus(){
- const signature=JSON.stringify([browserPublisherScope,route,browserPublisherError,desktopAccountFingerprint(browserPublisherData?.accounts),desktopWechatLoginState?.state,browserPublisherData?.jobs]);
+ const signature=JSON.stringify([browserPublisherScope,route,browserPublisherError,desktopAccountFingerprint(browserPublisherData?.accounts),desktopPlatformFingerprint(browserPublisherData?.platforms),desktopWechatLoginState?.state,browserPublisherData?.jobs]);
  if(signature===browserPublisherRendered)return;
  browserPublisherRendered=signature;
  const details=[...(document.querySelectorAll?.('main details')||[])].filter(e=>e.open).map(e=>e.querySelector('summary')?.textContent);
@@ -102,13 +102,25 @@ document.addEventListener('submit',async e=>{
  try{if(f.dataset.brand!==brand()?.id)throw new Error('品牌已切换，请重新选择');await runtimeFlush();await apiRequest('/api/local-publisher/enqueue',{method:'POST',body:JSON.stringify({brandId:f.dataset.brand,sessionId:f.dataset.session,contentId:f.elements.contentId.value,tags:f.elements.tags.value.split(/[,，]/).map(s=>s.trim()).filter(Boolean),mode})});closeDrawer();await refreshBrowserPublisher();toast('任务已入队；Chrome 连接器运行时会处理。尚未提交文章。')}catch(e){f.querySelector('.form-error').textContent=e.message;f.querySelectorAll('button').forEach(b=>b.disabled=false)}
 });
 
-const desktopAccountPlatformIds=['toutiao','zhihu','csdn','wechat','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','51cto','tencentcloud','juejin','aliyun'];
-function desktopAccountOptions(){return desktopAccountPlatformIds.map(id=>`<option value="${esc(id)}">${esc(browserPlatformNames[id]||id)}${id==='wechat'?'（个人主体）':''}</option>`).join('')}
-function desktopAccountDirectory(){return `<details class="desktop-account-directory"><summary>添加账号或查看更多平台</summary><div class="desktop-account-directory-body"><label class="field">平台<select id="browser-publisher-platform">${desktopAccountOptions()}</select></label>${btn('登录并添加','browser-publisher-pair','primary small')}</div><p>首次使用时才在平台自己的官方窗口登录。扫码、短信或滑块只在需要时由本人完成；登录成功的账号会显示在上方，并可直接在稿件里勾选。稿件页会明确显示该账号可直接发布、可保存草稿，还是仅能填入编辑器。</p></details>`}
+const desktopAccountPlatformId=/^[a-z0-9-]{1,50}$/;
+function desktopAccountPlatforms(d){
+ const seen=new Set(),rows=[];
+ for(const p of Array.isArray(d?.platforms)?d.platforms:[]){
+  const id=typeof p?.id==='string'&&desktopAccountPlatformId.test(p.id)?p.id:'';
+  if(!id||id==='wechat'||p.desktopSupported!==true||seen.has(id))continue;
+  seen.add(id);rows.push({id,name:browserPlatformNames[id]||String(p.name||id).slice(0,100)});
+ }
+ // Personal WeChat is a separate official-window workflow, but it stays in the
+ // same first-login directory rather than becoming a special publish surface.
+ rows.push({id:'wechat',name:'微信公众号（个人主体）'});
+ return rows;
+}
+function desktopAccountOptions(d){return desktopAccountPlatforms(d).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+function desktopAccountDirectory(d){const loading=!Array.isArray(d?.platforms);return `<details class="desktop-account-directory"><summary>添加账号或查看更多平台</summary><div class="desktop-account-directory-body"><label class="field">平台<select id="browser-publisher-platform">${desktopAccountOptions(d)}</select></label>${btn('登录并添加','browser-publisher-pair','primary small')}</div>${loading?'<p class="helper" role="status">正在读取已接入的平台目录；公众号可直接登录。</p>':''}<p>首次使用时才在平台自己的官方窗口登录。扫码、短信或滑块只在需要时由本人完成；登录成功的账号会显示在上方，并可直接在稿件里勾选。稿件页会明确显示该账号可直接发布、可保存草稿，还是仅能填入编辑器。</p></details>`}
 function desktopAccountPanel(d){
  startDesktopAccountWatch();
  if(desktopWechatLoginState===null&&!desktopWechatLoginLoading)queueMicrotask(()=>void refreshDesktopWechatLogin());
- return `<section class="panel browser-account-connect"><div class="panel-head"><div class="browser-account-heading"><h2>发布账号</h2><p>登录一次，之后勾选平台即可发送。账号和结果由观引自动检查。</p></div>${btn('刷新账号','browser-publisher-refresh','small')}</div><div class="panel-body">${browserPublisherError?'<p class="form-error">'+esc(browserPublisherError)+'</p>':''}<div id="desktop-account-table">${desktopAccountTable(d)}</div>${desktopAccountDirectory()}<p class="helper">无需浏览器插件。登录信息仅保存在本机；平台要求扫码或验证码时由你本人完成。公众号和其他平台都从已审核稿件中的同一份勾选列表发送。稿件页会按“可直接发布／可保存草稿／仅填入编辑器／待验收”显示每个账号；未完成公开验收的渠道不能被勾选为直接发布。</p></div></section>`;
+ return `<section class="panel browser-account-connect"><div class="panel-head"><div class="browser-account-heading"><h2>发布账号</h2><p>登录一次，之后勾选平台即可发送。账号和结果由观引自动检查。</p></div>${btn('刷新账号','browser-publisher-refresh','small')}</div><div class="panel-body">${browserPublisherError?'<p class="form-error">'+esc(browserPublisherError)+'</p>':''}<div id="desktop-account-table">${desktopAccountTable(d)}</div>${desktopAccountDirectory(d)}<p class="helper">无需浏览器插件。登录信息仅保存在本机；平台要求扫码或验证码时由你本人完成。公众号和其他平台都从已审核稿件中的同一份勾选列表发送。稿件页会按“可直接发布／可保存草稿／仅填入编辑器／待验收”显示每个账号；未完成公开验收的渠道不能被勾选为直接发布。</p></div></section>`;
 }
 
 function desktopAccountTable(d){const labels={awaiting_login:'等待登录',checking:'正在连接',connected:'已连接',needs_login:'需要登录',error:'连接异常'};if(!d)return '<p>正在读取账号…</p>';const rows=d.accounts.filter(a=>a.transport==='desktop').map(a=>[esc(browserPlatformNames[a.platform])+'<span class="sub">'+esc(a.account?.name||'登录后自动识别')+'</span>',esc(labels[a.connectionState]||'等待登录')+(a.connectionError?'<span class="sub">'+esc(a.connectionError)+'</span>':''),btn(a.connectionState==='error'?'重试连接':a.account&&a.connectionState==='connected'?'打开账号':'去登录','browser-publisher-desktop-open','small',`data-session="${esc(a.id)}"`)+(a.account?btn('写文章','browser-publisher-compose','small'):'')+btn('断开连接','browser-publisher-revoke','small',`data-session="${esc(a.id)}"`)]);if(desktopWechatLoginState?.state==='connected')rows.push(['微信公众号<span class="sub">个人主体</span>','已进入官方管理页<span class="sub">当前运行中可直接在稿件里勾选</span>',btn('打开公众号','browser-publisher-pair','small','data-platform="wechat"')]);return table(['平台与账号','连接状态','操作'],rows,'还没有账号。展开“添加账号或查看更多平台”，在平台自己的窗口登录即可。')}
@@ -140,3 +152,4 @@ window.addEventListener('beforeunload',()=>{clearInterval(desktopAccountTimer);d
 if(window.guanyinDesktop?.onWechatPersonalLoginStatus)window.guanyinDesktop.onWechatPersonalLoginStatus(next=>{desktopWechatLoginState=next||{state:'unknown'};const table=document.getElementById?.('desktop-account-table');if(table)table.innerHTML=desktopAccountTable(browserPublisherData);else renderPublisherStatus();});
 
 function desktopAccountFingerprint(accounts){return JSON.stringify((accounts||[]).map(a=>({id:a.id,platform:a.platform,transport:a.transport,state:a.connectionState,error:a.connectionError,modes:a.modes,account:a.account?{accountId:a.account.accountId,name:a.account.name}:null})).sort((a,b)=>a.id.localeCompare(b.id)))}
+function desktopPlatformFingerprint(platforms){return JSON.stringify((platforms||[]).filter(p=>p?.desktopSupported===true).map(p=>({id:p.id,name:p.name})));}

@@ -106,6 +106,16 @@ test('desktop exposes preparation-only community adapters through the same conne
  for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao'])assert.match(x.html(),new RegExp('data-distribution-connect="'+platform+'"'));
  for(const platform of ['segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao'])assert.match(x.html(),new RegExp('value="catalog:'+platform+'"[^>]*disabled'));
 });
+test('desktop connection controls follow declared adapter capability instead of a page-side platform list',()=>{
+ const x=fixture();x.g.window.guanyinDesktop={available:true};
+ x.f.distributionCatalog.push(
+  {id:'future-adapter',name:'未来适配器',implementation:'browser_adapter_acceptance',actionEvidence:{identity:{implemented:true},prepare:{implemented:true},draft:{implemented:false},publish:{implemented:false}}},
+  {id:'future-planned',name:'未来待开发',implementation:'planned',actionEvidence:{identity:{implemented:false},prepare:{implemented:false},draft:{implemented:false},publish:{implemented:false}}}
+ );
+ x.g.distributionRenderTargets(x.f,new Set());
+ assert.match(x.html(),/data-distribution-connect="future-adapter"/);
+ assert.doesNotMatch(x.html(),/data-distribution-connect="future-planned"/);
+});
 
 test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{
  const x=fixture(),calls=[];x.g.window.guanyinDesktop={available:true,openAccount:async id=>calls.push(id)};
