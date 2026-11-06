@@ -94,7 +94,7 @@ export function preparationEditorUrl(platform,url){
 export function preparationEvidence(platform,value){
  try{if(!value||value.contentVerified!==true)return null;
  const editorUrl=preparationEditorUrl(platform,value.evidenceUrl);if(!editorUrl)return null;
- return {editorUrl,accountId:value.accountId,...(platform==='segmentfault'&&value.autosaveObserved===true&&value.autosaveStatus==='visible_autosave_notice'?{autosaveObserved:true,autosaveStatus:'visible_autosave_notice'}:{}),...(platform==='douyin'&&value.temporaryVerified===true&&value.verification==='temporary_reopened_content'&&Number.isInteger(value.mediaCount)&&value.mediaCount>0?{temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:value.mediaCount}:{})};
+ return {editorUrl,accountId:value.accountId,...(['segmentfault','jianshu'].includes(platform)&&value.autosaveObserved===true&&value.autosaveStatus==='visible_autosave_notice'?{autosaveObserved:true,autosaveStatus:'visible_autosave_notice'}:{}),...(platform==='douyin'&&value.temporaryVerified===true&&value.verification==='temporary_reopened_content'&&Number.isInteger(value.mediaCount)&&value.mediaCount>0?{temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:value.mediaCount}:{})};
  }catch{return null}
 }
 

@@ -153,17 +153,22 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  const plain=html=>new DOMParser().parseFromString(html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html').body.textContent.replace(/\s+/g,' ').trim();
  const expected=cfg.images?article.text.replace(/\s+/g,' ').trim():plain(article.html);
  const matches=()=>text(title)===article.title.trim()&&(platform==='douyin'?bodyContent(editor):text(editor))===expected;
- // SegmentFault's editor may save asynchronously after a short idle period.
- // This is deliberately a read-only observation: a visible notice is useful
- // progress feedback, but it is not a durable draft ID or a publish receipt.
+ // Some editors may save asynchronously after a short idle period. This is
+ // deliberately a read-only observation: a visible notice is useful progress
+ // feedback, but it is not a durable draft ID or a publish receipt.
  if(action==='autosave-observation'){
-  if(platform!=='segmentfault')fail('此平台尚未接入自动保存观察');
+  const autosaveNotices={
+   segmentfault:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功']),
+   // 简书官方产品页说明其创作支持“实时保存”。这里只接受编辑器外的
+   // 明确完成态，不能把营销文案、正文文字或普通“保存”按钮当作回执。
+   jianshu:new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功','保存成功'])
+  }[platform];
+  if(!autosaveNotices)fail('此平台尚未接入自动保存观察');
   if(!matches())fail('编辑器正文已变化，未观察自动保存状态');
   await wait(4500);
   if(!matches())fail('等待自动保存时正文已变化，未登记状态');
-  const known=new Set(['草稿已保存','草稿保存成功','已自动保存','自动保存成功']);
   const notices=many('[role="status"],[role="alert"],[aria-live],[class*="autosave"],[class*="auto-save"],[class*="draft-save"],[class*="draftSave"],[class*="save-status"],[class*="saveStatus"]')
-   .filter(e=>!e.closest('[contenteditable],article,aside')&&known.has(text(e)));
+   .filter(e=>!e.closest('[contenteditable],article,aside')&&autosaveNotices.has(text(e)));
   if(notices.length!==1)return {...evidence,contentVerified:true,autosaveObserved:false};
   return {...evidence,contentVerified:true,autosaveObserved:true,autosaveStatus:'visible_autosave_notice'};
  }

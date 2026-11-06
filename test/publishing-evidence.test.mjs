@@ -16,6 +16,8 @@ test('platform acceptance records distinguish verified publication, blocked draf
  const xiaohongshu=rows.find(p=>p.id==='xiaohongshu');
  assert.equal(xiaohongshu.actionEvidence.prepare.liveAcceptance,'pending');
  assert.match(xiaohongshu.note,/预定账号/);
+ const jianshu=rows.find(p=>p.id==='jianshu');
+ assert.match(jianshu.stage,/自动保存观察/);assert.match(jianshu.note,/草稿编号/);assert.equal(jianshu.actionEvidence.draft.implemented,false);
  const wechat=rows.find(p=>p.id==='wechat');
  assert.equal(wechat.actionEvidence.publish.liveAcceptance,'pending');
  assert.match(wechat.stage,/原任务可恢复/);

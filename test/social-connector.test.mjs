@@ -90,6 +90,16 @@ test('SegmentFault observes exactly one outside-editor autosave notice without c
  const changed=fixture('segmentfault',{...signed,autosaveStatus:['已自动保存']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
  assert.equal(preparationEvidence('segmentfault',{...raw,autosaveStatus:'unknown'}).autosaveObserved,undefined);
 });
+test('Jianshu observes only one exact outside-editor autosave notice without claiming a draft',async()=>{
+ const signed={profileUrl:'https://www.jianshu.com/u/author'},f=fixture('jianshu',{...signed,autosaveStatus:['保存成功']});
+ const raw=await f.run('autosave-observation'),preparation=preparationEvidence('jianshu',raw);
+ assert.equal(raw.contentVerified,true);assert.equal(raw.autosaveObserved,true);assert.equal(raw.autosaveStatus,'visible_autosave_notice');
+ assert.equal(preparation.autosaveObserved,true);assert.equal(draftEvidence('jianshu',{...raw,savedVerified:true}),null);assert.equal(f.clicks,0);
+ for(const options of [{...signed},{...signed,autosaveStatus:['保存成功','已自动保存']},{...signed,autosaveStatus:['保存成功'],autosaveInBody:true},{...signed,autosaveStatus:['实时保存']}] ){
+  const observed=await fixture('jianshu',options).run('autosave-observation');assert.equal(observed.autosaveObserved,false);
+ }
+ const changed=fixture('jianshu',{...signed,autosaveStatus:['保存成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
+});
 test('OSCHINA reads only the signed-in profile link and never exposes a submit control',async()=>{
  const f=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
