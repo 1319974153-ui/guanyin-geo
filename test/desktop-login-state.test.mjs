@@ -25,7 +25,7 @@ test('expired login detection recognizes exact official routes, not redirect par
  assert.equal(loginPageRequired('zhihu','https://www.zhihu.com/signin'),true);
  assert.equal(loginPageRequired('csdn','https://passport.csdn.net/login'),true);
  assert.equal(loginPageRequired('segmentfault','https://segmentfault.com/user/login'),true);
- assert.equal(loginPageRequired('bilibili','https://passport.bilibili.com/login?gourl=https%3A%2F%2Fmember.bilibili.com%2Fplatform%2Fupload%2Ftext%2Fapply'),true);
+ assert.equal(loginPageRequired('bilibili','https://passport.bilibili.com/login?gourl=https%3A%2F%2Fmember.bilibili.com%2Fyork%2Fread-editor'),true);
  assert.equal(loginPageRequired('weibo','https://passport.weibo.com/login?entry=account'),true);
   assert.equal(loginPageRequired('sohu','https://mp.sohu.com/mpfe/v4/login'),true);
   assert.equal(loginPageRequired('netease','https://mp.163.com/login.html'),true);

@@ -112,9 +112,11 @@ test('Bilibili desktop connection permits creator-center preparation only',async
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'bilibili'});
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('bilibili')});
  assert.equal(e.bridge.desktopConnections()[0].platform,'bilibili');
- assert.equal(navigationAllowed('bilibili','https://member.bilibili.com/platform/upload/text/apply'),true);
- assert.equal(navigationAllowed('bilibili','https://passport.bilibili.com/login?gourl=https%3A%2F%2Fmember.bilibili.com%2Fplatform%2Fupload%2Ftext%2Fapply'),true);
- assert.equal(navigationAllowed('bilibili','https://member.bilibili.com.evil.test/platform/upload/text/apply'),false);
+ assert.equal(navigationAllowed('bilibili','https://member.bilibili.com/york/read-editor'),true);
+ assert.equal(navigationAllowed('bilibili','https://passport.bilibili.com/login?gourl=https%3A%2F%2Fmember.bilibili.com%2Fyork%2Fread-editor'),true);
+ assert.equal(navigationAllowed('bilibili','https://member.bilibili.com.evil.test/york/read-editor'),false);
+ assert.equal(loginReturned('bilibili','https://member.bilibili.com/york/read-editor'),true);
+ assert.equal(loginReturned('bilibili','https://member.bilibili.com/platform/upload/text/apply'),false);
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 

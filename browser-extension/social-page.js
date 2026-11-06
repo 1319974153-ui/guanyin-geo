@@ -10,10 +10,11 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
   oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   jianshu:{origin:'https://www.jianshu.com',paths:[/^\/writer$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], textarea',body:'.dante-editor [contenteditable="true"], .ProseMirror[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/www\.jianshu\.com\/u\/([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
-  // The only supported Bilibili route is the official creator-center text editor.
-  // Selectors deliberately stay narrow: if the page changes, the task stops
-  // before writing rather than guessing among several inputs.
-  bilibili:{origin:'https://member.bilibili.com',paths:[/^\/platform\/upload\/text\/apply$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // The supported Bilibili route is the current official article editor. Its
+  // static UI exposes “保存为草稿”, but that is not a persistent receipt: we
+  // do not click it or expose draft/public actions until a live account proves
+  // save → official draft list → re-opened full content.
+  bilibili:{origin:'https://member.bilibili.com',paths:[/^\/york\/read-editor$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   // Keep the official long-form editor separate from the short-post composer.
   // Until an account validates its actual fields, it can only prepare a unique
   // empty original article and can never save or submit it.

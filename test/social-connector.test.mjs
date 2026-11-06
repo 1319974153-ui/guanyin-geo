@@ -130,6 +130,9 @@ test('Bilibili text creator reads only a visible space profile and never exposes
  const task={accountId:'123456'};
  const me=await f.run('identity',task);assert.equal(me.accountId,'123456');assert.equal(me.name,'本人');
  assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal(editorEvidence('bilibili','https://member.bilibili.com/york/read-editor'),true);
+ assert.equal(editorEvidence('bilibili','https://member.bilibili.com/platform/upload/text/apply'),false);
+ assert.equal(editorEvidence('bilibili','https://member.bilibili.com/york/read-editor?from=creator'),false);
  const missing=fixture('bilibili',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
 test('Weibo long-form creator reads only a visible numeric profile and never exposes submission',async()=>{

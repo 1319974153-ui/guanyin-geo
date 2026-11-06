@@ -10,7 +10,7 @@ export const PLATFORMS = {
  segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
- bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/platform/upload/text/apply',hosts:['https://member.bilibili.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
@@ -50,7 +50,7 @@ export function editorEvidence(platform,url){
  if(platform==='segmentfault')return u.pathname==='/write'&&!u.search;
  if(platform==='oschina')return u.origin==='https://my.oschina.net'&&/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/.test(u.pathname)&&!u.search;
  if(platform==='jianshu')return u.origin==='https://www.jianshu.com'&&u.pathname==='/writer'&&!u.search;
- if(platform==='bilibili')return u.origin==='https://member.bilibili.com'&&u.pathname==='/platform/upload/text/apply'&&!u.search;
+ if(platform==='bilibili')return u.origin==='https://member.bilibili.com'&&u.pathname==='/york/read-editor'&&!u.search;
  if(platform==='weibo')return u.origin==='https://weibo.com'&&u.pathname==='/ttarticle/p/editor'&&!u.search;
  if(platform==='sohu')return u.origin==='https://mp.sohu.com'&&u.pathname==='/mpfe/v4/contentManagement/news/addarticle'&&!u.search;
  if(platform==='netease')return u.origin==='https://mp.163.com'&&u.pathname==='/subscribe_v4/index.html'&&!u.search&&(u.hash==='#/article-publish'||!!neteaseAccountFromHash(u.hash,'/article-publish'));
