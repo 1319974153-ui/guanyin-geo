@@ -15,10 +15,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // has passed a real-account acceptance; this adapter never calls its API.
   jianshu:{origin:'https://www.jianshu.com',paths:[/^\/writer$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], textarea',body:'.dante-editor [contenteditable="true"], .ProseMirror[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/www\.jianshu\.com\/u\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布文章'],confirm:[],images:false,inlineAiDisclosure:true},
   // The supported Bilibili route is the current official article editor. Its
-  // static UI exposes “保存为草稿”, but that is not a persistent receipt: we
-  // do not click it or expose draft/public actions until a live account proves
-  // save → official draft list → re-opened full content.
-  bilibili:{origin:'https://member.bilibili.com',paths:[/^\/york\/read-editor$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // visible flow has one “发布” control. The editor's autosave or its success
+  // dialog is not a public-link receipt, so this remains behind the desktop
+  // real-account gate and never treats a dashboard as a published article.
+  bilibili:{origin:'https://member.bilibili.com',paths:[/^\/york\/read-editor$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:['发布'],confirm:[],images:false},
   // Keep the official long-form editor separate from the short-post composer.
   // The official desktop flow is editor -> 下一步 -> 发布. The adapter only
   // clicks each exact, unique visible control once; the desktop product still
@@ -258,7 +258,10 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   if(platform==='toutiao'){
    for(const label of ['无封面','不投放广告']){const candidates=many('label').filter(e=>text(e)===label);if(candidates.length===1&&!candidates[0].querySelector('input:checked'))candidates[0].click()}
   }
-  if(article.ai){const labels=many('label').filter(e=>/^(引用AI|AI辅助创作|内容由AI生成|包含AI生成内容)$/.test(text(e)));if(labels.length===1&&!labels[0].querySelector('input:checked'))labels[0].click()}
+  if(article.ai){
+   const labels=many('label').filter(e=>platform==='bilibili'?text(e).startsWith('AI辅助创作声明'):/^(引用AI|AI辅助创作|内容由AI生成|包含AI生成内容)$/.test(text(e)));
+   if(labels.length===1&&!labels[0].querySelector('input:checked'))labels[0].click();
+  }
   return {...evidence,prepared:true};
  }
  const aiLabel='包含 AI 辅助创作',aiLabels=[aiLabel,aiLabel+' 作者对内容负责'];
@@ -302,6 +305,19 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
    const blocked=many('[role="alert"],[role="status"],[class*="message"],[class*="toast"],[class*="modal"]').filter(e=>!e.closest('[contenteditable],article,aside')&&/绑定手机|绑定微信|暂不支持手机/.test(text(e)));
    if(blocked.length===1)fail('简书要求先完成账号绑定，请在官方页面处理后再继续原任务；不会重复点击发布');
    if(blocked.length>1)fail('简书账号绑定提示不唯一，未重复点击发布');
+  }
+  if(platform==='bilibili'){
+   await wait(200);verifyChallenge();
+   const notices=many('[role="alert"],[role="status"],[class*="message"],[class*="toast"],[class*="modal"],[class*="dialog"]').filter(e=>!e.closest('[contenteditable],article,aside'));
+   const blocked=notices.filter(e=>/账号封禁|账号等级不足|实名认证|绑定手机|投稿上限|转正答题/.test(text(e)));
+   if(blocked.length===1)fail('哔哩哔哩当前账号暂不能发布：'+text(blocked[0]).slice(0,100)+'；请在官方页面处理后继续原任务，不会重复点击发布');
+   if(blocked.length>1)fail('哔哩哔哩发布资格提示不唯一，未重复点击发布');
+   const success=notices.filter(e=>text(e)==='你的专栏已提交成功');
+   // The official dialog's “点击查看” opens the creator dashboard rather than
+   // an observed public article URL. Preserve the original task for manual
+   // review instead of turning that UI text into a fake public receipt.
+   if(success.length===1)fail('哔哩哔哩已显示“你的专栏已提交成功”，但尚未读取到官方公开文章链接；请在官方作品管理页核对，不会重复点击发布');
+   if(success.length>1)fail('哔哩哔哩提交成功提示不唯一，未重复点击发布');
   }
   // Some platforms have a preview confirmation. Never fall back to a private API.
   if(cfg.confirm.length){for(let i=0;i<12;i++){await wait(250);verifyChallenge();const c=buttons(cfg.confirm);if(c.length===1){c[0].click();return {attempted:true}}if(c.length>1)fail('确认按钮不唯一，结果待核对')}}

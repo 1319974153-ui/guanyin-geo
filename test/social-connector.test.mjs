@@ -18,7 +18,7 @@ function fixture(platform,options={}){
   if(s==='[role="combobox"]')return options.aiCombo?[combo]:[];
   if(s==='[role="option"],li')return options.aiCombo?Array.from({length:options.duplicateAI?2:1},()=>element(options.aiResponsibility?'包含 AI 辅助创作 作者对内容负责':'包含 AI 辅助创作',{click(){declaration='包含 AI 辅助创作'}})):[];
   if(s.includes('[class*="autosave"]')&&s.includes('[class*="message"]'))return (options.autosaveStatus||[]).map(v=>element(v,{closest:()=>options.autosaveInBody?bodyEl:null}));
-  if(s==='[role="alert"],[role="status"],[class*="message"],[class*="toast"]')return options.saveFailure?[element('保存失败',{closest:()=>options.failureInBody?bodyEl:null})]:[];
+  if(s.startsWith('[role="alert"],[role="status"],[class*="message"],[class*="toast"]'))return (options.notices||(options.saveFailure?['保存失败']:[])).map(v=>element(v,{closest:()=>options.failureInBody?bodyEl:null}));
   if(s.includes('captcha')||s.includes('验证码'))return captcha?[element('本人验证')]:[];
   if(s==='.DraftStatusTip'||s==='.footer-draft-save .footer-tip-save')return (options.savedStatus||[]).map(v=>element(v,{closest:()=>options.statusInBody?bodyEl:null}));
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
@@ -66,7 +66,7 @@ test('editor and receipt evidence cannot cross origins, platform types or dashbo
  for(const url of ['https://www.jianshu.com/p/7fa8ca73ac68?v=1770000000000','https://www3.jianshu.com/p/7fa8ca73ac68','https://www.jianshu.com/p/7fa8ca73ac68?from=writer','https://www.jianshu.com/p/not-a-slug'])assert.equal(receiptEvidence('jianshu',url,'7fa8ca73ac68'),false);
 });
 test('success text or dashboard navigation alone never produces a fabricated article receipt',async()=>{
- for(const p of ['toutiao','zhihu','jianshu','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
+ for(const p of ['toutiao','zhihu','jianshu','bilibili','douyin','xiaohongshu']){const f=fixture(p);assert.equal(await f.run('receipt'),null);assert.equal(f.clicks,0)}
 });
 
 test('exact reviewed identity/body permits one submit attempt and never a second click',async()=>{
@@ -138,15 +138,23 @@ test('Jianshu uses its one visible publish action, retains inline AI disclosure,
  const duplicate=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author',duplicateButtons:true});assert.match((await duplicate.run('preflight')).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
  const missing=fixture('jianshu',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
-test('Bilibili text creator reads only a visible space profile and never exposes submission',async()=>{
+test('Bilibili text creator reads only a visible space profile and accepts one guarded submission attempt',async()=>{
  const f=fixture('bilibili',{profileUrl:'https://space.bilibili.com/123456'});
  const task={accountId:'123456'};
  const me=await f.run('identity',task);assert.equal(me.accountId,'123456');assert.equal(me.name,'本人');
- assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight',task)).ready,true);assert.equal(f.clicks,0);
+ assert.equal((await f.run('submit',task)).attempted,true);assert.equal(f.clicks,1);
+ assert.match((await f.run('submit',task)).connectorError,/不会再点击/);assert.equal(f.clicks,1);
  assert.equal(editorEvidence('bilibili','https://member.bilibili.com/york/read-editor'),true);
  assert.equal(editorEvidence('bilibili','https://member.bilibili.com/platform/upload/text/apply'),false);
  assert.equal(editorEvidence('bilibili','https://member.bilibili.com/york/read-editor?from=creator'),false);
  const missing=fixture('bilibili',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
+});
+test('Bilibili visible success or account-eligibility notices stop the original task without a second publish click',async()=>{
+ const success=fixture('bilibili',{profileUrl:'https://space.bilibili.com/123456',notices:['你的专栏已提交成功']});
+ assert.match((await success.run('submit',{accountId:'123456'})).connectorError,/未读取到官方公开文章链接/);assert.equal(success.clicks,1);
+ const blocked=fixture('bilibili',{profileUrl:'https://space.bilibili.com/123456',notices:['你没有实名认证，无法发布专栏']});
+ assert.match((await blocked.run('submit',{accountId:'123456'})).connectorError,/暂不能发布/);assert.equal(blocked.clicks,1);
 });
 test('Bilibili observes only one exact outside-editor autosave notice without claiming a draft',async()=>{
  const signed={profileUrl:'https://space.bilibili.com/123456'},f=fixture('bilibili',{...signed,autosaveStatus:['保存成功']});

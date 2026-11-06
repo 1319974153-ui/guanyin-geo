@@ -72,6 +72,10 @@ test('Jianshu public adapter uses one commit and only a canonical official artic
  const f=await fixture(t,{platform:'jianshu',receipt:{state:'submitted',articleId:'7fa8ca73ac68',url:'https://www.jianshu.com/p/7fa8ca73ac68'}});await f.send('run','jianshu');
  assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','identity','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.equal(f.stored.inflightByPlatform.jianshu,undefined);
 });
+test('Bilibili guarded public adapter uses one commit but never turns a dashboard URL into a receipt',async t=>{
+ const f=await fixture(t,{platform:'bilibili',receipt:{blocked:true,error:'当前仅看到创作管理页，未读取官方公开文章链接'}});await f.send('run','bilibili');
+ assert.deepEqual(f.actions,['new-tab','identity','fill','preflight','identity','submit','receipt']);assert.deepEqual(f.requests,['pending','account','claim','commit','report']);assert.equal(f.clicks,1);assert.ok(f.stored.inflightByPlatform.bilibili);assert.match(f.stored.status,/公开文章链接/);
+});
 test('preflight failure reports need for user action without a write fallback',async t=>{
  const f=await fixture(t,{preflightError:true});await f.send('run');assert.equal(f.clicks,0);assert.ok(!f.requests.includes('commit'));assert.ok(f.stored.inflight);assert.match(f.stored.status,/表单不匹配/);
 });

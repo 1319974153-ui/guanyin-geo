@@ -14,7 +14,10 @@ export const PLATFORMS = {
  // dispatch off until a real account proves its binding requirements and the
  // public article link can be read back.
  jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
- bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The current official column editor exposes one visible "发布" control. The
+ // desktop dispatcher still keeps it closed until a real-account acceptance
+ // verifies the editor's required fields and a public-link receipt.
+ bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
  // The desktop build still keeps this disabled until a real Weibo account has
  // completed the full editor -> next -> publish -> public-link acceptance.
  // `publishSupported` here only means the visible-page adapter has an
