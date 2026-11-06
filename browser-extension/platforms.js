@@ -11,7 +11,11 @@ export const PLATFORMS = {
  oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
- weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The desktop build still keeps this disabled until a real Weibo account has
+ // completed the full editor -> next -> publish -> public-link acceptance.
+ // `publishSupported` here only means the visible-page adapter has an
+ // implementation; it never grants the default desktop build permission.
+ weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
  sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  baijiahao:{name:'百家号图文',editor:'https://baijiahao.baidu.com/builder/rc/edit?type=news',hosts:['https://baijiahao.baidu.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
@@ -80,6 +84,11 @@ export function receiptEvidence(platform,url,articleId){
  if(platform==='csdn')return u.origin==='https://mp.csdn.net'&&!u.search&&(m=u.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='toutiao')return ['https://www.toutiao.com','https://toutiao.com'].includes(u.origin)&&(m=u.pathname.match(/^\/article\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='zhihu')return u.origin==='https://zhuanlan.zhihu.com'&&(m=u.pathname.match(/^\/p\/(\d+)\/?$/))&&m[1]===String(articleId);
+ if(platform==='weibo'){
+  if(!['https://weibo.com','https://www.weibo.com'].includes(u.origin)||u.pathname!=='/ttarticle/p/show')return false;
+  const ids=u.searchParams.getAll('id'),modes=u.searchParams.getAll('mod');
+  return ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')&&ids[0]===String(articleId);
+ }
  if(platform==='douyin')return u.origin==='https://www.douyin.com'&&(m=u.pathname.match(/^\/(?:video|note)\/(\d+)\/?$/))&&m[1]===String(articleId);
  return platform==='xiaohongshu'&&u.origin==='https://www.xiaohongshu.com'&&(m=u.pathname.match(/^\/explore\/([a-fA-F0-9]{24})\/?$/))&&m[1]===String(articleId);
  }catch{return false}

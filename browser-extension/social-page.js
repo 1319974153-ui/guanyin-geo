@@ -16,9 +16,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   // save → official draft list → re-opened full content.
   bilibili:{origin:'https://member.bilibili.com',paths:[/^\/york\/read-editor$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/space\.bilibili\.com\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
   // Keep the official long-form editor separate from the short-post composer.
-  // Until an account validates its actual fields, it can only prepare a unique
-  // empty original article and can never save or submit it.
-  weibo:{origin:'https://weibo.com',paths:[/^\/ttarticle\/p\/editor$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/(?:www\.)?weibo\.com\/u\/(\d+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // The official desktop flow is editor -> 下一步 -> 发布. The adapter only
+  // clicks each exact, unique visible control once; the desktop product still
+  // keeps this route disabled until a real-account acceptance proves it.
+  weibo:{origin:'https://weibo.com',paths:[/^\/ttarticle\/p\/editor$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"], input[aria-label*="标题"], textarea[aria-label*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"][role="textbox"]',profile:/^https:\/\/(?:www\.)?weibo\.com\/u\/(\d+)\/?(?:\?.*)?$/,publish:['下一步'],confirm:['发布'],images:false},
   // The public profile route carries an opaque account selector. Keep it opaque:
   // it is used only as a stable local account key and is never decoded or sent
   // to a third party. Broad contenteditable fallbacks are intentionally absent.
@@ -52,14 +53,24 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  const buttons=names=>many('button,[role="button"]').filter(e=>names.includes(text(e))&&!e.disabled&&e.getAttribute('aria-disabled')!=='true');
  const verifyChallenge=()=>{if(many('iframe[src*="captcha"],.geetest_panel,.yidun_modal,[class*="captcha"]').length||many('input[placeholder*="验证码"]').length)fail('平台要求本人验证，请处理后核对状态；不会自动发送验证码')};
  const saveFailure=()=>many('[role="alert"],[role="status"],[class*="message"],[class*="toast"]').some(e=>!e.closest('[contenteditable],article,aside')&&text(e)==='保存失败');
- if(location.origin!==cfg.origin)fail('页面已跳转，请先完成本人登录');
+ // A completed Weibo long-form article can land on either official host. That
+ // host allowance is read-only and applies only while collecting a receipt;
+ // editing/filling still requires the exact editor origin above.
+ if(location.origin!==cfg.origin&&!(action==='receipt'&&platform==='weibo'&&['https://weibo.com','https://www.weibo.com'].includes(location.origin)))fail('页面已跳转，请先完成本人登录');
  // The official setup page is an account eligibility gate, not a saved draft.
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
-  if(platform==='douyin'){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
+  if(['douyin','weibo'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
+  const receiptId=url=>{
+   if(platform!=='weibo')return url.match(patterns[platform])?.[1]||null;
+   try{
+    const u=new URL(url),ids=u.searchParams.getAll('id'),modes=u.searchParams.getAll('mod');
+    return ['https://weibo.com','https://www.weibo.com'].includes(u.origin)&&!u.username&&!u.password&&!u.port&&!u.hash&&u.pathname==='/ttarticle/p/show'&&ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')?ids[0]:null;
+   }catch{return null}
+  };
   const candidates=[location.href,...many('a[href]').filter(a=>/^(查看文章|查看作品|查看笔记|查看发布内容)$/.test(text(a))&&/发布成功|提交成功|审核中/.test(text(a.closest('[role="alert"],[role="dialog"],[class*="success"],[class*="result"]')))).map(a=>a.href)];
-  const matches=candidates.map(url=>({url,id:url.match(patterns[platform])?.[1]})).filter(r=>r.id);
+  const matches=candidates.map(url=>({url,id:receiptId(url)})).filter(r=>r.id);
   const ids=[...new Set(matches.map(m=>m.id))];if(ids.length!==1)return null;
   return {state:'submitted',articleId:ids[0],url:matches[0].url};
  }

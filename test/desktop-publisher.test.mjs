@@ -29,7 +29,7 @@ test('automatic desktop verification still binds dispatch to expected account an
 });
 test('the packaged desktop gate never enables public dispatch for a merely implemented candidate',async t=>{
  const e=setup(t,DESKTOP_PUBLIC_PLATFORMS);
- for(const platform of ['csdn','aliyun']){
+ for(const platform of ['csdn','aliyun','weibo']){
   const c=e.bridge.connectDesktop({brandId:'a',platform});
   await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity(platform)});
   const result=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',...(platform==='csdn'?{tags:['测试']}:{}),expectedAccountId:'author'});
@@ -124,7 +124,7 @@ test('Bilibili desktop connection permits creator-center preparation only',async
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'author'})).status,409);
 });
 
-test('Weibo long-form desktop connection permits official editor preparation only',async t=>{
+test('Weibo long-form desktop connection keeps public dispatch disabled before real-account acceptance',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'weibo'});
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('weibo')});
  assert.equal(e.bridge.desktopConnections()[0].platform,'weibo');
