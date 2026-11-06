@@ -249,7 +249,7 @@ test('Aliyun observed handoff requires original lease, full content and identity
  assert.equal((await e.app('retry',{id:j.id})).status,409);
 });
 
-test('Juejin desktop accepts draft and blocks public dispatch even if accidentally configured',async t=>{
+test('Juejin desktop accepts draft and keeps direct public dispatch closed before real acceptance',async t=>{
  const e=setup(t,['juejin']),c=e.bridge.connectDesktop({brandId:'a',platform:'juejin'}),call=(action,data)=>e.bridge.desktopRequest({sessionId:c.sessionId,action,data});await call('account',identity('juejin'));
  const args={sessionId:c.sessionId,brandId:'a',contentId:'c',expectedAccountId:'author'};
  assert.equal((await e.app('enqueue',{...args,mode:'publish'})).status,409);

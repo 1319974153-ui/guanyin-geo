@@ -7,7 +7,7 @@ export function publishingEvidence(id){
  const browser=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site'].includes(id);
  const tested=['csdn','toutiao','zhihu','douyin'].includes(id);
  return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
-  const implemented=id==='juejin'?action!=='publish':id==='aliyun'?true:id==='51cto'?true:wechat?true:['weibo','sohu','netease','jianshu','bilibili'].includes(id)?action!=='draft':['segmentfault','oschina','baijiahao'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
+  const implemented=id==='juejin'?true:id==='aliyun'?true:id==='51cto'?true:wechat?true:['weibo','sohu','netease','jianshu','bilibili'].includes(id)?action!=='draft':['segmentfault','oschina','baijiahao'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
   const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
   // 小红书已恢复开发，但只有正确账号完成实机核对后才会开放草稿或公开提交。
   const status=!implemented?'not_implemented':passed?'passed':'pending';
@@ -16,7 +16,7 @@ export function publishingEvidence(id){
  }));
 }
 export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
- if(id==='juejin')return {stage:'纯文本草稿已实测',note:'Mac 桌面已通过自动识别账号、勾选平台、填稿、保存编号草稿及重开全文核对，回执自动回到观引；正常重开后登录保留。图片稿与公开提交未开放。'};
+ if(id==='juejin')return {stage:'纯文本草稿已实测 · 公开流程代码已接入',note:'Mac 桌面已通过自动识别账号、勾选平台、填稿、保存编号草稿及重开全文核对，回执自动回到观引；正常重开后登录保留。公开流程仅接受唯一的可见“发布”操作并最多点击一次；绑定手机、实名认证、账号受限、验证码、异常跳转或成功提示都会停止。当前官方公开文章链接尚未在真实账号核对，因此桌面版不开放掘金直接发布。'};
  if(id==='aliyun')return {stage:'纯文本草稿已实测',note:'Mac 桌面已通过账号识别、自动填稿、保存及原稿全文回读；公开提交试用已接入；10月28日账号复核遇登录失效，未新建或提交正常稿，待本人登录后验收；声明和安全验证由本人完成，图片尚未开放。'};
  if(id==='51cto')return {stage:'草稿与提交已实测',note:'Mac 桌面已通过全新两图草稿自动保存与回读；纯文本稿审核后已自动核对匿名全文并显示发布成功。图片稿公开提交仍待实测。'};
  if(id==='tencentcloud')return {stage:'草稿与公开发布已实测',note:'Mac 桌面已自动新建草稿并提交同一篇正式稿；后台已发布，匿名完整正文已核对；r39 已自动核对匿名完整正文并显示发布成功'};

@@ -224,7 +224,7 @@ async function run(platform='csdn'){
   let tabId;
   if(!pending.originalDraft&&pending.recoverPreparation&&platform==='51cto'){tabId=(await chrome.tabs.create({url:platformConfig(platform).editor,active:false})).id;}else if(pending.originalDraft){
    const proof=draftEvidence(platform,{...pending.originalDraft,accountId:'pending',contentVerified:true});
-   if(!['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
+   if(!['csdn','zhihu','tencentcloud','51cto','aliyun','juejin'].includes(platform)||!proof)throw new Error('原稿地址无效；未重新建稿');
    tabId=(await chrome.tabs.create({url:proof.url,active:true})).id;
   }else tabId=await freshEditor(platform);
   const me=await identity(tabId,platform);await call('account',accountEvidence(me,platform));

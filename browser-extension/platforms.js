@@ -1,6 +1,10 @@
 // Shared connector contract; this module has no browser globals or secrets.
 export const PLATFORMS = {
- juejin:{name:'掘金',publishSupported:false,draftProtocol:1,editor:'https://juejin.cn/editor/drafts/new?v=2',hosts:['https://juejin.cn/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
+ // The visible official editor exposes one guarded “发布” action. Keep the
+ // product gate false until a real account verifies the actual public article
+ // link and any mandatory account/metadata fields; `guardedPublishAdapter`
+ // records implementation without granting a desktop publish permission.
+ juejin:{name:'掘金',publishSupported:false,guardedPublishAdapter:true,draftProtocol:1,editor:'https://juejin.cn/editor/drafts/new?v=2',hosts:['https://juejin.cn/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
  aliyun:{name:'阿里云开发者社区',publishSupported:true,draftProtocol:1,editor:'https://developer.aliyun.com/article/new',hosts:['https://developer.aliyun.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
  '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:9,optionalImages:true,desktopOnly:true},
  tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
