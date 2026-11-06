@@ -12,7 +12,10 @@ export const PLATFORMS = {
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
  segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
- oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The guarded visible-page adapter is present, but public dispatch stays
+ // disabled until the first real account validates its submit and public-page
+ // readback.  `guardedPublishAdapter` is implementation metadata, not a grant.
+ oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false,guardedPublishAdapter:true},
  // The visible desktop writer exposes one “发布文章” action. It is implemented
  // below as a guarded page flow, but the packaged desktop app keeps public
  // dispatch off until a real account proves its binding requirements and the
@@ -109,6 +112,7 @@ export function receiptEvidence(platform,url,articleId){
  }
  if(platform==='sohu')return !!(u.origin==='https://www.sohu.com'&&!u.search&&(m=u.pathname.match(/^\/a\/([1-9]\d{0,19})_[1-9]\d{0,19}\/?$/))&&m[1]===String(articleId));
  if(platform==='jianshu')return !!(u.origin==='https://www.jianshu.com'&&!u.search&&(m=u.pathname.match(/^\/p\/([a-f0-9]{12})\/?$/))&&m[1]===String(articleId));
+ if(platform==='oschina')return !!(u.origin==='https://my.oschina.net'&&!u.search&&(m=u.pathname.match(/^\/u\/[1-9]\d{0,19}\/blog\/([1-9]\d{0,19})\/?$/))&&m[1]===String(articleId));
  if(platform==='douyin')return u.origin==='https://www.douyin.com'&&(m=u.pathname.match(/^\/(?:video|note)\/(\d+)\/?$/))&&m[1]===String(articleId);
  return platform==='xiaohongshu'&&u.origin==='https://www.xiaohongshu.com'&&(m=u.pathname.match(/^\/explore\/([a-fA-F0-9]{24})\/?$/))&&m[1]===String(articleId);
  }catch{return false}

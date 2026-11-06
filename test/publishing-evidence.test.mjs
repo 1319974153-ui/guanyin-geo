@@ -20,6 +20,8 @@ test('platform acceptance records distinguish verified publication, blocked draf
  assert.match(jianshu.stage,/公开流程代码/);assert.match(jianshu.note,/发布文章/);assert.match(jianshu.note,/AI 辅助/);assert.equal(jianshu.actionEvidence.draft.implemented,false);assert.equal(jianshu.actionEvidence.publish.implemented,true);assert.equal(jianshu.actionEvidence.publish.liveAcceptance,'pending');
  const bilibili=rows.find(p=>p.id==='bilibili');
  assert.match(bilibili.stage,/公开流程代码/);assert.match(bilibili.note,/AI辅助创作声明/);assert.equal(bilibili.actionEvidence.draft.implemented,false);assert.equal(bilibili.actionEvidence.publish.implemented,true);assert.equal(bilibili.actionEvidence.publish.liveAcceptance,'pending');
+ const oschina=rows.find(p=>p.id==='oschina');
+ assert.match(oschina.stage,/两步公开流程代码/);assert.match(oschina.note,/确定并发布/);assert.equal(oschina.actionEvidence.draft.implemented,false);assert.equal(oschina.actionEvidence.publish.implemented,true);assert.equal(oschina.actionEvidence.publish.liveAcceptance,'pending');
  const weibo=rows.find(p=>p.id==='weibo');
  assert.equal(weibo.actionEvidence.publish.implemented,true);assert.equal(weibo.actionEvidence.publish.liveAcceptance,'pending');assert.equal(weibo.actionEvidence.draft.implemented,false);
  assert.match(weibo.stage,/两步公开流程代码/);assert.match(weibo.note,/下一步/);

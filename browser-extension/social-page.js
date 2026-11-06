@@ -8,7 +8,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   toutiao:{origin:'https://mp.toutiao.com',paths:[/^\/profile_v4\/graphic\/publish$/],title:'.publish-editor-title textarea, textarea[placeholder*="文章标题"]',body:'.ProseMirror[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?toutiao.com\/c\/user\/(\d+)\//,publish:['预览并发布','发布文章'],confirm:['确认发布'],images:false},
   zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
   segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
-  oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:[],confirm:[],images:false},
+  // OSC's current writer uses a visible two-step flow: “发布文章” first,
+  // then “确定并发布” in its own publish-settings confirmation.  This stays
+  // gated until a real account proves the full public-page roundtrip.
+  oschina:{origin:'https://my.oschina.net',paths:[/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/],strictNoQuery:true,title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',profile:/^https:\/\/my\.oschina\.net\/(?:u\/)?([\w-]+)\/?(?:\?.*)?$/,publish:['发布文章'],confirm:['确定并发布'],images:false,inlineAiDisclosure:true},
   // The current official writer exposes one non-paid “发布文章” control. It
   // autosaves locally in the editor, then reports a public note link after a
   // successful release. We keep the product gate closed until that full flow
@@ -71,11 +74,11 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  // The official setup page is an account eligibility gate, not a saved draft.
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
-  if(['douyin','weibo'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
+  if(['douyin','weibo','oschina'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
   // 网易号当前公开文章 URL 和内容管理条目的可读回执尚未在真实账号
   // 验收。绝不把“发布成功”提示或管理页跳转伪造成文章回执。
   if(platform==='netease')return null;
-  const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,jianshu:/^https:\/\/www\.jianshu\.com\/p\/([a-f0-9]{12})\/?(?:\?v=\d+)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
+  const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,oschina:/^https:\/\/my\.oschina\.net\/u\/[1-9]\d{0,19}\/blog\/([1-9]\d{0,19})\/?$/,jianshu:/^https:\/\/www\.jianshu\.com\/p\/([a-f0-9]{12})\/?(?:\?v=\d+)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const receiptId=url=>{
    if(platform!=='weibo'&&platform!=='sohu')return url.match(patterns[platform])?.[1]||null;
    try{
@@ -267,9 +270,13 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  const aiLabel='包含 AI 辅助创作',aiLabels=[aiLabel,aiLabel+' 作者对内容负责'];
  const aiCombo=()=>{const items=many('[role="combobox"]').filter(e=>!e.closest('[contenteditable],article,aside')&&['无声明',...aiLabels].includes(text(e)));return items.length===1?items[0]:null};
  const douyinDeclared=()=>many('*').some(e=>!e.closest('[contenteditable],article')&&text(e).replace(/\s+/g,'')==='自主声明内容由AI生成');
- const aiDeclared=()=>platform==='jianshu'&&inlineDisclosure?matches():platform==='douyin'?douyinDeclared():platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
+ const aiDeclared=()=>inlineDisclosure?matches():platform==='douyin'?douyinDeclared():platform==='zhihu'?aiLabels.includes(text(aiCombo())):many('label').some(e=>/引用AI|AI辅助|AI生成|人工智能/.test(text(e))&&e.querySelector('input:checked'));
  if(action==='preflight'||action==='submit'){
   if(!matches())fail('正文或标题与已确认版本不同');verifyChallenge();
+  // OSC changes the visible primary action into the confirmation action after
+  // the first click. Check the one-shot latch before looking for the primary
+  // label again, otherwise a restart could mistake that state for a new task.
+  if(platform==='oschina'&&action==='submit'&&globalThis.__guanyinSubmitAttempted)fail('本页已执行提交，不会再点击');
   if(platform==='douyin'&&article.ai&&action==='preflight'&&!aiDeclared()){
    const all=many('*').filter(e=>['自主声明请选择自主声明','请选择自主声明'].includes(text(e).replace(/\s+/g,''))&&!e.closest('[contenteditable],article'));
    const triggers=all.filter(e=>!all.some(child=>child!==e&&e.contains(child)));

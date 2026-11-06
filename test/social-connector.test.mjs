@@ -4,14 +4,14 @@ import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
 import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
- let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',twoStepStage='next';const twoStepPlatform=['weibo','sohu'].includes(platform),neteaseConfirmation=platform==='netease';
+ let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',twoStepStage='next';const twoStepPlatform=['weibo','sohu'].includes(platform),neteaseConfirmation=platform==='netease',oschinaConfirmation=platform==='oschina';
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,closest:()=>null,focus(){},...extra});
  const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
   let value=body;return {get textContent(){return value},querySelectorAll:s=>s==='span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'?[element(options.placeholderText||'请输入正文',{remove(){value=value.replace(options.placeholderText||'请输入正文','')}})]:[]};
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
- const button=element(platform==='toutiao'?'预览并发布':platform==='jianshu'?'发布文章':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish';else if(neteaseConfirmation&&options.neteaseConfirm!==false)twoStepStage='confirm'}});
- if(twoStepPlatform||neteaseConfirmation)Object.defineProperties(button,{textContent:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')},innerText:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')}});
+ const button=element(platform==='toutiao'?'预览并发布':platform==='jianshu'||platform==='oschina'?'发布文章':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish';else if(neteaseConfirmation&&options.neteaseConfirm!==false)twoStepStage='confirm';else if(oschinaConfirmation)twoStepStage='confirm'}});
+ if(twoStepPlatform||neteaseConfirmation||oschinaConfirmation)Object.defineProperties(button,{textContent:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(neteaseConfirmation?(twoStepStage==='confirm'?'确认发布':'发布'):(twoStepStage==='confirm'?'确定并发布':'发布文章'))},innerText:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(neteaseConfirmation?(twoStepStage==='confirm'?'确认发布':'发布'):(twoStepStage==='confirm'?'确定并发布':'发布文章'))}});
  let declaration='无声明';const combo=element('',{tagName:'BUTTON',value:'',get textContent(){return declaration},get innerText(){return declaration},click(){}});
  Object.defineProperties(combo,{textContent:{get:()=>declaration},innerText:{get:()=>declaration}});
  const doc={querySelectorAll(s){
@@ -24,7 +24,7 @@ function fixture(platform,options={}){
   if(s==='main a.title')return (options.listTitles||[]).map(v=>element(v,{click:()=>draftOpens++}));
   if(s==='[aria-label^="点击打开"][aria-label$="的主页"]')return (options.profileLabels||[]).map(label=>element('',{getAttribute:()=>label,closest:()=>null}));
   if(s==='script#__NEXT_DATA__')return (options.sessionUsers||[]).map(user=>element(JSON.stringify({props:{pageProps:{initialState:{global:{sessionUser:user}}}}})));
-  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':platform==='weibo'?(options.profileUrl||'https://weibo.com/u/'+account):platform==='jianshu'?(options.profileUrl||'https://www.jianshu.com/u/'+account):(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
+  if(s==='a[href]')return [...(options.draftLink?[element('更多草稿',{href:options.draftLink,closest:()=>options.linkInBody?bodyEl:null})]:[]),element(options.profileName||'本人',{href:platform==='toutiao'?'https://toutiao.com/c/user/'+account+'/':platform==='weibo'?(options.profileUrl||'https://weibo.com/u/'+account):platform==='jianshu'?(options.profileUrl||'https://www.jianshu.com/u/'+account):platform==='oschina'?(options.profileUrl||'https://my.oschina.net/u/'+account):(options.profileUrl||'https://www.zhihu.com/people/'+account),closest:()=>null})];
   if(s.startsWith('header,'))return [element((platform==='douyin'?'抖音号：':'小红书号：')+account)];
   if(s==='button,[role="button"]')return options.duplicateButtons?[button,button]:[button];
   if(s==='*'&&platform==='douyin')return [...(options.missingMedia?[]:[element('已添加1张图片')]),...(options.douyinDeclared?[element(options.compactDeclaration?'自主声明内容由AI生成':'自主声明 内容由AI生成')]:[])];
@@ -107,10 +107,10 @@ test('Jianshu observes only one exact outside-editor autosave notice without cla
  }
  const changed=fixture('jianshu',{...signed,autosaveStatus:['保存成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
 });
-test('OSCHINA reads only the signed-in profile link and never exposes a submit control',async()=>{
+test('OSCHINA reads only the signed-in profile link and requires its current two-step public control',async()=>{
  const f=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'本人');
- assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);
  const missing=fixture('oschina',{profileUrl:'https://www.zhihu.com/people/author'});assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
 test('OSCHINA uses only the current ai-write editor and observes one exact save-success notice',async()=>{
@@ -125,6 +125,17 @@ test('OSCHINA uses only the current ai-write editor and observes one exact save-
   const observed=await fixture('oschina',options).run('autosave-observation');assert.equal(observed.autosaveObserved,false);
  }
  const changed=fixture('oschina',{...signed,autosaveStatus:['保存草稿成功']});changed.setBody('已修改正文');assert.match((await changed.run('autosave-observation')).connectorError,/正文已变化/);assert.equal(changed.clicks,0);
+});
+test('OSCHINA uses exactly one visible publish-and-confirm path and accepts only its official public article route',async()=>{
+ const f=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});
+ assert.equal((await f.run('submit')).attempted,true);assert.equal(f.clicks,2);
+ assert.match((await f.run('submit')).connectorError,/不会再点击/);assert.equal(f.clicks,2);
+ const publicUrl='https://my.oschina.net/u/123/blog/456',u=new URL(publicUrl);Object.assign(f.context.location,{href:u.href,origin:u.origin,pathname:u.pathname,search:u.search,hash:u.hash});
+ const receipt=await f.run('receipt');assert.equal(receipt?.state,'submitted');assert.equal(receipt?.articleId,'456');assert.equal(receipt?.url,publicUrl);
+ assert.ok(receiptEvidence('oschina',publicUrl,'456'));
+ for(const bad of [publicUrl+'?from=editor',publicUrl+'#fragment','https://my.oschina.net/u/0/blog/456','https://my.oschina.net/u/123/blog/0','https://my.oschina.net.evil.test/u/123/blog/456'])assert.equal(receiptEvidence('oschina',bad,'456'),false);
+ const duplicate=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author',duplicateButtons:true});assert.match((await duplicate.run('preflight')).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
+ const ai=fixture('oschina',{profileUrl:'https://my.oschina.net/u/author'});ai.setBody('测试正文 本文包含 AI 辅助生成或整理的内容。');assert.equal((await ai.run('preflight',{article:{title:'测试文章',text:'测试正文',html:'<p>测试正文</p>',ai:true}})).ready,true);
 });
 test('Jianshu uses its one visible publish action, retains inline AI disclosure, and only accepts a canonical public article receipt',async()=>{
  const f=fixture('jianshu',{profileUrl:'https://www.jianshu.com/u/author'});
