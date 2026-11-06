@@ -29,7 +29,10 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   sohu:{origin:'https://mp.sohu.com',paths:[/^\/mpfe\/v4\/contentManagement\/news\/addarticle$/],title:'input[placeholder*="标题"], textarea[placeholder*="标题"]',body:'.ql-editor[contenteditable="true"]',profileQuery:{path:'/profile',param:'xpt',pattern:/^[A-Za-z0-9_-]{8,100}$/},publish:['下一步'],confirm:['发布'],images:false},
   // 网易号当前创作者由官方单页应用片段中的 wemediaId 选择。它仅作为本机
   // 账号键：路由、键名、长度和唯一性均需匹配，不能从作者文字或 Cookie 推断。
-  netease:{origin:'https://mp.163.com',paths:[/^\/subscribe_v4\/index\.html$/],hash:/^#\/article-publish(?:\?wemediaId=W[A-Za-z0-9_-]{7,99})?$/,title:'.article-title-container textarea, .newtitle-wrapper .newtitle-container textarea, textarea[placeholder*="标题"]',body:'.rich-editor .public-DraftEditor-content[contenteditable="true"]',hashQuery:{path:'/article-publish',param:'wemediaId',pattern:/^W[A-Za-z0-9_-]{7,99}$/},publish:[],confirm:[],images:false},
+  // The visible official article editor uses one “发布” control. A no-image
+  // warning can expose one extra “确认发布”; both are exact and one-shot. The
+  // desktop package remains gated until a real account acceptance is recorded.
+  netease:{origin:'https://mp.163.com',paths:[/^\/subscribe_v4\/index\.html$/],hash:/^#\/article-publish(?:\?wemediaId=W[A-Za-z0-9_-]{7,99})?$/,title:'.article-title-container textarea, .newtitle-wrapper .newtitle-container textarea, textarea[placeholder*="标题"]',body:'.rich-editor .public-DraftEditor-content[contenteditable="true"]',hashQuery:{path:'/article-publish',param:'wemediaId',pattern:/^W[A-Za-z0-9_-]{7,99}$/},publish:['发布'],confirm:['确认发布'],images:false},
   // 百家号只接受当前官方图文编辑路由。账号键来自编辑器外可见的官方
   // 个人主页 app_id 链接；它是本机匹配键，不读取 Cookie、开发者密钥或接口响应。
   // 编辑器字段尚待真实账号验收，因此没有草稿、图片或公开提交动作。
@@ -65,6 +68,9 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
  if(action==='receipt'){
   if(['douyin','weibo'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
+  // 网易号当前公开文章 URL 和内容管理条目的可读回执尚未在真实账号
+  // 验收。绝不把“发布成功”提示或管理页跳转伪造成文章回执。
+  if(platform==='netease')return null;
   const patterns={toutiao:/^https:\/\/(?:www\.)?toutiao.com\/article\/(\d+)\/?(?:\?.*)?$/,zhihu:/^https:\/\/zhuanlan.zhihu.com\/p\/(\d+)\/?(?:\?.*)?$/,douyin:/^https:\/\/www.douyin.com\/(?:video|note)\/(\d+)\/?(?:\?.*)?$/,xiaohongshu:/^https:\/\/www.xiaohongshu.com\/explore\/([a-fA-F0-9]{24})\/?(?:\?.*)?$/};
   const receiptId=url=>{
    if(platform!=='weibo'&&platform!=='sohu')return url.match(patterns[platform])?.[1]||null;

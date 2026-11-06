@@ -7,7 +7,7 @@ import {publishingEvidence} from '../src/publishing-evidence.js';
 // action has passed real-account acceptance. Keeping the candidate list
 // separate lets us ship a draft/prepare adapter without accidentally exposing
 // an unverified public-submit button in the desktop app.
-export const DESKTOP_PUBLIC_CANDIDATES=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun','douyin','weibo','sohu']);
+export const DESKTOP_PUBLIC_CANDIDATES=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun','douyin','weibo','sohu','netease']);
 export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(DESKTOP_PUBLIC_CANDIDATES.filter(id=>{
  const action=publishingEvidence(id).publish;
  return action.implemented&&action.liveAcceptance==='passed'&&PLATFORMS[id]?.publishSupported!==false;

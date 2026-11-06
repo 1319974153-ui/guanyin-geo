@@ -20,7 +20,11 @@ export const PLATFORMS = {
  // packaged desktop app keeps public dispatch off until a real account has
  // proven its required fields, review result and public article roundtrip.
  sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
- netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The current official editor exposes one visible “发布” action and may show
+ // one no-image warning confirmation. The desktop bundle still keeps public
+ // dispatch disabled until a real account proves required fields, review state
+ // and a separately readable article receipt.
+ netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
  baijiahao:{name:'百家号图文',editor:'https://baijiahao.baidu.com/builder/rc/edit?type=news',hosts:['https://baijiahao.baidu.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
  douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
  xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}

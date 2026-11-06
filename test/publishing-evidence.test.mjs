@@ -24,6 +24,9 @@ test('platform acceptance records distinguish verified publication, blocked draf
  const sohu=rows.find(p=>p.id==='sohu');
  assert.equal(sohu.actionEvidence.publish.implemented,true);assert.equal(sohu.actionEvidence.publish.liveAcceptance,'pending');assert.equal(sohu.actionEvidence.draft.implemented,false);
  assert.match(sohu.stage,/两步公开流程代码/);assert.match(sohu.note,/摘要/);
+ const netease=rows.find(p=>p.id==='netease');
+ assert.equal(netease.actionEvidence.publish.implemented,true);assert.equal(netease.actionEvidence.publish.liveAcceptance,'pending');assert.equal(netease.actionEvidence.draft.implemented,false);
+ assert.match(netease.stage,/公开流程代码/);assert.match(netease.note,/确认发布/);assert.match(netease.note,/不会被当作回执/);
  const wechat=rows.find(p=>p.id==='wechat');
  assert.equal(wechat.actionEvidence.publish.liveAcceptance,'pending');
  assert.match(wechat.stage,/原任务可恢复/);

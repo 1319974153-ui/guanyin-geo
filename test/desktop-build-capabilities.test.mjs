@@ -6,8 +6,8 @@ test('package capability manifest follows actual desktop gates and distinguishes
  const c=desktopBuildCapabilities();
  assert.ok(c.publicPublishingPlatforms.includes('metaweblog'));
  assert.ok(c.draftOnlyPlatforms.includes('juejin'));
- for(const id of ['juejin','toutiao','xiaohongshu','wechat','baijiahao','csdn','aliyun','weibo','sohu'])assert.ok(!c.publicPublishingPlatforms.includes(id));
- assert.deepEqual([...DESKTOP_PUBLIC_CANDIDATES],['csdn','zhihu','tencentcloud','51cto','aliyun','douyin','weibo','sohu']);
+ for(const id of ['juejin','toutiao','xiaohongshu','wechat','baijiahao','csdn','aliyun','weibo','sohu','netease'])assert.ok(!c.publicPublishingPlatforms.includes(id));
+ assert.deepEqual([...DESKTOP_PUBLIC_CANDIDATES],['csdn','zhihu','tencentcloud','51cto','aliyun','douyin','weibo','sohu','netease']);
  assert.deepEqual([...DESKTOP_PUBLIC_PLATFORMS],['zhihu','tencentcloud','51cto','douyin']);
  for(const id of DESKTOP_PUBLIC_PLATFORMS)assert.ok(c.publicPublishingPlatforms.includes(id));
  for(const id of DESKTOP_PUBLIC_CANDIDATES.filter(id=>!DESKTOP_PUBLIC_PLATFORMS.includes(id)))assert.ok(!c.publicPublishingPlatforms.includes(id));

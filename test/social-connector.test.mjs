@@ -4,14 +4,14 @@ import vm from 'node:vm';
 import {socialPage} from '../browser-extension/social-page.js';
 import {PLATFORMS,editorEvidence,receiptEvidence,draftEvidence,preparationEvidence} from '../browser-extension/platforms.js';
 function fixture(platform,options={}){
- let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',twoStepStage='next';const twoStepPlatform=['weibo','sohu'].includes(platform);
+ let clicks=0,draftOpens=0,account=platform==='weibo'?'123456':'author',captcha=false,title='测试文章',body='测试正文',twoStepStage='next';const twoStepPlatform=['weibo','sohu'].includes(platform),neteaseConfirmation=platform==='netease';
  const element=(value,extra={})=>({textContent:value,innerText:value,getClientRects:()=>[{}],getAttribute:()=>null,querySelector:()=>null,closest:()=>null,focus(){},...extra});
  const titleEl=element('',{get value(){return title},tagName:'INPUT'});Object.defineProperty(titleEl,'value',{get:()=>title});
  const bodyEl=element('',{querySelector:s=>options.placeholder&&s.startsWith('span.syl-placeholder')?{}:null,cloneNode(){
   let value=body;return {get textContent(){return value},querySelectorAll:s=>s==='span.syl-placeholder.ProseMirror-widget[ignoreel="true"][contenteditable="false"]'?[element(options.placeholderText||'请输入正文',{remove(){value=value.replace(options.placeholderText||'请输入正文','')}})]:[]};
  }});Object.defineProperty(bodyEl,'innerText',{get:()=>body});
- const button=element(platform==='toutiao'?'预览并发布':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish'}});
- if(twoStepPlatform)Object.defineProperties(button,{textContent:{get:()=>twoStepStage==='next'?'下一步':'发布'},innerText:{get:()=>twoStepStage==='next'?'下一步':'发布'}});
+ const button=element(platform==='toutiao'?'预览并发布':twoStepPlatform?'下一步':'发布',{tagName:'BUTTON',value:'',click:()=>{clicks++;if(twoStepPlatform)twoStepStage='publish';else if(neteaseConfirmation&&options.neteaseConfirm!==false)twoStepStage='confirm'}});
+ if(twoStepPlatform||neteaseConfirmation)Object.defineProperties(button,{textContent:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')},innerText:{get:()=>twoStepPlatform?(twoStepStage==='next'?'下一步':'发布'):(twoStepStage==='confirm'?'确认发布':'发布')}});
  let declaration='无声明';const combo=element('',{tagName:'BUTTON',value:'',get textContent(){return declaration},get innerText(){return declaration},click(){}});
  Object.defineProperties(combo,{textContent:{get:()=>declaration},innerText:{get:()=>declaration}});
  const doc={querySelectorAll(s){
@@ -176,11 +176,16 @@ test('Sohu article editor uses one exact next-step and one exact final publish a
  const ambiguous=fixture('sohu',{profileUrl:'https://mp.sohu.com/profile?xpt=opaqueAccount9&xpt=otherAccount9'});assert.match((await ambiguous.run('identity')).connectorError,/唯一账号 ID/);
  const hostile=fixture('sohu',{profileUrl:'https://mp.sohu.com.evil.test/profile?xpt=opaqueAccount9'});assert.match((await hostile.run('identity')).connectorError,/唯一账号 ID/);
 });
-test('Netease article editor accepts only its exact official account fragment and never exposes submission',async()=>{
+test('Netease article editor uses one exact publish action and only an optional no-image confirmation, while keeping receipts unconfirmed',async()=>{
  const task={accountId:'W12345678'};
  const f=fixture('netease',{hash:'#/article-publish?wemediaId=W12345678'});
  const me=await f.run('identity',task);assert.equal(me.accountId,'W12345678');assert.equal(me.name,'网易号');
- assert.match((await f.run('preflight',task)).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight',task)).ready,true);assert.equal(f.clicks,0);
+ assert.equal((await f.run('submit',task)).attempted,true);assert.equal(f.clicks,2);
+ assert.match((await f.run('submit',task)).connectorError,/发布按钮/);assert.equal(f.clicks,2);
+ const management=new URL('https://mp.163.com/subscribe_v4/index.html#/content-manage');Object.assign(f.context.location,{href:management.href,origin:management.origin,pathname:management.pathname,search:management.search,hash:management.hash});
+ assert.equal(await f.run('receipt',task),null);assert.equal(f.clicks,2);
+ const duplicate=fixture('netease',{hash:'#/article-publish?wemediaId=W12345678',duplicateButtons:true});assert.match((await duplicate.run('preflight',task)).connectorError,/发布按钮/);assert.equal(duplicate.clicks,0);
  for(const hash of ['#/home?wemediaId=W12345678','#/article-publish?wemediaId=W12345678&wemediaId=W87654321','#/article-publish?wemediaId=short']){
   const blocked=fixture('netease',{hash});assert.ok((await blocked.run('identity',task)).connectorError);assert.equal(blocked.clicks,0);
  }

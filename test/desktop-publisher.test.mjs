@@ -29,7 +29,7 @@ test('automatic desktop verification still binds dispatch to expected account an
 });
 test('the packaged desktop gate never enables public dispatch for a merely implemented candidate',async t=>{
  const e=setup(t,DESKTOP_PUBLIC_PLATFORMS);
- for(const platform of ['csdn','aliyun','weibo','sohu']){
+ for(const platform of ['csdn','aliyun','weibo','sohu','netease']){
   const c=e.bridge.connectDesktop({brandId:'a',platform});
   await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity(platform)});
   const result=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',...(platform==='csdn'?{tags:['测试']}:{}),expectedAccountId:'author'});
@@ -145,7 +145,7 @@ test('Sohu desktop connection keeps public dispatch disabled before real-account
  for(const mode of ['draft','publish'])assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode,expectedAccountId:'opaqueAccount9'})).status,409);
 });
 
-test('Netease desktop connection permits only official article preparation',async t=>{
+test('Netease desktop connection keeps public dispatch disabled before real-account acceptance',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'netease'});
  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('netease','W12345678')});
  assert.equal(e.bridge.desktopConnections()[0].platform,'netease');
