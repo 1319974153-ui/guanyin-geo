@@ -4,6 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
 import {navigationAllowed,trustedFrame,connectionPartition,connectionInput,targetInput} from '../desktop/security.mjs';
 import {PLATFORMS} from '../browser-extension/platforms.js';
+import {DESKTOP_PUBLIC_PLATFORMS} from '../desktop/build-capabilities.mjs';
 const origin='http://127.0.0.1:58729';
 function setup(t,publishPlatforms=[]){const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=10000;const state={brands:[{id:'a'},{id:'b'}],contents:[{id:'c',brandId:'a',status:'已审核',title:'测试稿',text:'测试正文'}],facts:[]};const opts={db,origin,readState:()=>state,clock:()=>time,publishPlatforms};let bridge=publisherBridge(opts);return {db,state,get bridge(){return bridge},advance:n=>time+=n,restart:(o=origin)=>bridge=publisherBridge({...opts,origin:o}),async app(action,data){const r=await bridge.handle(new Request(origin+'/api/local-publisher/'+action,{method:'POST',headers:{'x-geo-request':'1',origin},body:JSON.stringify(data)}));return {status:r.status,data:await r.json()}}}}
 const identity=(platform='csdn',accountId='author')=>({accountId,name:'验收账号',editorReady:true,evidenceUrl:PLATFORMS[platform].editor,draftProtocol:PLATFORMS[platform].draftProtocol});
@@ -21,6 +22,18 @@ test('automatic desktop verification still binds dispatch to expected account an
  assert.equal((await e.app('enqueue',body)).data.existing,true);
  await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash}),/不允许/);
  await call('account',identity('csdn','other'));await assert.rejects(call('report',{id:j.id,lease:j.lease,state:'draft',draft:{url:'https://mp.csdn.net/mp_blog/creation/editor/123',articleId:'123',accountId:'author',sourceHash:j.sourceHash,savedVerified:true,contentVerified:true}}),/账号已变化/);
+});
+test('the packaged desktop gate never enables public dispatch for a merely implemented candidate',async t=>{
+ const e=setup(t,DESKTOP_PUBLIC_PLATFORMS);
+ for(const platform of ['csdn','aliyun']){
+  const c=e.bridge.connectDesktop({brandId:'a',platform});
+  await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity(platform)});
+  const result=await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',...(platform==='csdn'?{tags:['测试']}:{}),expectedAccountId:'author'});
+  assert.equal(result.status,409,platform+' cannot be enabled before public acceptance');
+ }
+ const c=e.bridge.connectDesktop({brandId:'a',platform:'zhihu'});
+ await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity('zhihu')});
+ assert.equal((await e.app('enqueue',{sessionId:c.sessionId,brandId:'a',contentId:'c',mode:'publish',expectedAccountId:'author'})).status,200);
 });
 test('desktop restart preserves own connection across port changes but never replays pending writes',async t=>{
  const e=setup(t),c=e.bridge.connectDesktop({brandId:'a',platform:'csdn'});await e.bridge.desktopRequest({sessionId:c.sessionId,action:'account',data:identity()});

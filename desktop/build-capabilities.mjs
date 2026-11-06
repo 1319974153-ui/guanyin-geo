@@ -1,7 +1,17 @@
 import {PLATFORMS} from '../browser-extension/platforms.js';
 import {publishingCatalog} from '../src/publishing-catalog.js';
-// One desktop gate used both by the actual queue and package metadata.
-export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun','douyin']);
+import {publishingEvidence} from '../src/publishing-evidence.js';
+
+// These are the desktop routes with an implementation for public submission.
+// A route only becomes an enabled product capability after its own public
+// action has passed real-account acceptance. Keeping the candidate list
+// separate lets us ship a draft/prepare adapter without accidentally exposing
+// an unverified public-submit button in the desktop app.
+export const DESKTOP_PUBLIC_CANDIDATES=Object.freeze(['csdn','zhihu','tencentcloud','51cto','aliyun','douyin']);
+export const DESKTOP_PUBLIC_PLATFORMS=Object.freeze(DESKTOP_PUBLIC_CANDIDATES.filter(id=>{
+ const action=publishingEvidence(id).publish;
+ return action.implemented&&action.liveAcceptance==='passed'&&PLATFORMS[id]?.publishSupported!==false;
+}));
 export function desktopBuildCapabilities(){
  const catalog=publishingCatalog();
  const publicPublishingPlatforms=catalog.filter(p=>p.actionEvidence.publish.implemented&&(
