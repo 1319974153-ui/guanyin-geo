@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "updatedAt": "2026-11-13T08:19:50.698683+00:00",
+  "updatedAt": "2026-11-13T08:52:56.404234+00:00",
   "timezone": "Asia/Shanghai",
   "approved": true,
   "sourceDirectory": "当前观引开发工作区",
@@ -651,7 +651,7 @@
       "id": "I02",
       "title": "隔离与故障测试",
       "acceptance": "不同客户数据/密钥/账号隔离；预算、取消、断网、重启、权限失效、旧版升级可恢复；日志不暴露凭据",
-      "statusDescription": "费用确认、发布权限、跨品牌/产品、报告异步范围、标签回执、公开范围/外部输出、未知结果恢复及Windows打包兼容修复后完整自动回归1554/1554通过",
+      "statusDescription": "完整回归1712/1712通过；最终Mac包隔离启动、恢复、计划重启/取消及正常退出通过",
       "state": "partial_implemented",
       "liveAcceptanceThisBatch": false,
       "dependsOn": [
@@ -670,16 +670,16 @@
         "适用的真实界面/账号/安装包回执",
         "缺口全部关闭或经用户明确变更范围"
       ],
-      "remaining": "正式Mac/Windows包的升级回滚、系统密钥/账号隔离和故障恢复真机验收仍未关闭；运行代码或打包配置变更须重新测试并构建",
-      "isolatedUiAcceptanceThisBatch": false,
-      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
-      "updatedInBatch": 6
+      "remaining": "真实账号和系统密钥隔离、Windows真机、客户正式数据升级故障验收仍未关闭",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
+      "updatedInBatch": 8
     },
     {
       "id": "I03",
       "title": "Mac / Windows 干净安装包",
       "acceptance": "固定源码生成包；无开发者密钥、账号和样本数据；下载解压启动、退出重开、升级保留数据通过",
-      "statusDescription": "本批同版Mac/Windows预览包已生成；Mac精确ZIP解压后实际启动、保留隔离资料、正常退出通过；Windows包结构校验通过，真机待验收，非正式发行。",
+      "statusDescription": "最终Mac/Windows beta.5 Batch8预览ZIP已生成；Mac精确ZIP干净启动、重启、恢复、正常退出实测通过；Windows仅静态校验通过",
       "state": "partial_implemented",
       "liveAcceptanceThisBatch": false,
       "dependsOn": [
@@ -707,14 +707,17 @@
         "适用的真实界面/账号/安装包回执",
         "缺口全部关闭或经用户明确变更范围"
       ],
-      "updatedInBatch": 6
+      "updatedInBatch": 8,
+      "remaining": "Windows真机、正式支持范围全部门槛、新客户安装和卸载待验收",
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true
     },
     {
       "id": "I04",
       "title": "GitHub 与桌面同步",
       "acceptance": "提交清楚的源码/中文文档/真实能力表/变更记录；发行包对应固定提交和校验值；未验收能力保持受限",
-      "statusDescription": "本批完成代码关口后再执行",
-      "state": "foundation_verified",
+      "statusDescription": "实现已推送GitHub开发分支，草稿PR #4已建立；最终双平台预览包已本地生成，正式Release未发布",
+      "state": "partial_implemented",
       "liveAcceptanceThisBatch": false,
       "dependsOn": [
         "I01",
@@ -739,7 +742,10 @@
         "针对性测试或质检记录",
         "适用的真实界面/账号/安装包回执",
         "缺口全部关闭或经用户明确变更范围"
-      ]
+      ],
+      "remaining": "完整计划门槛尚未关闭；主分支合并、正式发行与新客户同版交付未完成",
+      "updatedInBatch": 8,
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
     },
     {
       "id": "Q08",
@@ -795,7 +801,7 @@
       "id": "Q10",
       "title": "图文素材与格式适配",
       "state": "partial_implemented",
-      "statusDescription": "本品牌配图持久化、顺序与使用权确认、素材复用、完整ZIP附件备份已实现；真实隔离UI上传/保存/重开/服务重启/导出导入通过",
+      "statusDescription": "本品牌配图持久化、顺序/使用权确认、素材复用、完整ZIP图片备份已实现；最终Mac包真实原生恢复、原图哈希与390px布局通过",
       "acceptance": "客户图片和品牌素材复用；生成图文保留事实、可编辑、无伪造证据；图片数量顺序尺寸与权利信息可核对；图像模型收费另行明确。",
       "deliveryAcceptance": "客户图片和品牌素材复用；生成图文保留事实、可编辑、无伪造证据；图片数量顺序尺寸与权利信息可核对；图像模型收费另行明确。",
       "dependsOn": [
@@ -813,14 +819,14 @@
       ],
       "updatedInBatch": 8,
       "isolatedUiAcceptanceThisBatch": true,
-      "remaining": "真实UI恢复因浏览器确认窗口控制超时待处理；最终包及真实平台图片发布待验收",
+      "remaining": "真实平台图文发布、Windows真机及客户素材全链路待验收",
       "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
     },
     {
       "id": "P10",
       "title": "批准稿件的定时发送与取消",
       "state": "partial_implemented",
-      "statusDescription": "六类现有API账号的单次定时发送、取消、版本冻结、启动恢复和未知结果防重已实现；29项定时与迁移专项通过",
+      "statusDescription": "六类已有API账号单次定时发送、取消、版本冻结、恢复防重已实现；29项专项及最终Mac包隔离创建/重启保留/取消通过",
       "acceptance": "定时默认关闭；客户主动设置时间和额度，只发送已批准版本；重启恢复、时区、取消及错过时段有明确行为，不自动堆积补发或生成付费稿。",
       "deliveryAcceptance": "定时默认关闭；客户主动设置时间和额度，只发送已批准版本；重启恢复、时区、取消及错过时段有明确行为，不自动堆积补发或生成付费稿。",
       "dependsOn": [
@@ -838,8 +844,8 @@
         "缺口全部关闭或经用户明确变更范围"
       ],
       "updatedInBatch": 8,
-      "isolatedUiAcceptanceThisBatch": false,
-      "remaining": "真实界面创建/取消、最终桌面包及真实平台定时回执待验收；其他社交平台未开放定时",
+      "isolatedUiAcceptanceThisBatch": true,
+      "remaining": "真实API账号定时回执待验收；浏览器社交平台未开放定时发送",
       "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
     },
     {
@@ -918,7 +924,7 @@
       "id": "I05",
       "title": "正式数据迁移、备份与回滚",
       "state": "partial_implemented",
-      "statusDescription": "完整ZIP包含稿件图片，导入为恢复副本不覆盖当前数据；升级恢复写入持久定时暂停屏障，普通重启保留未到期计划",
+      "statusDescription": "最终Mac包原生完整备份恢复、原图哈希、恢复前保护备份通过；升级恢复暂停旧定时许可，普通重启保留未来计划",
       "acceptance": "预览版数据迁入正式应用前备份；迁移失败可恢复；品牌、稿件、附件、任务、报告完整；不可迁移的会话单独提示；报告导出与业务备份明确区分。",
       "deliveryAcceptance": "预览版数据迁入正式应用前备份；迁移失败可恢复；品牌、稿件、附件、任务、报告完整；不可迁移的会话单独提示；报告导出与业务备份明确区分。",
       "dependsOn": [
@@ -934,7 +940,7 @@
         "适用的真实界面/账号/安装包回执",
         "缺口全部关闭或经用户明确变更范围"
       ],
-      "remaining": "最终包真实恢复、Windows真机及客户数据升级验收未完成",
+      "remaining": "Windows真机和客户正式数据升级验收未完成；完整ZIP暂不承诺跨新工作区签名密钥恢复",
       "updatedInBatch": 8,
       "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
       "isolatedUiAcceptanceThisBatch": true
@@ -1009,11 +1015,12 @@
   ],
   "latestBatch": {
     "batch": 8,
-    "state": "regression_passed_packaging_and_unlock_pending",
-    "updatedAt": "2026-11-13T08:19:50.698683+00:00",
+    "state": "implemented_and_isolated_package_verified",
+    "updatedAt": "2026-11-13T08:52:56.404234+00:00",
     "targets": [
       "Q10 稿件配图持久化、复用及完整离线备份",
-      "P10 已批准稿件的单次定时发送与取消"
+      "P10 已批准稿件的单次定时发送与取消",
+      "I05 恢复保护与定时暂停屏障"
     ],
     "formalAcceptance": false,
     "previousBatchReceipt": "../观引开发方案-2026-11-13/第七批推进回执.json",
@@ -1022,7 +1029,20 @@
       "passed": 1712,
       "failed": 0
     },
-    "uiBlocker": "Mac锁屏，等待本人解锁；侧边备份恢复界面尚未核验"
+    "macFinalArchiveUi": "passed_isolated_profiles",
+    "windowsFinalArchive": "static_only_real_machine_pending",
+    "receipt": "../观引开发方案-2026-11-13/第八批Mac实际安装包验收.json",
+    "github": {
+      "sourceCommit": "640d4a5490d4f687d987ac717fb08e95a1ce2f02",
+      "branch": "codex/wechat-official-publishing",
+      "draftPr": "https://github.com/1319974153-ui/guanyin-geo/pull/4",
+      "merged": false,
+      "formalRelease": false
+    },
+    "resolvedBlocker": "用户已解锁并关闭侧边确认框；最终Mac包原生界面验收完成",
+    "realModelCalls": 0,
+    "externalDrafts": 0,
+    "publicPosts": 0
   },
   "interactionPrinciples": [
     "文章质量优先于新增按钮与功能数量",
@@ -1299,5 +1319,36 @@
       "第七批尚未制作独立发行包，源代码继续进入第八批",
       "本轮尚未同步GitHub或发布正式发行包"
     ]
+  },
+  "latestBatch8": {
+    "batch": 8,
+    "state": "implemented_and_isolated_package_verified",
+    "updatedAt": "2026-11-13T08:52:56.404234+00:00",
+    "targets": [
+      "Q10 稿件配图持久化、复用及完整离线备份",
+      "P10 已批准稿件的单次定时发送与取消",
+      "I05 恢复保护与定时暂停屏障"
+    ],
+    "formalAcceptance": false,
+    "previousBatchReceipt": "../观引开发方案-2026-11-13/第七批推进回执.json",
+    "fullRegression": {
+      "tests": 1712,
+      "passed": 1712,
+      "failed": 0
+    },
+    "macFinalArchiveUi": "passed_isolated_profiles",
+    "windowsFinalArchive": "static_only_real_machine_pending",
+    "receipt": "../观引开发方案-2026-11-13/第八批Mac实际安装包验收.json",
+    "github": {
+      "sourceCommit": "640d4a5490d4f687d987ac717fb08e95a1ce2f02",
+      "branch": "codex/wechat-official-publishing",
+      "draftPr": "https://github.com/1319974153-ui/guanyin-geo/pull/4",
+      "merged": false,
+      "formalRelease": false
+    },
+    "resolvedBlocker": "用户已解锁并关闭侧边确认框；最终Mac包原生界面验收完成",
+    "realModelCalls": 0,
+    "externalDrafts": 0,
+    "publicPosts": 0
   }
 }
