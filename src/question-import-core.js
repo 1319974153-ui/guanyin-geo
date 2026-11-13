@@ -1,3 +1,4 @@
+export {questionProvenanceView} from './question-provenance.js';
 export const IMPORT_FIELDS={text:'问题正文',topic:'主题',intent:'用户意图',tags:'标签',product:'产品线 ID / 名称'};
 const aliases={text:['问题','问题正文','客户问题','question','prompt','query'],topic:['主题','分类','topic','category'],intent:['意图','用户意图','intent'],tags:['标签','tags','tag'],product:['产品线','产品','产品线id','产品名称','product','productid','productname']};
 const key=s=>String(s).trim().toLowerCase().replace(/[ _-]/g,'');

@@ -85,6 +85,10 @@ export function wechatPersonalPage(command){
  if(confirmed)return command.mode==='draft'
   ?{state:'draft_saved',message:'公众号页面已确认草稿保存；请以公众号草稿箱为准'}
   :{state:'publish_submitted',message:'公众号页面已确认发表提交；公开结果仍以公众号后台为准'};
+ // Recovery is strictly observational: never reopen or refill an editor after
+ // a durable request marker, even if the platform navigated to its dashboard.
+ if(command.requested)return {state:'waiting_receipt',message:'已请求平台操作，仅核对原页面反馈；不会新建或重复发送'};
+ if(command.observeOnly)return {state:'blocked',message:'原任务尚未发送，请在原稿中重新确认后继续'};
  const clickLabel=labels=>{
   const candidates=exactVisible(all('button,a,[role="button"]').filter(node=>labels.includes(text(node))&&!node.closest?.('[aria-disabled="true"],:disabled')));
   if(candidates.length!==1)return null;candidates[0].click();return candidates[0];

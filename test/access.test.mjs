@@ -73,6 +73,24 @@ test('brand deletion requires explicit name, protects a backup and removes only 
  const env=environment();await seed(env);assert.equal((await request(env,owner,'/api/manage/brands/delete','POST',{brandId:'brand-A',confirmName:'wrong'})).status,400);
  const d=await request(env,owner,'/api/manage/brands/delete','POST',{brandId:'brand-A',confirmName:'brand-A'});assert.equal(d.status,200);assert.deepEqual(d.data.state.brands.map(b=>b.id),['brand-B']);assert.ok(d.data.backupId);assert.equal(d.data.state.sourceDocuments.length,1);assert.equal(d.data.state.sourceDocuments[0].brandId,'brand-B');
 });
+async function budgetFixture(env,id,brandId='brand-A',actor=owner,mail=''){
+ await env.DB.prepare("INSERT INTO writing_budgets(owner,id,brand_id,body,status,expires,created) VALUES(?,?,?,?,'active','2099-01-01','2026-01-01')").bind(owner,id,brandId,JSON.stringify({authorizedBy:actor,authorizedEmail:mail})).run();
+ await env.DB.prepare("INSERT INTO writing_budget_calls(owner,budget_id,stage,run_id,state,input_bound,output_bound,micros,usage,created) VALUES(?,?,'draft',?,'complete',100,200,123,'{\"prompt_tokens\":80,\"completion_tokens\":100}','2026-01-01')").bind(owner,id,'run-'+id).run();
+}
+const budgetStatus=async(env,id)=>(await env.DB.prepare('SELECT status FROM writing_budgets WHERE owner=? AND id=?').bind(owner,id).first()).status;
+test('restoring materials cancels unused writing consent without rolling back consumed calls',async()=>{
+ const env=environment();await seed(env);const backup=await request(env,owner,'/api/manage/backups','POST',{label:'材料快照'});await budgetFixture(env,'budget-restoration');let w=(await request(env,owner,'/api/state')).data;
+ const result=await request(env,owner,'/api/manage/backups/restore','POST',{id:backup.data.id,revision:w.revision});assert.equal(result.status,200);assert.equal(await budgetStatus(env,'budget-restoration'),'canceled');
+ const row=await env.DB.prepare('SELECT micros,usage FROM writing_budget_calls WHERE owner=? AND budget_id=?').bind(owner,'budget-restoration').first();assert.equal(row.micros,123);assert.equal(JSON.parse(row.usage).completion_tokens,100);
+});
+test('brand deletion cancels only related budgets and preserves call history',async()=>{
+ const env=environment();await seed(env);await budgetFixture(env,'budget-brand-one');await budgetFixture(env,'budget-brand-two','brand-B');const r=await request(env,owner,'/api/manage/brands/delete','POST',{brandId:'brand-A',confirmName:'brand-A'});assert.equal(r.status,200);assert.equal(await budgetStatus(env,'budget-brand-one'),'canceled');assert.equal(await budgetStatus(env,'budget-brand-two'),'active');assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM writing_budget_calls WHERE owner=?').bind(owner).first()).n,2);
+});
+test('member permission changes revoke their spending consent without canceling owner or other members',async()=>{
+ const env=environment();await seed(env);await invite(env);await budgetFixture(env,'budget-member-one','brand-A','member',email);await budgetFixture(env,'budget-owner-one');await budgetFixture(env,'budget-another-member','brand-A','other-actor','another@unit.test');
+ assert.equal((await request(env,owner,'/api/manage/members','DELETE',{email})).status,200);assert.equal(await budgetStatus(env,'budget-member-one'),'canceled');assert.equal(await budgetStatus(env,'budget-owner-one'),'active');assert.equal(await budgetStatus(env,'budget-another-member'),'active');
+ await invite(env);await budgetFixture(env,'budget-member-two','brand-A','member',email);await invite(env,'viewer');assert.equal(await budgetStatus(env,'budget-member-two'),'canceled');assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM writing_budget_calls WHERE owner=?').bind(owner).first()).n,4);
+});
 test('server quotas reject oversized asset counts and stop paid calls at the configured daily limit',async()=>{
  const env=environment();await seed(env);const p={brands:2,questions:2,dailyModelCalls:1,platformsPerJob:2,repeatsPerJob:2,jobs:10};assert.equal((await request(env,owner,'/api/manage/policy','PUT',p)).status,200);
  const w=(await request(env,owner,'/api/state')).data;w.state.brands.push({id:'brand-C',name:'超限品牌'});assert.equal((await request(env,owner,'/api/state','PUT',w)).status,429);
@@ -84,4 +102,24 @@ test('editor platform entries persist without allowing brand renames; reviewer m
  w.state.brands[0].channelUrls={'知乎':'https://zhuanlan.zhihu.com/write'};assert.equal((await request(env,'member','/api/state','PUT',w,memberHeaders)).status,200);
  w=(await request(env,'member','/api/state','GET',null,memberHeaders)).data;w.state.brands[0].name='伪造';assert.equal((await request(env,'member','/api/state','PUT',w,memberHeaders)).status,403);
  await invite(env,'reviewer');w=(await request(env,'member','/api/state','GET',null,memberHeaders)).data;w.state.facts[0].status='已确认';w.state.facts[0].confirmationMethod='manual';assert.equal((await request(env,'member','/api/state','PUT',w,memberHeaders)).status,200);
+});
+function gate(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
+async function memberBudgetPreview(env){
+ assert.equal((await request(env,owner,'/api/connections','POST',{provider:'deepseek',model:'fixture-model',key:'FIXTURE-NOT-A-REAL-KEY'})).status,200);
+ const input={brandId:'brand-A',questionId:'brand-A-q',provider:'deepseek'},preview=await request(env,'member','/api/writing-budget/preview','POST',input,memberHeaders);assert.equal(preview.status,200,JSON.stringify(preview));return {...input,id:'member-race-budget-0001',previewHash:preview.data.plan.previewHash,confirmCost:true};
+}
+test('member revocation cannot interleave with a budget approval already holding its operation lease',async()=>{
+ const env=environment();await seed(env);await invite(env);const input=await memberBudgetPreview(env),original=env.DB,entered=gate(),release=gate();let blocked=false;
+ env.DB={...original,prepare(sql){const statement=original.prepare(sql);return {bind(...args){const bound=statement.bind(...args);if(sql.startsWith('INSERT OR IGNORE INTO writing_budgets')&&!blocked){const run=bound.run;bound.run=async()=>{blocked=true;entered.resolve();await release.promise;return run();};}return bound;}};}};
+ const approval=request(env,'member','/api/writing-budget/approve','POST',input,memberHeaders);
+ try{await entered.promise;const during=await request(env,owner,'/api/manage/members','DELETE',{email});assert.equal(during.status,409);assert.equal((await request(env,'member','/api/state','GET',null,memberHeaders)).status,200);}finally{release.resolve();}
+ assert.equal((await approval).status,200);assert.equal((await request(env,owner,'/api/manage/members','DELETE',{email})).status,200);assert.equal(await budgetStatus(env,input.id),'canceled');
+ await invite(env);const recovered=await request(env,'member','/api/writing-budget/approve','POST',input,memberHeaders);assert.equal(recovered.status,200);assert.equal(recovered.data.budget.eligible,false);assert.equal(recovered.data.budget.status,'canceled');assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM writing_budget_calls WHERE owner=?').bind(owner).first()).n,0);
+});
+test('a member context read before revocation is rechecked after the operation lease and cannot create new consent',async()=>{
+ const env=environment();await seed(env);await invite(env);const input=await memberBudgetPreview(env),original=env.DB,entered=gate(),release=gate();let blocked=false;
+ env.DB={...original,prepare(sql){const statement=original.prepare(sql);return {bind(...args){const bound=statement.bind(...args);if(sql==='SELECT role,brands FROM members WHERE owner=? AND email=?'&&!blocked){const first=bound.first;bound.first=async()=>{const result=await first();if(!blocked){blocked=true;entered.resolve();await release.promise;}return result;};}return bound;}};}};
+ const approval=request(env,'member','/api/writing-budget/approve','POST',input,memberHeaders);
+ try{await entered.promise;assert.equal((await request(env,owner,'/api/manage/members','DELETE',{email})).status,200);}finally{release.resolve();}
+ assert.equal((await approval).status,403);assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM writing_budgets WHERE owner=?').bind(owner).first()).n,0);assert.equal((await env.DB.prepare('SELECT count(*) AS n FROM operation_leases WHERE owner=?').bind(owner).first()).n,0);
 });

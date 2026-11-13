@@ -33,6 +33,20 @@ test('draft then publish reuses the same remote article without creating a dupli
  const f=fixture();await f.run();const id=f.journal.one.id;await f.run();assert.equal(f.posts,1);await f.run({mode:'publish'});assert.equal(f.posts,1);assert.equal(f.journal.one.id,id);assert.equal(f.journal.one.state,'published');await f.run({mode:'publish'});assert.equal(f.calls.filter(c=>c[0].endsWith('/publish')).length,1);
  assert.equal(JSON.parse(f.saved[0]).one.state,'sending');
 });
+test('server-owned dispatch carries the same release authorization into draft and publish requests',async()=>{
+ const f=fixture(),authorizationId='pa-'+'a'.repeat(64);
+ await f.run({mode:'publish',authorizationId});
+ const writes=f.calls.filter(call=>call[0].endsWith('/draft')||call[0].endsWith('/publish')).map(call=>call[1]);
+ assert.equal(writes.length,2);assert.ok(writes.every(body=>body.authorizationId===authorizationId));assert.ok(writes.every(body=>body.execution?.executionPolicy?.frequency==='once'&&body.execution.executionPolicy.autoRetry===false&&body.execution.media.length===0));
+});
+test('a server-owned batch claim runs only immediately before each external write',async()=>{
+ const f=fixture(),claims=[];
+ await f.run({mode:'publish',beforeTarget:async(target,{stage})=>{
+  claims.push({target:target.key,stage,writes:f.calls.filter(call=>call[0].endsWith('/draft')||call[0].endsWith('/publish')).length});
+ }});
+ assert.deepEqual(claims,[{target:'one',stage:'draft',writes:0},{target:'one',stage:'publish',writes:1}]);
+ assert.equal(f.journal.one.state,'published');
+});
 test('one failed account does not prevent the next, and uncertain requests are never repeated',async()=>{
  const f=fixture({failAccount:'one'});await f.run({targets:[wp('one'),wp('two')]});assert.equal(f.journal.one.state,'uncertain');assert.equal(f.journal.two.state,'draft');const count=f.calls.length;await f.run({targets:[wp('one'),wp('two')]});assert.equal(f.calls.length,count);
 });
@@ -101,6 +115,17 @@ test('late read after brand or article change never mutates or persists the old 
  let valid=true,writes=0;const journal={csdn:{...csdn,jobId:'j',state:'queued'}};
  await assert.rejects(reconcileDispatch({article,journal,request:async()=>{valid=false;return {jobs:[{id:'j',state:'draft'}]}},persist:async()=>writes++,assertScope:()=>{if(!valid)throw Error('scope changed')}}),/scope changed/);
  assert.equal(writes,0);assert.equal(journal.csdn.state,'queued');
+});
+test('a restored or currently-claimed batch is never polled or replayed during reconciliation',async()=>{
+ for(const state of ['registered','claim_pending']){
+  const journal={wordpress:{...wp(),id:'gy-'+('a'.repeat(64)),state,stage:'publish',notice:'尚未发送',batchId:'pb-'+('b'.repeat(64))}};let requests=0,writes=0;
+  await reconcileDispatch({article,journal,request:async()=>{requests++;throw Error('must not call an adapter')},persist:async()=>{writes++},assertScope:()=>{}});
+  assert.equal(requests,0);assert.equal(writes,1);assert.equal(journal.wordpress.state,state);
+ }
+});
+test('a new explicit send can reuse a registered target ID without carrying its old pending notice',async()=>{
+ const f=fixture();f.journal.one={...wp(),id:'gy-'+('c'.repeat(64)),state:'registered',stage:'publish',notice:'尚未发送',batchId:'pb-'+('d'.repeat(64))};
+ await f.run();assert.equal(f.journal.one.state,'draft');assert.equal(f.journal.one.notice,undefined);assert.equal(f.journal.one.batchId,undefined);assert.equal(f.posts,1);
 });
 test('failed status reads preserve platform errors and recover on next read without any enqueue',async()=>{
  const journal={csdn:{...csdn,jobId:'j',state:'uncertain',error:'平台原始错误'}};let failed=true;const calls=[];

@@ -111,6 +111,13 @@ test('WeChat requires a real verification control or a visible notice, not artic
  const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'draft',dispatch:false});
  assert.equal(result.state,'verification_required');
 });
+test('requested and observation-only recovery never creates or refills a platform editor',()=>{
+ for(const flags of [{requested:true},{observeOnly:true}]){
+  const create=control('新建图文'),publish=control('发布'),f=fixture({controls:[create,publish]});
+  const result=f.run({title:'恢复稿',html:'<p>恢复正文</p>',mode:'publish',dispatch:true,...flags});
+  assert.ok(['waiting_receipt','blocked'].includes(result.state));assert.equal(f.input.value,'');assert.equal(f.editor.innerText,'');assert.equal(create.clicks,0);assert.equal(publish.clicks,0);
+ }
+});
 
 test('WeChat login becomes available only after a visible official dashboard control, and verification keeps it pending',()=>{
  const pending=loginFixture();assert.equal(pending().state,'waiting_login');

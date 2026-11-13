@@ -1,27 +1,93 @@
 // UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
 // Journal before writes; uncertain work is reconciled, never silently replayed.
 export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from './dispatch-watch.js';
+export {publishReadiness} from './publish-readiness.js';
 // These platforms share the local official-window queue. Some intentionally
 // expose only `prepare`: an editor fill is useful, but it is not a platform
 // draft or a public submission until that platform has a separately verified
 // receipt protocol.
 const localPublisherPlatforms=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud','51cto','aliyun','juejin'];
 const apiPublisherPlatforms=['cnblogs','typecho','metaweblog','personal-site','yuque'];
+const oneShotExecutionPolicy={frequency:'once',autoRetry:false,maxModelCalls:0,maxPaidServiceCalls:0};
+const mediaDispatchPlatforms=new Set(['douyin','xiaohongshu','51cto']);
+function executionInput(article,target){return {media:mediaDispatchPlatforms.has(target?.platform)?(article.media||[]).map(media=>({sha256:media?.sha256||''})):[],executionPolicy:article.executionPolicy||oneShotExecutionPolicy}}
 export function availableActions(targets) {
  const all=mode=>targets.length>0&&targets.every(t=>t.modes.includes(mode));
  return {draft:all('draft'),publish:all('publish'),prepare:all('prepare')};
 }
 export async function dispatchId(article,target){
- const fields=[article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[],target.platform,target.accountId];if(['douyin','xiaohongshu','51cto'].includes(target.platform)&&article.media?.length)fields.push(article.media.map(m=>m.sha256||m.dataUrl));const source=JSON.stringify(fields);
+ const execution=executionInput(article,target),fields=[article.brandId,article.id,article.title,article.text,!!article.ai,article.factSnapshots||[]];
+ // Preserve stable IDs for legacy text-only/server-owned tasks. Only adapters
+ // that actually accept the selected image list receive a media-sensitive ID.
+ if(execution.media.length){const bytes=new TextEncoder().encode(JSON.stringify(execution)),digest=await crypto.subtle.digest('SHA-256',bytes);fields.push([...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join(''));}
+ fields.push(target.platform,target.accountId);const source=JSON.stringify(fields);
  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(source));
  return 'gy-'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');
 }
-export async function dispatchArticle({article,targets,mode,journal,request,persist,assertScope,changed=()=>{}}) {
+// A live account check is needed only for an action that can still start.
+// Existing writes and unknown outcomes are receipt-only, even on a new click.
+export function dispatchNeedsAccountCheck(target,row,mode){
+ if(!row)return true;
+ if(row.resultUnknown||['claim_pending','result_unknown','sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','published'].includes(row.state))return false;
+ if(row.state==='prepared')return target.platform==='51cto'&&mode==='draft';
+ if(row.state==='draft')return mode==='publish'&&['wordpress',...apiPublisherPlatforms,'csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform);
+ return true;
+}
+function dispatchIdentityChanged(target,row){return !!row&&((!!row.accountId&&row.accountId!==target.accountId)||(!!row.sessionId&&row.sessionId!==target.sessionId)||(!!row.platform&&row.platform!==target.platform));}
+// One failed sign-in must not block unrelated selected accounts. This only
+// checks identity; it does not authorize, enqueue, fill or submit anything.
+// The caller still uses the ordinary exact-snapshot authorization/queue path.
+export async function prepareDispatchTargets({article,targets,mode,journal,prepareDesktop,persist,assertScope,changed=()=>{}}){
+ if(!availableActions(targets)[mode])throw new Error('所选账号不都支持此操作，请调整选择');
+ if(article.status!=='已审核'||article.demo)throw new Error('请先确认稿件内容');
+ const ready=[],failed=[];
+ for(const target of targets){
+  assertScope();const row=journal[target.key];
+  if(dispatchIdentityChanged(target,row)){
+   row.preflightFailed=true;row.preflightError='当前账号与原发送记录不一致，原回执已保留；请切回原账号，或为新账号另存一份稿件并确认。';
+   failed.push(target);await persist(journal);assertScope();changed();continue;
+  }
+  if(target.transport!=='desktop'||!dispatchNeedsAccountCheck(target,row,mode)){ready.push(target);continue;}
+  let error;
+  try{await prepareDesktop([{sessionId:target.sessionId,accountId:target.accountId}]);}
+  catch(e){error=e;}
+  // A changed workspace is a batch-wide stop, never an account-local failure.
+  assertScope();
+  if(error){
+   const current=row||{id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'not_queued',stage:mode};
+   assertScope();
+   current.preflightFailed=true;current.preflightError=error.message||'暂时无法检查这个账号';
+   // Keep a known platform draft and its receipt. Only a never-sent target is
+   // described as not queued; login trouble cannot erase a durable outcome.
+   if(current.state==='not_queued')current.error=current.preflightError;
+   journal[target.key]=current;failed.push(target);
+   await persist(journal);assertScope();changed();continue;
+  }
+  if(row?.preflightFailed){
+   if(row.state==='not_queued'&&row.error===row.preflightError)delete row.error;
+   delete row.preflightFailed;delete row.preflightError;
+   await persist(journal);assertScope();changed();
+  }
+  ready.push(target);
+ }
+ return {targets:ready,failed};
+}
+export async function dispatchArticle({article,targets,mode,journal,request,persist,assertScope,changed=()=>{},authorizationId=null,beforeTarget=async()=>{}}) {
  if(!availableActions(targets)[mode])throw new Error('所选账号不都支持此操作，请调整选择');
  if(article.status!=='已审核'||article.demo)throw new Error('请先确认稿件内容');
  const post=(path,data)=>request(path,{method:'POST',body:JSON.stringify(data)});
+ // Only self-hosted/API adapters understand this value. Browser-window jobs
+ // retain their own local authorization and receipt lifecycle.
  for(const target of targets){
+  const authorizedPost=(path,data)=>post(path,authorizationId?{...data,authorizationId,execution:executionInput(article,target)}:data);
   assertScope();let row=journal[target.key];
+  if(dispatchIdentityChanged(target,row)){row.preflightFailed=true;row.preflightError='账号与原发送记录不一致，未发送；请重新确认账号与稿件。';await persist(journal);changed();continue;}
+  // A pending/unknown server claim cannot be retried as a fresh adapter call.
+  if(row?.resultUnknown||['claim_pending','result_unknown'].includes(row?.state))continue;
+  // A recovered batch entry is an informational local state, not a failed
+  // platform job. An explicit new click may turn this same stable task ID into
+  // a real adapter request; remove the stale notice before doing so.
+  if(row?.state==='registered'){delete row.notice;delete row.batchId;}
   const recoverPrepared=target.platform==='51cto'&&mode==='draft'&&row?.state==='prepared';
   if(!['wordpress',...apiPublisherPlatforms].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
   if(!recoverPrepared&&row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
@@ -33,29 +99,33 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
     const endpoint='/api/'+target.platform;
     if(row.state!=='draft'){
      const preview=await request(endpoint+'/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
+     // Claim only at the irreversible boundary, after a read-only preview and
+     // immediately before the adapter write. A claim never sends by itself.
+     await beforeTarget(target,{stage:'draft',row});assertScope();
      row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
-     const d=await post(endpoint+'/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
+     const d=await authorizedPost(endpoint+'/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
      row.id=d.record.id;row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';await persist(journal);changed();
     }
     if(mode==='publish'&&row.state==='draft'){
-     assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
-     const d=await post(endpoint+'/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});
+     assertScope();await beforeTarget(target,{stage:'publish',row});assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
+     const d=await authorizedPost(endpoint+'/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});
      row.state=d.record.state;row.remote=d.record.remote;row.error=d.record.error||'';
     }
    }else if(target.platform==='wordpress'){
     if(row.state!=='draft'){
      const preview=await request('/api/wordpress/preview?'+new URLSearchParams({brandId:article.brandId,contentId:article.id,accountId:target.accountId}));assertScope();
+     await beforeTarget(target,{stage:'draft',row});assertScope();
      row.state='sending';row.stage='draft';await persist(journal);changed();assertScope();wrote=true;
-     const d=await post('/api/wordpress/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
+     const d=await authorizedPost('/api/wordpress/draft',{id:row.id,brandId:article.brandId,contentId:article.id,accountId:target.accountId,previewHash:preview.previewHash});
      row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';await persist(journal);changed();
     }
     if(mode==='publish'&&row.state==='draft'){
-     assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
-     const d=await post('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
+     assertScope();await beforeTarget(target,{stage:'publish',row});assertScope();row.state='sending';row.stage='publish';await persist(journal);changed();assertScope();wrote=true;
+     const d=await authorizedPost('/api/wordpress/publish',{id:row.id,brandId:article.brandId,accountId:target.accountId});row.state=d.record.state;row.remote=d.record.remote||null;row.error=d.record.error||'';
     }
    }else if(localPublisherPlatforms.includes(target.platform)){
     row.state='sending';row.stage=mode;await persist(journal);changed();assertScope();wrote=true;
-    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:article.tags,media:['douyin','xiaohongshu','51cto'].includes(target.platform)?article.media||[]:[],mode});
+    const d=await post('/api/local-publisher/enqueue',{brandId:article.brandId,contentId:article.id,sessionId:target.sessionId,expectedAccountId:target.accountId,tags:target.platform==='csdn'?article.tags:[],media:['douyin','xiaohongshu','51cto'].includes(target.platform)?article.media||[]:[],mode});
     row.jobId=d.job.id;row.state=d.job.state;row.error=d.job.error||'';
    }else throw new Error('平台尚未接入');
   }catch(e){row.state=wrote?'uncertain':'needs_attention';row.error=e.message;}
@@ -69,6 +139,10 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
  let browserStatus;const next=structuredClone(journal);
  for(const row of Object.values(next)){
   assertScope();
+  // A restored batch only records an explicit click that was interrupted before
+  // any adapter write. It is shown to the user, but never queried, replayed or
+  // promoted until they make a new explicit send decision.
+  if(['registered','claim_pending'].includes(row.state)||(row.preflightFailed&&row.state==='not_queued'&&!row.jobId))continue;
   try{
    if(apiPublisherPlatforms.includes(row.platform)){
     const endpoint='/api/'+row.platform;

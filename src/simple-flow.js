@@ -3,6 +3,7 @@ import {factUsable} from './knowledge-core.js';
 import {tasksApi} from './tasks.js';
 import {contentPlan} from './content-plan.js';
 import {ENTITY_TYPES,starterQuestions} from './entity-core.js';
+import {questionProvenance,STARTER_QUESTION_RULE_VERSION} from './question-provenance.js';
 export {starterQuestions} from './entity-core.js';
 const stamp=()=>new Date().toISOString();
 async function previewPlan(env,ctx,h,b,w){
@@ -58,7 +59,7 @@ export async function simpleFlowApi(req,env,ctx,h){
    s.brands.push({id:b.id,name,description,entityType,goalQuery,client:name,industry:'其他',aliases:name,owner:'',site,demo:false,setupHash:hash,platforms});s.currentBrand=b.id;s.scope='import';s.viewMode='simple';
    s.sourceDocuments.push({id:b.id+'-source',brandId:b.id,title:source,text,kind:'uploaded',created:stamp()});
    s.facts.push({id:b.id+'-fact',brandId:b.id,key:'已核对的'+({brand:'品牌',product:'产品',person:'个人'})[entityType]+'介绍',value:description,source,sourceDocumentId:b.id+'-source',status:'已确认',confirmationMethod:'manual'});
-   starterQuestions(name,description,entityType,goalQuery).forEach((text,i)=>s.questions.push({id:b.id+'-q'+i,brandId:b.id,text,version:'v1',topic:i===0&&goalQuery?'目标需求':'初始问题建议',intent:i===4?'了解':i===0?'决策':'比较',demo:false}));
+   starterQuestions(name,description,entityType,goalQuery).forEach((text,i)=>{const id=b.id+'-q'+i,created=stamp(),manual=i===0&&!!goalQuery;s.questions.push({id,brandId:b.id,text,created,version:'v1',topic:manual?'目标需求':'初始问题建议',intent:i===4?'了解':i===0?'决策':'比较',demo:false,provenance:questionProvenance({questionId:id,brandId:b.id,text,actor:ctx.actor,recordedAt:created,kind:manual?'manual':'rule_suggestion',details:manual?{method:'brand_goal'}:{ruleVersion:STARTER_QUESTION_RULE_VERSION,name,entityType,goalQuery}})});});
   });return h.json(await h.workspace(env,ctx.owner));
  }
  if(path==='/api/simple/prepare-preview'){

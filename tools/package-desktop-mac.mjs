@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {assertDesktopMigrationsMatch} from './desktop-package-inputs.mjs';
 if(process.platform!=='darwin'||process.arch!=='arm64')throw Error('当前脚本只验证 Mac arm64，其他目标需独立构建验收');
 const output=path.resolve(process.argv[2]||'dist/desktop-mac-preview'),zip=output+'.zip';
 if(fs.existsSync(output)||fs.existsSync(zip))throw Error('请指定全新的输出目录，避免混入旧文件');
@@ -18,7 +19,8 @@ fs.mkdirSync(root,{recursive:true});const app=path.join(root,'观引桌面预览
 // synced developer folder into the distributable application bundle.
 execFileSync('/usr/bin/ditto',['--norsrc','--noqtn','node_modules/electron/dist/Electron.app',app]);
 const resources=path.join(app,'Contents/Resources'),target=path.join(resources,'app');fs.mkdirSync(target);
-for(const file of ['main.mjs','server.mjs','preload.cjs','package.json','build-manifest.json','drizzle'])fs.cpSync(path.join('dist/desktop',file),path.join(target,file),{recursive:true});
+for(const file of ['main.mjs','server.mjs','preload.cjs','package.json','build-manifest.json'])fs.copyFileSync(path.join('dist/desktop',file),path.join(target,file));
+for(const file of assertDesktopMigrationsMatch('dist/desktop/drizzle','drizzle')){const dest=path.join(target,'drizzle',path.relative('dist/desktop/drizzle',file));fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(file,dest,fs.constants.COPYFILE_EXCL);}
 const plist=path.join(app,'Contents/Info.plist');for(const [key,value] of Object.entries({CFBundleDisplayName:'观引桌面预览',CFBundleName:'Guanyin Desktop Preview',CFBundleIdentifier:'com.guanyin.geo.desktop.preview'}))execFileSync('/usr/libexec/PlistBuddy',['-c',`Set :${key} ${value}`,plist]);
 fs.copyFileSync('LICENSE',path.join(root,'LICENSE.txt'));
 for(const name of ['LICENSE','LICENSES.chromium.html'])if(fs.existsSync(path.join('node_modules/electron/dist',name)))fs.copyFileSync(path.join('node_modules/electron/dist',name),path.join(root,'Electron-'+name));

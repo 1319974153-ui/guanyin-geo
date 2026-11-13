@@ -11,7 +11,7 @@ function fixture(mode='publish'){
   {key:'zhihu:z',platform:'zhihu',accountId:'z',name:'账号 Z',modes:['prepare','draft']},
   {key:'csdn:c',platform:'csdn',accountId:'c',name:'账号 C',modes:['prepare']}
  ],querySelector:get,querySelectorAll:()=>[]};
- const g={document:{addEventListener(){}},window:{addEventListener(){}},esc:v=>String(v),GEO_DISPATCH:dispatch,accessInfo:{current:{role:'owner'}},runtimeBusy:false,own:()=>[],articleEditorDirty:()=>false};
+ const g={document:{addEventListener(){}},window:{addEventListener(){}},esc:v=>String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),GEO_DISPATCH:dispatch,accessInfo:{current:{role:'owner'}},runtimeBusy:false,own:()=>[],articleEditorDirty:()=>false};
  vm.createContext(g);vm.runInContext(fs.readFileSync(new URL('../public/article-distribution.js',import.meta.url),'utf8'),g);
  return{g,f,get,html:()=>get('[data-distribution-accounts]').innerHTML};
 }
@@ -52,8 +52,28 @@ test('the grid gives each account a concrete action label and a compact availabi
  assert.match(x.html(),/当前可直接发布：可执行 1 个账号 · 待登录 1 个 · 需切换操作 1 个/);
  assert.match(x.html(),/可直接发布/);assert.match(x.html(),/本账号仅可保存草稿/);
  x.f.distributionTargets=[];x.g.distributionRenderTargets(x.f,new Set());
- assert.match(x.html(),/阿里云开发者社区[\s\S]*?可添加账号 · 草稿已验收/);
- assert.match(x.html(),/小红书图文笔记[\s\S]*?可添加账号 · 接入待验收/);
+ assert.match(x.html(),/阿里云开发者社区[\s\S]*?尚未连接账号/);
+ assert.match(x.html(),/小红书图文笔记[\s\S]*?尚未连接账号/);
+});
+test('historical evidence keeps its date, version and scope separate from current account availability',()=>{
+ const x=fixture();x.g.distributionRenderTargets(x.f,new Set(['zhihu:z']));
+ const row=x.html().split('data-distribution-row-key="zhihu:z"')[1].split('</details>')[0];
+ assert.match(row,/data-distribution-row-status[^>]*>本账号仅可保存草稿/);
+ assert.match(row,/value="zhihu:z"[^>]*disabled/);assert.doesNotMatch(row,/value="zhihu:z"[^>]*checked/);
+ assert.match(row,/<details class="publishing-evidence-details">/);assert.doesNotMatch(row,/<details[^>]* open/);
+ assert.match(row,/记录更新于 2026-11-06/);assert.match(row,/连接器 0.2.7/);
+ assert.match(row,/产品公开正文自动核验尚未通过/);assert.match(row,/不代表本次账号或稿件已验收/);
+ assert.doesNotMatch(row,/公开发布已验收/);
+ const wp=x.html().split('data-distribution-row-key="wp:a"')[1].split('</details>')[0];
+ assert.match(wp,/data-distribution-row-status[^>]*>可直接发布/);assert.doesNotMatch(wp,/value="wp:a"[^>]*disabled/);
+ assert.match(wp,/已接入，待实机验收/);assert.match(wp,/接口发布无需填入网页编辑器/);
+});
+test('evidence without metadata does not invent a date or current version and escapes recorded scope',()=>{
+ const x=fixture(),p={id:'future',actionEvidence:{publish:{implemented:true,liveAcceptance:'passed',evidence:{productVersion:'<custom>',scope:'<img src=x onerror=alert(1)>'}}}};
+ const html=x.g.publishingEvidenceDetails(p);assert.match(html,/记录更新日期未提供/);assert.match(html,/观引 &lt;custom>/);assert.match(html,/&lt;img/);assert.doesNotMatch(html,/<img|2026-11-12/);
+ p.actionEvidence.publish.evidence=null;
+ const missing=x.g.publishingEvidenceDetails(p);assert.match(missing,/详细记录待补齐/);assert.match(missing,/验收版本：未记录/);assert.match(missing,/不能推定当前可用/);
+ assert.equal(x.g.distributionCatalogCapability(p),'历史验收记录待补齐');
 });
 test('changing to draft only permits draft-capable accounts and never promotes prepare to publish',()=>{
  const x=fixture('draft');x.g.distributionRenderTargets(x.f,new Set(['zhihu:z','csdn:c']));
@@ -120,7 +140,7 @@ test('desktop connection controls follow declared adapter capability instead of 
 test('failed draft opens only its matching desktop account without sending or changing the journal',async()=>{
  const x=fixture(),calls=[];x.g.window.guanyinDesktop={available:true,openAccount:async id=>calls.push(id)};
  x.g.wordpressBaseScope=()=> 'scope';x.g.brand=()=>({id:'brand'});
- Object.assign(x.f,{isConnected:true,distributionScope:'scope'});x.f.dataset.brand='brand';
+ Object.assign(x.f,{isConnected:true,distributionScope:x.g.distributionScope()});x.f.dataset.brand='brand';
  const t={key:'toutiao:session',platform:'toutiao',sessionId:'session',accountId:'author',transport:'desktop',modes:[]};x.f.distributionTargets.push(t);
  const row={...t,state:'needs_attention',error:'未保存'};x.f.distributionJournal[t.key]=row;
  assert.match(x.g.distributionRecoveryButton(x.f,row),/打开平台处理/);
@@ -158,12 +178,15 @@ test('a connected desktop personal WeChat publisher is a normal selectable publi
 
 test('personal WeChat stays out of the normal account grid until the official dashboard is observed, except for an original task that must be recovered',()=>{
  const x=fixture();x.g.window.guanyinDesktop={wechatPersonalPublish:async()=>{}};
+ x.g.accessInfo.current={owner:'local-owner',actor:'local-owner',role:'owner'};
  assert.equal(x.g.distributionWechatTarget({state:'waiting_login'},null),null);
  const connected=x.g.distributionWechatTarget({state:'connected'},null);
  assert.equal(connected.loginRequired,false);assert.deepEqual([...connected.modes],['draft','publish']);
  const recovering=x.g.distributionWechatTarget({state:'waiting_login'},{taskId:'gy-'+'b'.repeat(64)});
  assert.equal(recovering.loginRequired,true);assert.deepEqual([...recovering.modes],[]);
  assert.equal(x.g.distributionPlatformStatus(recovering,'publish'),'请登录后继续原任务');
+ x.g.accessInfo.current.role='viewer';assert.equal(x.g.distributionWechatTarget({state:'connected'},null),null);
+ x.g.accessInfo.current={owner:'other-owner',actor:'local-owner',role:'admin'};assert.equal(x.g.distributionWechatTarget({state:'connected'},null),null);
 });
 
 test('a personal WeChat result can reopen only its recorded original task',()=>{

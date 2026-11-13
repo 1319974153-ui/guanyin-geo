@@ -1,6 +1,7 @@
 import {validateCheckInput,checkModelRequest,checkRecord} from './check-execution.js';
 import {competitorDecision,competitorStale} from './competitor-core.js';
 import {canBrand,reject} from './access.js';
+import {writingBudgetAuthorization} from './writing-budget.js';
 import {checkInput,checkStale,parseChecks,CHECK_PARSE_VERSION} from './checks-core.js';
 export function protectChecks(previous,next){
  if(JSON.stringify(previous.analysisChecks||[])!==JSON.stringify(next.analysisChecks||[]))reject(403,'自动检查回执只能通过专用接口保存');
@@ -42,11 +43,16 @@ export async function checksApi(req,env,ctx,h){
   record=JSON.parse(old.result).record;if(!matches(record))reject(409,'请求标识属于其他检查');
  }else{
   const input=checkInput(w.state,brand.id,b.kind,b.ids);validateCheckInput(input);
-  if(!PROVIDERS[b.provider]||!await connection(env,ctx.owner,b.provider))reject(400,'请先配置所选模型');
+  if(b.writingBudgetId&&(b.kind!=='content'||b.ids.length!==1))reject(400,'本篇写作额度只用于这篇文章的一次质检');
+  const writingAuthorization=await writingBudgetAuthorization(env,ctx,h,w.state,{...b,contentId:b.ids[0]},'review',b.runId);
+  if(b.kind==='content'&&!writingAuthorization&&b.confirmCost!==true)reject(400,'请先确认本批文章质检的模型调用费用');
+  if(!PROVIDERS[b.provider])reject(400,'请先配置所选模型');
+  const connected=await connection(env,ctx.owner,b.provider);if(!connected)reject(400,'请先配置所选模型');
   if(await reserveRun(env,ctx.owner,b.runId,'analyze'))reject(409,'此检查正在执行，请勿重复提交');
-  let result;try{result=await modelCall(env,ctx.owner,checkModelRequest(b.provider,input));}
+  let result;try{result=await modelCall(env,ctx.owner,{...checkModelRequest(b.provider,input),expectedModel:connected.model,writingAuthorization});}
   catch(e){await env.DB.prepare("UPDATE runs SET state='failed',result=? WHERE owner=? AND id=?").bind(JSON.stringify({brandId:brand.id,error:e.status?e.message:'检查请求未完成'}),ctx.owner,b.runId).run();throw e;}
   record=await checkRecord(b.runId,brand.id,b.provider,input,result);
+  if(b.kind==='content')record.costAuthorization={confirmed:true,actor:ctx.actor,at:new Date().toISOString(),model:connected.model,maxModelCalls:1,maxOutputTokens:8000,...(writingAuthorization?{writingBudgetId:writingAuthorization.budgetId}:{})};
   // Persist the supplier receipt before the workspace asset. The same run ID recovers without recharging.
   await env.DB.prepare("UPDATE runs SET state='complete',result=? WHERE owner=? AND id=?").bind(JSON.stringify({record}),ctx.owner,b.runId).run();
  }

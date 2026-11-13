@@ -1,10 +1,11 @@
+import {productScope} from './product-core.js';
 import {canBrand,reject,digest} from './access.js';
 const now=()=>new Date().toISOString();
 export async function retestRequestHash(b){return digest(JSON.stringify({brandId:b.brandId,actionId:b.actionId,kind:b.kind,name:b.name,questionIds:b.questionIds,providers:b.providers,repeats:b.repeats,intervalMinutes:b.intervalMinutes,firstAt:b.firstAt||'',region:b.region||'未指定',language:b.language||'zh-CN'}));}
 export async function prepareRetest(env,ctx,b){
  if(!b.actionId)return null;if(typeof b.actionId!=='string'||!Number.isInteger(b.actionRevision)||b.actionRevision<1)reject(400,'待办标识或版本格式不正确');if(b.kind!=='sample'||b.intervalMinutes!==0)reject(400,'待办复测目前支持单次模型 API 采样');
  const row=await env.DB.prepare("SELECT * FROM operation_records WHERE owner=? AND brand_id=? AND id=? AND kind='action'").bind(ctx.owner,b.brandId,b.actionId).first();if(!row||!canBrand(ctx,b.brandId))reject(404,'找不到授权的改进待办');
- if(row.revision!==b.actionRevision)reject(409,'待办已更新，请刷新后创建复测');const a=JSON.parse(row.body);if(a.status==='已复核')reject(409,'请先重新打开已复核事项，再创建后续复测');if((a.history||[]).length>=99)reject(400,'待办历史接近上限，请新建后续事项');
+ if(row.revision!==b.actionRevision)reject(409,'待办已更新，请刷新后创建复测');const a=JSON.parse(row.body);if(a.status==='停止跟进')reject(409,'此事项已停止跟进，请先由管理员重新打开');if(a.origin?.evidenceContract?.kind==='labels'||a.origin?.kind==='diagnosis'&&a.origin.diagnosis?.type==='labels'||a.origin?.kind==='decision'&&a.origin.step?.id==='labels')reject(400,'标签核对使用原回答审计，不需要新增模型采样');if(a.status==='已复核')reject(409,'请先重新打开已复核事项，再创建后续复测');if((a.history||[]).length>=99)reject(400,'待办历史接近上限，请新建后续事项');
  const pending=await env.DB.prepare("SELECT id FROM task_plans WHERE owner=? AND brand_id=? AND json_extract(spec,'$.origin.actionId')=? AND status NOT IN ('complete','canceled') LIMIT 1").bind(ctx.owner,b.brandId,b.actionId).first();if(pending)reject(409,'此待办已有未结束的复测，请处理原任务或取消后再创建');
  return {row,action:a,requestHash:await retestRequestHash(b)};
 }
@@ -45,3 +46,15 @@ export async function collectRetests(env,ctx,state,onlyActionId=null){
  }return {attached,pending};
 }
 export async function linkedRetests(env,owner,brandId){const rows=(await env.DB.prepare("SELECT id,name,spec,status,created,updated FROM task_plans WHERE owner=? AND brand_id=? AND json_extract(spec,'$.origin.kind')='action' ORDER BY created,id").bind(owner,brandId).all()).results;return rows.map(r=>({...r,spec:undefined,actionId:JSON.parse(r.spec).origin.actionId}));}
+
+export function consumerRetestChoices(state,action){
+ const plan=action.origin?.reviewPlan;if(!plan||['已复核','停止跟进'].includes(action.status))return [];
+ const choices=[],seen=new Set();
+ for(const baseline of plan.baseline||[]){
+  const context=baseline.context,key=JSON.stringify(context);if(seen.has(key))continue;seen.add(key);
+  const answer=(state.answers||[]).find(a=>a.brandId===action.brandId&&a.id===baseline.id),current=answer?{promptId:answer.promptId||'',questionVersion:answer.questionVersion||'',productId:productScope(answer),platform:answer.platform||'',entry:answer.entry||'',mode:answer.mode||'',model:answer.model||'',region:answer.region||'',language:answer.language||''}:null;
+  const complete=Object.values(context).every(v=>v&&!['unknown','未记录','未指定','@unknown'].includes(v)),canStart=!!answer&&!answer.demo&&answer.surface==='import'&&complete&&JSON.stringify(current)===key;
+  choices.push({answerId:baseline.id,questionText:plan.goalQuery,context,canStart,reason:canStart?'':!complete?'原采样条件不完整，请先建立完整的新基线。':'原基线已变更或当前不可用，不能按原条件继续。'});
+ }
+ return choices;
+}

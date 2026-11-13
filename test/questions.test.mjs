@@ -13,7 +13,7 @@ async function mock(response,fn){const previous=globalThis.fetch;let calls=0;glo
 const discover=e=>call(e,'/api/questions/discover','POST',input);
 test('discovery returns a durable structured receipt, deduplicates candidates, and imports selected questions without another paid call',async()=>{
  const e=env();await seed(e);await mock(candidates,async calls=>{
-  let r=await discover(e);assert.equal(r.status,200);assert.equal(r.data.record.candidates.length,2);assert.equal(r.data.record.requestId,'fixture-provider-receipt');assert.equal(r.data.state.questions.length,0);
+  let r=await discover(e);assert.equal(r.status,200);assert.equal(r.data.record.candidates.length,2);assert.equal(r.data.record.requestId,'fixture-provider-receipt');assert.equal(r.data.state.questions.length,0);assert.equal(r.data.record.inputSnapshot.brand,'真实测试品牌');assert.equal(r.data.record.inputSnapshot.seeds,input.seeds);assert.equal(r.data.record.inputSnapshot.count,3);
   assert.equal((await discover(e)).status,200);assert.equal(calls(),1);
   const ids=r.data.record.candidates.map(c=>c.id),accept={brandId:'brand1',discoveryId:input.runId,candidateIds:ids};
   r=await call(e,'/api/questions/import','POST',accept);assert.equal(r.data.added.length,2);assert.equal(r.data.state.questions[0].version,'v1');assert.equal(r.data.state.questions[0].history.length,1);assert.equal(r.data.state.questions[0].discoveryId,input.runId);

@@ -58,7 +58,7 @@ async function reviewFactsBatch(ids,options={}) {
   openDrawer('出处核对结果',`<p><b>${matched} 条自动通过</b>，${pending.length} 条需要处理${processed<ids.length?`，${ids.length-processed} 条尚未处理`:''}。</p>${failure?`<p class="form-error">${esc(failure)}，已完成的结果已经保存。</p>`:''}`+
     `${(options.warnings||[]).map(w=>`<p class="helper">${esc(w)}</p>`).join('')}<p class="helper">自动核对比较摘录与原文是否一致。业务结论仍以原始资料的准确性为前提。</p>`+
     pending.map(r=>{const f=own('facts').find(f=>f.id===r.id);return `<div class="source-evidence"><b>${esc(f?.key||'资料')}</b><p>${esc(r.reason)}</p>${btn('处理这一项','confirm-fact','small',`data-id="${r.id}"`)}</div>`}).join('')+
-    `<div class="form-actions"><button class="button" data-close>关闭</button><a class="button primary" href="#content" data-close>前往内容工作台</a></div>`,'自动通过有依据的项目 · 异常集中处理');
+    `<div class="form-actions">${pending.length&&typeof canReviewMaterials==='function'&&canReviewMaterials()?btn('集中核对剩余资料','knowledge-review-open','primary'):''}<button class="button" data-close>关闭</button><a class="button ${pending.length?'':'primary'}" href="#content" data-close>前往内容工作台</a></div>`,'自动通过有依据的项目 · 异常集中处理');
 }
 async function importAndReview(form) {
   if(runtimeBusy)return;

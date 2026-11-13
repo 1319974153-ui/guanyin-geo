@@ -16,7 +16,7 @@ test('integrated overview, answer reader and content list render with real repor
  const node={value:'',innerHTML:''},g={window:{GEO_CONFIG:{nav:[],platforms:['豆包']},GEO_BOOT_STATE:state},document:{addEventListener(){},querySelector:()=>node,querySelectorAll:()=>[],body:{dataset:{}}},crypto,URL,URLSearchParams,location:{hash:'#overview?period=all&to=2026-10-12'},history:{replaceState(){}},GEO_METRICS:metrics,GEO_STUDIO:studio,productScopeSelect:()=>'',savedProductLabel:()=> '品牌通用',pendingChecksButton:()=>'',render(){}};
  vm.createContext(g);for(const f of ['experience.js','analytics.js','studio.js'])vm.runInContext(fs.readFileSync(new URL('../public/'+f,import.meta.url),'utf8'),g);
  const app=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');vm.runInContext(app.slice(0,app.indexOf('const renderers=')),g);
- let html=g.renderStudioOverview();assert.match(html,/品牌概览/);assert.match(html,/100\.0%/);assert.ok(!/NaN|undefined/.test(html));
+ let html=g.renderStudioOverview();assert.match(html,/品牌概览/);assert.match(html,/可信背书建设建议/);assert.match(html,/operation-from-credibility/);assert.match(html,/100\.0%/);assert.ok(!/NaN|undefined/.test(html));
  g.location.hash='#answers?period=all&to=2026-10-12';html=g.renderAnswerStudio();assert.match(html,/温舒是一名工程师/);assert.match(html,/详情与附件/);
  g.location.hash='#content';html=g.renderStudioContent();assert.match(html,/温舒简介/);assert.match(html,/0 条/);
  state.answers=[];g.location.hash='#overview?period=all&to=2026-10-12';html=g.renderStudioOverview();assert.match(html,/还没有趋势数据/);assert.ok(!/NaN|Infinity/.test(html));

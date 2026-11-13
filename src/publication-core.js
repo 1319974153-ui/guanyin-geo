@@ -1,5 +1,6 @@
+import {assertArticleMediaDelivery} from './article-media-core.js';
 import {canonicalUrl,entryOf} from './analytics-core.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 export function protectHandoffSnapshots(current,next){
  for(const p of next.publications){
   const prior=current.publications.find(x=>x.id===p.id);
@@ -7,6 +8,7 @@ export function protectHandoffSnapshots(current,next){
   if(!p.handoffSnapshot||prior?.handoffSnapshot)continue;
   const c=current.contents.find(c=>c.id===p.contentId&&c.brandId===p.brandId),s=p.handoffSnapshot;
   if(c?.status!=='已审核'||s.title!==c.title||s.text!==c.text||s.contentId!==c.id||s.brandId!==c.brandId||JSON.stringify(s.factSnapshots||[])!==JSON.stringify(c.factSnapshots||[]))throw Object.assign(new Error('交付副本必须对应已保存的审核稿'),{status:409});
+  assertArticleMediaDelivery(c);if(contentDisclosureConflict(current,c))throw Object.assign(new Error('稿件含仅内部使用资料，不能新建对外交付副本'),{status:409});
   if(c.productId&&current.brands.find(b=>b.id===c.brandId)?.productLines?.find(x=>x.id===c.productId)?.status!=='active')throw Object.assign(new Error('稿件产品已归档，请重新审核'),{status:409});
   for(const f of c.factSnapshots||[]){const live=current.facts.find(x=>x.id===f.id&&x.brandId===c.brandId);if(!live||!factUsable(live)||live.value!==f.value||live.source!==f.source||(live.version||1)!==(f.version||1))throw Object.assign(new Error('稿件依据已变化，请重新审核'),{status:409});}
  }

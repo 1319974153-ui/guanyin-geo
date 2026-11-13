@@ -1,8 +1,10 @@
+import {assertArticleMediaDelivery} from './article-media-core.js';
 import {canBrand,requireAdmin,reject,digest} from './access.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 import {formatArticle} from './article-format.js';
 import {rpcRequest,parseRpc} from './metaweblog-rpc.js';
 import {parse} from 'parse5';
+import {assertOptionalPublishAuthorization} from './publish-authorization-core.js';
 
 const now=()=>new Date().toISOString(),kind='cnblogs';
 export function cnblogsAccount(id){if(typeof id!=='string'||!/^cb-[a-f0-9-]{36}$/.test(id))reject(400,'请选择有效的博客园账号');return id}
@@ -11,6 +13,7 @@ function blogName(value){if(typeof value!=='string'||! /^(?!-)[a-zA-Z0-9_-]{1,80
 function source(state,brandId,id){
  const c=state.contents.find(c=>c.id===id&&c.brandId===brandId);
  if(!c||c.demo||c.status!=='已审核'||!c.title?.trim()||!c.text?.trim()||c.title.length>300||c.text.length>100000)reject(400,'请选择有完整标题正文的已审核真实稿件');
+ assertArticleMediaDelivery(c);if(contentDisclosureConflict(state,c))reject(409,'稿件含仅内部使用资料，请移除或取得公开授权后重新审核');
  if(c.productId&&state.brands.find(b=>b.id===brandId)?.productLines?.find(p=>p.id===c.productId)?.status!=='active')reject(409,'稿件产品已归档');
  for(const f of c.factSnapshots||[]){const current=state.facts.find(x=>x.id===f.id&&x.brandId===brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))reject(409,'稿件事实已变化，请重新审核');}
  return {contentId:c.id,title:c.title,text:c.text,ai:!!c.ai,facts:c.factSnapshots||[]};
@@ -127,6 +130,7 @@ export async function cnblogsApi(req,env,ctx,h){
  if(!cfg?.meta.enabled||!cfg.meta.verifiedAt)reject(400,'请先连接博客园账号');
  if(path==='/api/cnblogs/draft'){
   if(!/^[a-zA-Z0-9-]{16,70}$/.test(b.id||''))reject(400,'请求编号无效');
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:b.contentId,platform:'cnblogs',accountId:b.accountId,operation:'draft',connectionRevision:cfg.meta.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,b.contentId);if(b.previewHash!==p.previewHash)reject(409,'稿件已变化，请重新确认当前内容');
   const fingerprint=await digest(JSON.stringify([b.brandId,b.accountId,cfg.meta.blog,cfg.meta.username,p.previewHash]));
   const old=await env.DB.prepare('SELECT id,kind,result FROM runs WHERE owner=? AND id=?').bind(ctx.owner,b.id).first();
@@ -135,7 +139,7 @@ export async function cnblogsApi(req,env,ctx,h){
   // Stable revision fingerprint prevents a new tab or new request id duplicating an uncertain write.
   const duplicate=await env.DB.prepare("SELECT id FROM runs WHERE owner=? AND kind='cnblogs' AND json_extract(result,'$.fingerprint')=?").bind(ctx.owner,fingerprint).first();
   if(duplicate&&!retryRecord){const previous=await record(env,ctx,{...b,id:duplicate.id});if(previous.state==='not_queued'&&!previous.writeAttemptedAt&&!previous.remote)retryRecord=previous;else return h.json({record:previous,existing:true});}
-  const at=now(),r=retryRecord||{id:b.id,brandId:b.brandId,accountId:b.accountId,blog:cfg.meta.blog,username:cfg.meta.username,blogId:cfg.meta.blogId,fingerprint,snapshot:p.snapshot,html:p.html+'\n<!-- guanyin:'+b.id+' -->',previewHash:p.previewHash,created:at,error:'',remote:null};
+  const at=now(),r=retryRecord||{id:b.id,brandId:b.brandId,accountId:b.accountId,blog:cfg.meta.blog,username:cfg.meta.username,blogId:cfg.meta.blogId,fingerprint,...(releaseAuthorization?{releaseAuthorizationId:releaseAuthorization.id}:{}),snapshot:p.snapshot,html:p.html+'\n<!-- guanyin:'+b.id+' -->',previewHash:p.previewHash,created:at,error:'',remote:null};
   const inserted=retryRecord?{meta:{changes:1}}:await env.DB.prepare("INSERT OR IGNORE INTO runs(owner,id,kind,state,created,result) SELECT ?,?,'cnblogs','sending',?,? WHERE NOT EXISTS (SELECT 1 FROM runs WHERE owner=? AND kind='cnblogs' AND json_extract(result,'$.fingerprint')=?) AND (SELECT count(*) FROM runs WHERE owner=? AND kind='cnblogs')<1000").bind(ctx.owner,b.id,at,JSON.stringify(r),ctx.owner,fingerprint,ctx.owner).run();
   if(!inserted.meta.changes)reject(409,'原任务已存在或任务数达到上限，请刷新');
   try{
@@ -147,13 +151,14 @@ export async function cnblogsApi(req,env,ctx,h){
  if(path==='/api/cnblogs/publish'){
   let r=await record(env,ctx,b);
   if(r.blog!==cfg.meta.blog||r.username!==cfg.meta.username||r.blogId!==cfg.meta.blogId)reject(409,'当前账号不是原任务账号');
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:r.snapshot.contentId,platform:'cnblogs',accountId:b.accountId,operation:'publish',connectionRevision:cfg.meta.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,r.snapshot.contentId);
   if(p.previewHash!==r.previewHash)reject(409,'稿件或事实已变化，请重新审核，不能发布旧稿');
   if(r.publishAttemptedAt||['publishing','submitted','published'].includes(r.state))return h.json({record:r,existing:true});
   if(r.state!=='draft'||!r.remote?.postId)reject(409,'需要先取得原稿保存回执；结果不明时只核对，不重发');
   const original=await rpc(env,ctx,h,cfg,'metaWeblog.getPost',[r.remote.postId]);
   remote(original,r); // Exact original only; never overwrite another or externally edited draft.
-  r.error='';
+  r.error='';if(releaseAuthorization)r.publishAuthorizationId=releaseAuthorization.id;
   try{
    const accepted=await rpc(env,ctx,h,cfg,'metaWeblog.editPost',[r.remote.postId,{title:r.snapshot.title,description:r.html,dateCreated:new Date(r.created),categories:Array.isArray(original.categories)?original.categories:[]}],{beforeWrite:async()=>{await claimWrite(env,ctx,r,'publishAttemptedAt','publishing')}});
    if(accepted!==true)reject(502,'未取得明确提交回执，请核对原稿；不会自动重发');

@@ -1,5 +1,6 @@
+import {assertArticleMediaDelivery} from '../src/article-media-core.js';
 import {createHash,randomUUID} from 'node:crypto';
-import {factUsable} from '../src/knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from '../src/knowledge-core.js';
 
 // Personal Official Accounts are completed by the account holder. This bridge
 // only persists a reviewed handoff and an owner-reported URL; it never sends a
@@ -21,12 +22,14 @@ export function wechatHandoffBridge({db,readState,origin,clock=Date.now}){
   if(!brand)fail(404,'品牌不存在');
   return {current,brand};
  };
- const snapshot=(brandId,contentId)=>{
+ const snapshot=(brandId,contentId,{receiptOnly=false}={})=>{
   const {current,brand}=ensureBrand(brandId);
   const content=current.contents.find(item=>item.id===contentId&&item.brandId===brandId);
   if(!content||content.demo||content.status!=='已审核'||!content.title?.trim()||!content.text?.trim())fail(409,'请先审核一篇有标题和正文的真实稿件');
+  if(!receiptOnly)assertArticleMediaDelivery(content);
+  if(!receiptOnly&&contentDisclosureConflict(current,content))fail(409,'稿件含仅内部使用资料，不能准备对外交付；请移除或取得公开授权后重新审核');
   if(content.productId&&!brand.productLines?.some(item=>item.id===content.productId&&item.status==='active'))fail(409,'稿件关联的产品已归档');
-  for(const item of content.factSnapshots||[]){const source=current.facts.find(f=>f.id===item.id&&f.brandId===brandId);if(!source||!factUsable(source)||source.value!==item.value||source.source!==item.source||(source.version||1)!==(item.version||1))fail(409,'稿件事实已变化，请重新审核');}
+  for(const item of receiptOnly?[]:content.factSnapshots||[]){const source=current.facts.find(f=>f.id===item.id&&f.brandId===brandId);if(!source||!factUsable(source)||source.value!==item.value||source.source!==item.source||(source.version||1)!==(item.version||1))fail(409,'稿件事实已变化，请重新审核');}
   return {brandId,contentId:content.id,title:content.title,sourceHash:hash({title:content.title,text:content.text,ai:!!content.ai,facts:content.factSnapshots||[]})};
  };
  const validUrl=value=>{
@@ -55,7 +58,7 @@ export function wechatHandoffBridge({db,readState,origin,clock=Date.now}){
     return respond({task:publicTask(task),existing:false});
    }
    const task=get(body.id);if(!task)fail(404,'找不到公众号交接任务');
-   const current=snapshot(task.brandId,task.contentId);if(current.sourceHash!==task.sourceHash)fail(409,'稿件或事实已变化，请重新准备公众号稿件');
+   const current=snapshot(task.brandId,task.contentId,{receiptOnly:true});if(current.sourceHash!==task.sourceHash)fail(409,'稿件或事实已变化，请重新准备公众号稿件');
    if(body.confirmPublished!==true)fail(400,'请明确确认这是本人已在公众号发表后的链接');
    task.state='reported_by_user';task.reportedUrl=validUrl(body.publicUrl);task.reportedAt=clock();task.updatedAt=task.reportedAt;save(task);
    return respond({task:publicTask(task),notice:'已记录为本人报告的发表链接；平台公开状态仍需后续访问核对'});

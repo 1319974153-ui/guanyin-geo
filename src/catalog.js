@@ -1,5 +1,6 @@
 import {requireAdmin,reject} from './access.js';
 import {ENTITY_TYPES} from './entity-core.js';
+import {questionProvenance} from './question-provenance.js';
 const fields=['name','client','site','industry','aliases','owner','description','logo','entityType','goalQuery'];
 const productFields=['name','description','url','image','category','sku','status'];
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -25,7 +26,7 @@ export async function catalogApi(req,env,ctx,h){
  const input=await h.body(req),w=await h.loadWorkspace(env,ctx.owner),b=w.state.brands.find(x=>x.id===input.brandId);if(!b)reject(404,'品牌不存在');if(input.revision!==w.revision)reject(409,'品牌资料已更新，请刷新后再保存');
  const before=structuredClone(w.state),at=new Date().toISOString();let item;
  if(path.endsWith('/profile')){Object.assign(b,clean({...input,entityType:input.entityType??b.entityType??'brand',goalQuery:input.goalQuery??b.goalQuery??''},fields));recordBrandProfiles(before,w.state,ctx.actor);
-  if(b.goalQuery&&!w.state.questions.some(q=>q.brandId===b.id&&q.text.trim()===b.goalQuery))w.state.questions.push({id:crypto.randomUUID(),brandId:b.id,text:b.goalQuery,version:'v1',topic:'目标需求',intent:'决策',demo:false});
+  if(b.goalQuery&&!w.state.questions.some(q=>q.brandId===b.id&&q.text.trim()===b.goalQuery)){const id=crypto.randomUUID();w.state.questions.push({id,brandId:b.id,text:b.goalQuery,created:at,version:'v1',topic:'目标需求',intent:'决策',demo:false,provenance:questionProvenance({questionId:id,brandId:b.id,text:b.goalQuery,actor:ctx.actor,recordedAt:at,kind:'manual',details:{method:'brand_goal'}})});}
  }
  else{
   const data=clean(input,productFields);if(!['active','archived'].includes(data.status))reject(400,'产品线状态不正确');

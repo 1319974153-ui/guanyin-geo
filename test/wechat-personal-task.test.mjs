@@ -46,5 +46,14 @@ test('a later verification prompt never clears an already-recorded WeChat reques
  assert.equal(wechatPersonalRequestMarker(false,'verification_required'),false);
  assert.equal(wechatPersonalRequestMarker(true,'verification_required'),true);
  assert.equal(wechatPersonalRequestMarker(false,'draft_requested'),true);
- assert.equal(wechatPersonalRequestMarker(true,'filled'),false);
+ assert.equal(wechatPersonalRequestMarker(true,'filled'),true);
+ assert.equal(wechatPersonalRequestMarker(true,'blocked'),true);
+});
+
+test('reconfirming an original task updates only its exact authorization and retains the no-repeat marker',t=>{
+ const root=temporaryRoot(t),c=command('a'),authorization={authorizationId:'pa-'+'b'.repeat(64),desktopToken:'c'.repeat(64),brandId:'b',contentId:'c',mode:'draft',taskId:c.taskId};
+ beginWechatPersonalTask(root,{...c,authorization});updateWechatPersonalTask(root,c.taskId,{requested:true,state:'waiting_receipt'});
+ const updated=beginWechatPersonalTask(root,{...c,authorization:{...authorization,authorizationId:'pa-'+'d'.repeat(64)}});
+ assert.equal(updated.requested,true);assert.equal(updated.authorization.authorizationId,'pa-'+'d'.repeat(64));
+ assert.equal('authorization' in wechatPersonalTaskSummary(root),false);
 });

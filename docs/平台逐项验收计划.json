@@ -1,0 +1,2297 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-11-12T07:57:16.420Z",
+  "total": 36,
+  "note": "历史证据不是当前账号或当前版本的验收结果。",
+  "platforms": [
+    {
+      "id": "personal-site",
+      "name": "个人官网",
+      "implementation": "api_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/PERSONAL-SITE.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网"
+          }
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/PERSONAL-SITE.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/PERSONAL-SITE.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "wordpress",
+      "name": "WordPress",
+      "implementation": "adapter_available",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "typecho",
+      "name": "Typecho",
+      "implementation": "api_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "metaweblog",
+      "name": "MetaWeblog API",
+      "implementation": "api_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "csdn",
+      "name": "CSDN",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "原稿 168768477 已保存并在草稿箱核对；公开提交因平台当日额度未完成"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B3",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "zhihu",
+      "name": "知乎",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": "0.2.7",
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "真实公开文章 2096634179358401344 已人工核对；产品公开正文自动核验尚未通过"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "juejin",
+      "name": "掘金",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-28 Mac 桌面：账号1202233484255738自动识别；观引勾选掘金后自动填入纯文本与AI声明，编号草稿7701511332076519424重开核对完整正文及行数，产品显示草稿已保存；隔离实例正常退出重开后登录保留；公开提交和图片稿未开放"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-28 Mac 桌面：账号1202233484255738自动识别；观引勾选掘金后自动填入纯文本与AI声明，编号草稿7701511332076519424重开核对完整正文及行数，产品显示草稿已保存；隔离实例正常退出重开后登录保留；公开提交和图片稿未开放"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-28 Mac 桌面：账号1202233484255738自动识别；观引勾选掘金后自动填入纯文本与AI声明，编号草稿7701511332076519424重开核对完整正文及行数，产品显示草稿已保存；隔离实例正常退出重开后登录保留；公开提交和图片稿未开放"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B3",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "cnblogs",
+      "name": "博客园",
+      "implementation": "api_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "r19 真账号发布与匿名公开正文核验通过，原文 23402288"
+          }
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "r19 真账号发布与匿名公开正文核验通过，原文 23402288"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "r19 真账号发布与匿名公开正文核验通过，原文 23402288"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "tencentcloud",
+      "name": "腾讯云开发者社区",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "aliyun",
+      "name": "阿里云开发者社区",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-26 Mac 桌面 r61：账号 lcl4vykma3p5c 自动识别；唯一非公开稿 1694249 由观引填写并保存，从草稿箱定位编号后重新打开核对全文及 AI 声明，产品显示草稿已保存。会话恢复有人工导航，登录回跳全自动与重启持久性未通过；图片未开放；公开提交代码已接入，实机验收待完成"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-26 Mac 桌面 r61：账号 lcl4vykma3p5c 自动识别；唯一非公开稿 1694249 由观引填写并保存，从草稿箱定位编号后重新打开核对全文及 AI 声明，产品显示草稿已保存。会话恢复有人工导航，登录回跳全自动与重启持久性未通过；图片未开放；公开提交代码已接入，实机验收待完成"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-26 Mac 桌面 r61：账号 lcl4vykma3p5c 自动识别；唯一非公开稿 1694249 由观引填写并保存，从草稿箱定位编号后重新打开核对全文及 AI 声明，产品显示草稿已保存。会话恢复有人工导航，登录回跳全自动与重启持久性未通过；图片未开放；公开提交代码已接入，实机验收待完成"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B3",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "51cto",
+      "name": "51CTO",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测"
+          }
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "segmentfault",
+      "name": "思否",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "oschina",
+      "name": "开源中国",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "yuque",
+      "name": "语雀",
+      "implementation": "api_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "imooc",
+      "name": "慕课手记",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "woshipm",
+      "name": "人人都是产品经理",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "toutiao",
+      "name": "头条",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "专用非公开稿件验收"
+          }
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B3",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "baijiahao",
+      "name": "百家号",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "既有工具访问限制不得绕过，允许的真实验收方式待落实",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "jianshu",
+      "name": "简书",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "sohu",
+      "name": "搜狐号",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "netease",
+      "name": "网易号",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "dayu",
+      "name": "大鱼号",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "yidian",
+      "name": "一点号",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "wechat",
+      "name": "微信公众号",
+      "implementation": "desktop_personal_browser",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "既有工具访问限制不得绕过，允许的真实验收方式待落实",
+      "launchBatch": "B2",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "weibo",
+      "name": "微博",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "douyin_article",
+      "name": "抖音长文",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "douyin",
+      "name": "抖音图文",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-29 Mac 桌面：自动识别21037695064、上传两图并填入全文；观引自动暂存离开、重新打开原图文核对标题、完整正文及图片数量，回执自动回收。仅确认当前设备暂存，未取得云端草稿编号；图片内容人工核对。两图正式稿7701977994482437414经本人短信验证后已公开，原任务自动找回作品编号并通过匿名全文核对，观引显示发布成功"
+          }
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-29 Mac 桌面：自动识别21037695064、上传两图并填入全文；观引自动暂存离开、重新打开原图文核对标题、完整正文及图片数量，回执自动回收。仅确认当前设备暂存，未取得云端草稿编号；图片内容人工核对。两图正式稿7701977994482437414经本人短信验证后已公开，原任务自动找回作品编号并通过匿名全文核对，观引显示发布成功"
+          }
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "passed",
+          "label": "实机已验收",
+          "evidence": {
+            "reference": "docs/全平台发布接入计划.md",
+            "connectorVersion": null,
+            "scope": "2026-10-29 Mac 桌面：自动识别21037695064、上传两图并填入全文；观引自动暂存离开、重新打开原图文核对标题、完整正文及图片数量，回执自动回收。仅确认当前设备暂存，未取得云端草稿编号；图片内容人工核对。两图正式稿7701977994482437414经本人短信验证后已公开，原任务自动找回作品编号并通过匿名全文核对，观引显示发布成功"
+          }
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P0",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B1",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "xiaohongshu_article",
+      "name": "小红书长文笔记",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "xiaohongshu",
+      "name": "小红书图文笔记",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "x",
+      "name": "X（Twitter）",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "douban",
+      "name": "豆瓣",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "bilibili",
+      "name": "哔哩哔哩",
+      "implementation": "browser_adapter_acceptance",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": true,
+          "liveAcceptance": "pending",
+          "label": "待实机验收",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P1",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B4",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "xueqiu",
+      "name": "雪球",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "eastmoney",
+      "name": "东方财富",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "smzdm",
+      "name": "什么值得买",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    },
+    {
+      "id": "sohufocus",
+      "name": "搜狐焦点",
+      "implementation": "planned",
+      "historicalEvidenceDate": "2026-11-06",
+      "historicalActionEvidence": {
+        "identity": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "prepare": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "draft": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        },
+        "publish": {
+          "implemented": false,
+          "liveAcceptance": "not_implemented",
+          "label": "待开发",
+          "evidence": null
+        }
+      },
+      "currentAccountChecked": false,
+      "currentVersionLiveAcceptance": "not_checked",
+      "priority": "P2",
+      "checklist": [
+        "正确账号与作者权限",
+        "持久登录与失效恢复",
+        "稿件标题正文图片完整",
+        "平台草稿（如支持）",
+        "已审核具体稿件一次提交",
+        "审核状态与公开正文核对",
+        "重复点击断网重启与账号切换",
+        "结果自动回到观引"
+      ],
+      "specialConstraint": "已有任务先查原回执，不重复提交",
+      "launchBatch": "B5",
+      "deliveryStatus": "not_accepted",
+      "acceptanceDimensions": [
+        "当前版本与系统",
+        "正确账号与作者权限",
+        "登录保留和过期恢复",
+        "内容/图片适配",
+        "可定位草稿或明确不适用",
+        "一次公开提交",
+        "审核和公开结果回收",
+        "异常/重启/防重复",
+        "账号与数据隔离"
+      ],
+      "completionPolicy": "已有代码或历史结果不关闭当前版本验收；不适用仅用于平台确无该项能力，有证据并说明影响；无法自动公开发布不可用不适用冒充自动发布完成。"
+    }
+  ],
+  "planRevision": "launch-v2"
+}

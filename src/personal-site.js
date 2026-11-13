@@ -1,12 +1,15 @@
+import {assertArticleMediaDelivery} from './article-media-core.js';
 import {canBrand,requireAdmin,reject,digest} from './access.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 import {formatArticle} from './article-format.js';
+import {assertOptionalPublishAuthorization} from './publish-authorization-core.js';
 const now=()=>new Date().toISOString();
 export function personalSiteAccount(id){if(typeof id!=='string'||!/^site-[a-z0-9-]{1,50}$/.test(id))reject(400,'请选择已配置的个人官网');return id}
 export const personalSiteProvider=(brandId,id)=>'personal-site:'+brandId+':'+personalSiteAccount(id);
 export const personalSiteRunState=(r,state)=>state;
 async function preview(state,brandId,id){const c=state.contents.find(c=>c.id===id&&c.brandId===brandId);
  if(!c||c.demo||c.status!=='已审核'||!c.title?.trim()||c.title.length>300||!c.text?.trim())reject(400,'请先确认完整真实稿件');
+ assertArticleMediaDelivery(c);if(contentDisclosureConflict(state,c))reject(409,'稿件含仅内部使用资料，请移除或取得公开授权后重新审核');
  if(c.productId&&state.brands.find(b=>b.id===brandId)?.productLines?.find(p=>p.id===c.productId)?.status!=='active')reject(409,'稿件产品已归档');
  for(const f of c.factSnapshots||[]){const current=state.facts.find(x=>x.id===f.id&&x.brandId===brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))reject(409,'事实依据已变化，请重新审核');}
  const snapshot={contentId:c.id,title:c.title,text:c.text,ai:!!c.ai,facts:c.factSnapshots||[]},formatted=formatArticle(c.text);if(c.ai)formatted.html+='\n<p>本文包含 AI 辅助生成或整理的内容。</p>\n';return {snapshot,...formatted,previewHash:await digest(JSON.stringify({snapshot,...formatted}))};
@@ -43,11 +46,12 @@ export async function personalSiteApi(req,env,ctx,h){
  }
  if(!cfg?.enabled||!cfg.verifiedAt)reject(400,'请先连接个人官网');
  if(path==='/api/personal-site/draft'){
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:b.contentId,platform:'personal-site',accountId:b.accountId,operation:'draft',connectionRevision:cfg.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,b.contentId);if(p.previewHash!==b.previewHash)reject(409,'稿件版本已变化');
   const fingerprint=await digest(JSON.stringify([ctx.owner,b.brandId,b.accountId,cfg.site,p.previewHash])),id=b.id;
   if(typeof id!=='string'||!/^gy-[a-f0-9]{64}$/.test(id))reject(400,'任务编号无效');
   let row=await env.DB.prepare("SELECT id FROM runs WHERE owner=? AND kind='personal-site' AND (id=? OR json_extract(result,'$.fingerprint')=?)").bind(ctx.owner,id,fingerprint).first();if(row){const old=await record(env,ctx,{...b,id:row.id});if(old.fingerprint!==fingerprint)reject(409,'任务稿件已变化');return h.json({record:old,existing:true});}
-  const r={id,remoteId:fingerprint,fingerprint,brandId:b.brandId,accountId:b.accountId,site:cfg.site,snapshot:p.snapshot,html:p.html,previewHash:p.previewHash,created:now(),error:'',remote:null};
+  const r={id,remoteId:fingerprint,fingerprint,brandId:b.brandId,accountId:b.accountId,site:cfg.site,...(releaseAuthorization?{releaseAuthorizationId:releaseAuthorization.id}:{}),snapshot:p.snapshot,html:p.html,previewHash:p.previewHash,created:now(),error:'',remote:null};
   const inserted=await env.DB.prepare("INSERT OR IGNORE INTO runs(owner,id,kind,state,created,result) VALUES(?,?,'personal-site','sending',?,?)").bind(ctx.owner,id,r.created,JSON.stringify(r)).run();
   if(!inserted.meta.changes)return h.json({record:await record(env,ctx,{...b,id}),existing:true});
   try{r.remote=await remote(env,cfg,r,'draft');return h.json({record:await save(env,ctx,r,r.remote.status)})}catch(e){r.error=e.message;await save(env,ctx,r,'uncertain');reject(502,'官网草稿结果待确认，请核对原任务，不要重复发送');}
@@ -55,9 +59,10 @@ export async function personalSiteApi(req,env,ctx,h){
  if(!['/api/personal-site/publish','/api/personal-site/reconcile'].includes(path))reject(404,'接口不存在');
  const r=await record(env,ctx,b);if(r.site!==cfg.site)reject(409,'官网已更换，请核对原任务');
  if(path.endsWith('/publish')){
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:r.snapshot.contentId,platform:'personal-site',accountId:b.accountId,operation:'publish',connectionRevision:cfg.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,r.snapshot.contentId);if(p.previewHash!==r.previewHash)reject(409,'稿件已变化，请重新审核');
   if(r.publishAttemptedAt||r.state!=='draft')return h.json({record:r,existing:true});
-  r.publishAttemptedAt=now();
+  r.publishAttemptedAt=now();if(releaseAuthorization)r.publishAuthorizationId=releaseAuthorization.id;
   const claimed=await env.DB.prepare("UPDATE runs SET state='publishing',result=? WHERE owner=? AND id=? AND kind='personal-site' AND state='draft' AND json_extract(result,'$.publishAttemptedAt') IS NULL").bind(JSON.stringify(r),ctx.owner,r.id).run();if(!claimed.meta.changes)return h.json({record:await record(env,ctx,b),existing:true});
  }
  try{r.remote=await remote(env,cfg,r,path.endsWith('/publish')?'publish':'status');r.error='';return h.json({record:await save(env,ctx,r,r.remote.status)})}catch(e){r.error=e.message;await save(env,ctx,r,'uncertain');reject(502,'官网结果待确认，请核对原任务；不会自动重新发布');}

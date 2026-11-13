@@ -8,6 +8,8 @@ import worker from '../src/worker.js';
 function environment(t){
  const db=new DatabaseSync(':memory:');
  for(const f of fs.readdirSync(new URL('../drizzle',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(fs.readFileSync(new URL('../drizzle/'+f,import.meta.url),'utf8'));
+ const external=t.mock.method(globalThis,'fetch',async()=>{throw new Error('unexpected external request')});
+ t.after(()=>assert.equal(external.mock.callCount(),0,'reading publishing availability must not contact a platform'));
  t.after(()=>db.close());return{DB:d1Adapter(db),db};
 }
 async function call(e,path,method='GET',body,actor='owner',headers={}){
@@ -19,13 +21,24 @@ async function seed(e){
  assert.equal((await call(e,'/api/state','PUT',w)).status,200);
 }
 function connection(e,patch={},owner='owner',brand='b1'){
- e.db.prepare('INSERT OR REPLACE INTO connections(owner,provider,model,secret,updated) VALUES(?,?,?,?,?)').run(owner,'wordpress:'+brand,JSON.stringify({brandId:brand,site:'https://example.org/',username:'author',enabled:true,revision:'fixture-revision',verifiedAt:'2026-10-16T00:00:00.000Z',userId:7,canPublish:true,...patch}),'never-return-this-secret','2026-10-16T00:00:00.000Z');
+ const account=patch.accountId&&patch.accountId!=='default'?':'+patch.accountId:'';
+ e.db.prepare('INSERT OR REPLACE INTO connections(owner,provider,model,secret,updated) VALUES(?,?,?,?,?)').run(owner,'wordpress:'+brand+account,JSON.stringify({brandId:brand,site:'https://example.org/',username:'author',enabled:true,revision:'fixture-revision',verifiedAt:'2026-10-16T00:00:00.000Z',userId:7,canPublish:true,...patch}),'never-return-this-secret','2026-10-16T00:00:00.000Z');
+}
+function apiConnection(e,platform,patch={},owner='owner',brand='b1'){
+ const prefixes={cnblogs:'cb-',typecho:'tc-',metaweblog:'mw-',yuque:'yq-'},accountId=patch.accountId||(platform==='personal-site'?'site-test':prefixes[platform]+'00000000-0000-0000-0000-000000000001');
+ const model={brandId:brand,accountId,site:'https://example.org/',username:platform+'-author',enabled:true,revision:'fixture-revision',verifiedAt:'2026-10-16T00:00:00.000Z',blog:'author',blogId:'1',userId:7,endpoint:'https://example.org/xmlrpc.php',repoId:'9',groupLogin:'author',bookSlug:'articles',canPublish:true,...patch};
+ e.db.prepare('INSERT OR REPLACE INTO connections(owner,provider,model,secret,updated) VALUES(?,?,?,?,?)').run(owner,platform+':'+brand+':'+accountId,JSON.stringify(model),'never-return-this-secret','2026-10-16T00:00:00.000Z');
+ return model;
+}
+function summary(data,connected,draft,publish){
+ assert.deepEqual(data.batchPublishingSummary,{connected,draft,publish,scope:'self_hosted_and_api_accounts_only'});
+ assert.equal(data.batchPublishingAvailable,connected>0);
 }
 const read=e=>call(e,'/api/publishing-center?brandId=b1');
 
 test('publishing directory never represents planned connectors or exports as automatic publishers',async t=>{
  const e=environment(t);await seed(e);const r=await read(e);assert.equal(r.status,200);
- assert.equal(r.data.batchPublishingAvailable,false);assert.equal(r.data.accounts.length,0);
+ summary(r.data,0,0,0);assert.equal(r.data.accounts.length,0);
  assert.deepEqual(r.data.platforms.filter(p=>p.implementation==='adapter_available').map(p=>p.id),['wordpress']);
  assert.equal(new Set(r.data.platforms.map(p=>p.id)).size,r.data.platforms.length);
  for(const p of r.data.platforms.filter(p=>p.implementation==='planned')){assert.deepEqual(p.contentTypes,[]);assert.equal(p.connectionMethod,null);assert.equal(p.acceptance,'not_implemented');}
@@ -49,17 +62,17 @@ test('publishing directory never represents planned connectors or exports as aut
  assert.ok(r.data.exports.every(p=>p.kind==='local_export'));
 });
 test('account view scopes owner and brand, omits credentials, and does not contact platforms',async t=>{
- const e=environment(t);await seed(e);connection(e);connection(e,{username:'other-brand'},'owner','b2');connection(e,{username:'other-owner'},'other');
- const old=globalThis.fetch;globalThis.fetch=async()=>{throw new Error('unexpected external request')};t.after(()=>globalThis.fetch=old);
+ const e=environment(t);await seed(e);connection(e);connection(e,{username:'other-brand'},'owner','b2');connection(e,{username:'prefix-brand'},'owner','b10');connection(e,{username:'other-owner'},'other');
  const r=await read(e);assert.equal(r.status,200);assert.equal(r.data.accounts.length,1);
+ summary(r.data,1,1,1);
  const a=r.data.accounts[0];assert.equal(a.username,'author');assert.equal(a.remoteAccountId,'7');assert.equal(a.status,'verified');assert.equal(a.verification,'last_saved_check');assert.equal(a.capabilities.publish,true);
  assert.ok(!JSON.stringify(r).includes('never-return'));assert.ok(!JSON.stringify(r).includes('other-owner'));assert.ok(!JSON.stringify(r).includes('other-brand'));
  assert.equal(e.db.prepare('SELECT count(*) AS n FROM runs').get().n,0);
 });
 test('saved credentials, disabled connections and limited permissions do not imply publishing eligibility',async t=>{
  const e=environment(t);await seed(e);
- for(const [patch,status,draft,publish] of [[{verifiedAt:null},'unverified',false,false],[{userId:null},'unverified',false,false],[{enabled:false},'disabled',false,false],[{canPublish:false},'permission_limited',true,false]]){
-  connection(e,patch);const a=(await read(e)).data.accounts[0];assert.equal(a.status,status);assert.equal(a.capabilities.createDraft,draft);assert.equal(a.capabilities.publish,publish);
+ for(const [patch,status,draft,publish] of [[{verifiedAt:null},'unverified',false,false],[{userId:null},'unverified',false,false],[{enabled:false},'disabled',false,false],[{enabled:'false'},'disabled',false,false],[{canPublish:false},'permission_limited',true,false]]){
+  connection(e,patch);const d=(await read(e)).data,a=d.accounts[0];assert.equal(a.status,status);assert.equal(a.capabilities.createDraft,draft);assert.equal(a.capabilities.publish,publish);summary(d,draft||publish?1:0,Number(draft),Number(publish));
  }
 });
 test('unauthorized brands and other owners cannot read publishing accounts',async t=>{
@@ -71,6 +84,47 @@ test('unauthorized brands and other owners cannot read publishing accounts',asyn
  assert.equal((await call(e,'/api/publishing-center?brandId=b1','GET',null,'viewer',headers)).status,404);
  connection(e,{},'owner','b2');const r=await call(e,'/api/publishing-center?brandId=b2','GET',null,'viewer',headers);
  assert.equal(r.status,200);assert.equal(r.data.accounts[0].capabilities.publish,false);assert.equal(r.data.accounts[0].capabilities.createDraft,false);
+ summary(r.data,0,0,0);
+});
+test('availability counts eligible accounts, not platforms or other workspaces and brands',async t=>{
+ const e=environment(t);await seed(e);connection(e);connection(e,{accountId:'wp-00000000-0000-0000-0000-000000000002',canPublish:false});
+ for(const platform of ['cnblogs','typecho','metaweblog','yuque']){
+  apiConnection(e,platform);apiConnection(e,platform,{username:'other-brand'},'owner','b2');apiConnection(e,platform,{username:'prefix-brand'},'owner','b10');apiConnection(e,platform,{username:'other-owner'},'other');
+ }
+ const site=apiConnection(e,'personal-site');e.GEO_LOCAL_MODE='true';e.STATIC_SITE={list:()=>[{id:site.accountId,site:site.site}]};
+ e.db.prepare('INSERT INTO connections(owner,provider,model,secret,updated) VALUES(?,?,?,?,?)').run('owner','xiaohongshu:b1:desktop-account',JSON.stringify({brandId:'b1',accountId:'desktop-account',enabled:true,verifiedAt:'2026-10-16T00:00:00.000Z',canPublish:true}),'desktop-secret','2026-10-16T00:00:00.000Z');
+ const r=await read(e);assert.equal(r.status,200);summary(r.data,7,7,6);assert.equal(r.data.accounts.length,7);
+ assert.ok(!JSON.stringify(r.data).includes('other-brand'));assert.ok(!JSON.stringify(r.data).includes('prefix-brand'));assert.ok(!JSON.stringify(r.data).includes('other-owner'));assert.ok(!JSON.stringify(r.data.accounts).includes('desktop-account'));
+ assert.equal(e.db.prepare('SELECT count(*) AS n FROM runs').get().n,0);
+});
+test('API availability excludes paused and unverified accounts and keeps draft-only permissions',async t=>{
+ const e=environment(t);await seed(e);
+ for(const platform of ['cnblogs','typecho','metaweblog','yuque','personal-site']){
+  for(const patch of [{enabled:false},{enabled:'false'},{verifiedAt:null},{blogId:null}]){
+   e.db.prepare('DELETE FROM connections').run();const site=apiConnection(e,platform,patch);e.GEO_LOCAL_MODE='true';e.STATIC_SITE={list:()=>[{id:site.accountId,site:site.site}]};
+   const r=await read(e);assert.equal(r.status,200);summary(r.data,0,0,0);assert.equal(r.data.accounts[0].capabilities.createDraft,false);assert.equal(r.data.accounts[0].capabilities.publish,false);
+  }
+ }
+ e.db.prepare('DELETE FROM connections').run();apiConnection(e,'yuque',{canPublish:false});
+ const r=await read(e);assert.equal(r.status,200);summary(r.data,1,1,0);assert.equal(r.data.accounts[0].status,'permission_limited');assert.equal(r.data.accounts[0].verification,'api_access_and_repo_read');
+});
+test('personal site eligibility requires its matching local publishing connection',async t=>{
+ const e=environment(t);await seed(e);const site=apiConnection(e,'personal-site');
+ summary((await read(e)).data,0,0,0);e.GEO_LOCAL_MODE='true';summary((await read(e)).data,0,0,0);
+ e.STATIC_SITE={list:()=>[{id:site.accountId,site:'https://different.example/'}]};summary((await read(e)).data,0,0,0);
+ e.STATIC_SITE={list:()=>[{id:site.accountId,site:site.site}]};summary((await read(e)).data,1,1,1);
+});
+test('current member role limits the same accounts without counting read-only access',async t=>{
+ const e=environment(t);await seed(e);connection(e);apiConnection(e,'yuque');
+ for(const role of ['viewer','reviewer','editor','admin']){
+  const email=role+'@example.com';assert.equal((await call(e,'/api/manage/members','POST',{email,role,brands:['b1']})).status,200);
+  const r=await call(e,'/api/publishing-center?brandId=b1','GET',null,role,{'x-geo-workspace':'owner','oai-authenticated-user-email':email});
+  assert.equal(r.status,200);assert.equal(r.data.accounts.length,2);const n=['editor','admin'].includes(role)?2:0;summary(r.data,n,n,n);
+ }
+});
+test('an unauthenticated request cannot read account availability',async t=>{
+ const e=environment(t);await seed(e);connection(e);
+ const r=await worker.fetch(new Request('https://geo.test/api/publishing-center?brandId=b1'),e);assert.equal(r.status,401);assert.equal((await r.json()).batchPublishingSummary,undefined);
 });
 test('publishing directory is read-only and corrupt account metadata fails closed',async t=>{
  const e=environment(t);await seed(e);

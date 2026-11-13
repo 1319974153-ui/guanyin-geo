@@ -5,5 +5,6 @@ test('local HTTP body limits admit full WordPress covers and bound only exact up
  assert.equal(localRequestLimit('/api/wordpress/media/upload'),8*1024*1024+200000);
  assert.equal(localRequestLimit('/api/wordpress/media/upload?x=1'),8*1024*1024+200000);
  assert.equal(localRequestLimit('/api/documents/upload'),10_000_000);
+ assert.equal(localRequestLimit('/api/article-media/upload'),12_000_000);assert.equal(localRequestLimit('/api/article-media/upload-extra'),1_100_000);
  for(const path of ['/api/state','/api/wordpress/media/upload-extra','/api/documents/upload-extra','/'])assert.equal(localRequestLimit(path),1_100_000);
 });

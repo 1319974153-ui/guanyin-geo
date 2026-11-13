@@ -1,7 +1,9 @@
+import {assertArticleMediaDelivery} from './article-media-core.js';
 import {canBrand,requireAdmin,reject,digest} from './access.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 import {formatArticle} from './article-format.js';
 import {parse} from 'parse5';
+import {assertOptionalPublishAuthorization} from './publish-authorization-core.js';
 
 const kind='yuque',origin='https://www.yuque.com',apiRoot=origin+'/api/v2',now=()=>new Date().toISOString();
 
@@ -19,6 +21,7 @@ function bookTarget(value){
 function source(state,brandId,id){
  const c=state.contents.find(c=>c.id===id&&c.brandId===brandId);
  if(!c||c.demo||c.status!=='已审核'||!c.title?.trim()||!c.text?.trim()||c.title.length>300||c.text.length>100000)reject(400,'请选择有完整标题正文的已审核真实稿件');
+ assertArticleMediaDelivery(c);if(contentDisclosureConflict(state,c))reject(409,'稿件含仅内部使用资料，请移除或取得公开授权后重新审核');
  if(c.productId&&state.brands.find(b=>b.id===brandId)?.productLines?.find(p=>p.id===c.productId)?.status!=='active')reject(409,'稿件产品已归档');
  for(const f of c.factSnapshots||[]){const current=state.facts.find(x=>x.id===f.id&&x.brandId===brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))reject(409,'稿件事实已变化，请重新审核');}
  return {contentId:c.id,title:c.title,text:c.text,ai:!!c.ai,facts:c.factSnapshots||[]};
@@ -182,6 +185,7 @@ export async function yuqueApi(req,env,ctx,h){
  if(!cfg?.meta.enabled||!cfg.meta.verifiedAt)reject(400,'请先连接语雀账号');
  if(path==='/api/yuque/draft'){
   if(!/^gy-[a-f0-9]{64}$/.test(b.id||''))reject(400,'请求编号无效');
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:b.contentId,platform:'yuque',accountId:b.accountId,operation:'draft',connectionRevision:cfg.meta.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,b.contentId);if(b.previewHash!==p.previewHash)reject(409,'稿件已变化，请重新确认当前内容');
   const fingerprint=await digest(JSON.stringify([b.brandId,b.accountId,cfg.meta.groupLogin,cfg.meta.bookSlug,cfg.meta.userId,p.previewHash]));
   const old=await env.DB.prepare('SELECT id,kind,result FROM runs WHERE owner=? AND id=?').bind(ctx.owner,b.id).first();
@@ -189,7 +193,7 @@ export async function yuqueApi(req,env,ctx,h){
   if(old){if(old.kind!==kind||JSON.parse(old.result).fingerprint!==fingerprint)reject(409,'请求编号已被其他稿件占用');const previous=await record(env,ctx,b);if(previous.state==='not_queued'&&!previous.writeAttemptedAt&&!previous.remote)retryRecord=previous;else return h.json({record:previous,existing:true})}
   const duplicate=await env.DB.prepare("SELECT id FROM runs WHERE owner=? AND kind='yuque' AND json_extract(result,'$.fingerprint')=?").bind(ctx.owner,fingerprint).first();
   if(duplicate&&!retryRecord){const previous=await record(env,ctx,{...b,id:duplicate.id});if(previous.state==='not_queued'&&!previous.writeAttemptedAt&&!previous.remote)retryRecord=previous;else return h.json({record:previous,existing:true});}
-  const at=now(),r=retryRecord||{id:b.id,brandId:b.brandId,accountId:b.accountId,groupLogin:cfg.meta.groupLogin,bookSlug:cfg.meta.bookSlug,site:cfg.meta.site,username:cfg.meta.username,fingerprint,slug:documentSlug(b.id),snapshot:p.snapshot,markdown:p.markdown,html:p.html,previewHash:p.previewHash,created:at,error:'',remote:null};
+  const at=now(),r=retryRecord||{id:b.id,brandId:b.brandId,accountId:b.accountId,groupLogin:cfg.meta.groupLogin,bookSlug:cfg.meta.bookSlug,site:cfg.meta.site,username:cfg.meta.username,fingerprint,...(releaseAuthorization?{releaseAuthorizationId:releaseAuthorization.id}:{}),slug:documentSlug(b.id),snapshot:p.snapshot,markdown:p.markdown,html:p.html,previewHash:p.previewHash,created:at,error:'',remote:null};
   const inserted=retryRecord?{meta:{changes:1}}:await env.DB.prepare("INSERT OR IGNORE INTO runs(owner,id,kind,state,created,result) SELECT ?,?,'yuque','sending',?,? WHERE NOT EXISTS (SELECT 1 FROM runs WHERE owner=? AND kind='yuque' AND json_extract(result,'$.fingerprint')=?) AND (SELECT count(*) FROM runs WHERE owner=? AND kind='yuque')<1000").bind(ctx.owner,b.id,at,JSON.stringify(r),ctx.owner,fingerprint,ctx.owner).run();
   if(!inserted.meta.changes)reject(409,'原任务已存在或任务数达到上限，请刷新');
   try{
@@ -204,11 +208,12 @@ export async function yuqueApi(req,env,ctx,h){
  if(path==='/api/yuque/publish'){
   let r=await record(env,ctx,b);
   if(r.groupLogin!==cfg.meta.groupLogin||r.bookSlug!==cfg.meta.bookSlug||r.site!==cfg.meta.site)reject(409,'当前账号不是原任务知识库');
+  const releaseAuthorization=await assertOptionalPublishAuthorization(env,ctx,w.state,{authorizationId:b.authorizationId,brandId:b.brandId,contentId:r.snapshot.contentId,platform:'yuque',accountId:b.accountId,operation:'publish',connectionRevision:cfg.meta.revision,execution:b.execution});
   const p=await preview(w.state,b.brandId,r.snapshot.contentId);if(p.previewHash!==r.previewHash)reject(409,'稿件或事实已变化，请重新审核，不能发布旧稿');
   if(r.publishAttemptedAt||['publishing','submitted','published'].includes(r.state))return h.json({record:r,existing:true});
   if(r.state!=='draft'||!r.remote?.docId)reject(409,'需要先取得原稿保存回执；结果不明时只核对，不重发');
   r.remote=savedDocument(await readDocument(env,ctx,h,cfg,r),r);
-  r.error='';
+  r.error='';if(releaseAuthorization)r.publishAuthorizationId=releaseAuthorization.id;
   try{
    const submitted=await yuqueRequest(env,ctx,h,cfg,'PUT',docPath(r),{title:r.snapshot.title,slug:r.slug,body:r.markdown,format:'markdown',public:1},{beforeWrite:async()=>claimWrite(env,ctx,r,'publishAttemptedAt','publishing')});
    if(remoteId(submitted)!==r.remote.docId)reject(502,'语雀返回的文档编号与原任务不同');

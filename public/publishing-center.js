@@ -1,16 +1,17 @@
 let publishingCenterData=null,publishingCenterLoaded='',publishingCenterLoading=false,publishingCenterError='',publishingCenterErrorScope='';
 const publishingAccountStates={draft_only:'可保存草稿',disabled:'已暂停',unverified:'待验证身份',permission_limited:'仅有编辑权限',api_verified:'已核验 API 访问',verified:'已核验发布权限'};
+function publishingCenterScope(){return JSON.stringify([wordpressBaseScope(),accessInfo.current.actor||'',accessInfo.current.role||'',accessInfo.current.brands??null])}
 function publishingCenterInvalidate(){publishingCenterLoaded='';publishingCenterError='';}
-function publishingCenterCurrent(){return publishingCenterLoaded===wordpressBaseScope()?publishingCenterData:null}
+function publishingCenterCurrent(){return publishingCenterLoaded===publishingCenterScope()?publishingCenterData:null}
 async function refreshPublishingCenter(){
  if(publishingCenterLoading||!brand()?.id)return;
- const scope=wordpressBaseScope(),brandId=brand().id;publishingCenterLoading=true;
- try{const d=await apiRequest('/api/publishing-center?'+new URLSearchParams({brandId}));if(scope===wordpressBaseScope()){publishingCenterData=d;publishingCenterLoaded=scope;publishingCenterError='';}}
- catch(e){if(scope===wordpressBaseScope()){publishingCenterError=e.message;publishingCenterErrorScope=scope;}}
+ const scope=publishingCenterScope(),brandId=brand().id;publishingCenterLoading=true;
+ try{const d=await apiRequest('/api/publishing-center?'+new URLSearchParams({brandId}));if(scope===publishingCenterScope()){publishingCenterData=d;publishingCenterLoaded=scope;publishingCenterError='';}}
+ catch(e){if(scope===publishingCenterScope()){publishingCenterError=e.message;publishingCenterErrorScope=scope;}}
  finally{publishingCenterLoading=false;if(['integrations','publish'].includes(route))render();}
 }
 function publishingCenterDecorate(){
- if(['integrations','publish'].includes(route)&&brand()?.id&&publishingCenterLoaded!==wordpressBaseScope()&&!publishingCenterLoading&&(!publishingCenterError||publishingCenterErrorScope!==wordpressBaseScope()))refreshPublishingCenter();
+ if(['integrations','publish'].includes(route)&&brand()?.id&&publishingCenterLoaded!==publishingCenterScope()&&!publishingCenterLoading&&(!publishingCenterError||publishingCenterErrorScope!==publishingCenterScope()))refreshPublishingCenter();
 }
 function publishingAccountSelector(){
  const d=publishingCenterCurrent(),selected=wordpressSelectedAccount();
@@ -21,13 +22,23 @@ function publishingAccountSelector(){
 }
 function publishingCatalogPanel(platforms){
  const groupNames={self_hosted:'自建网站',knowledge:'技术与知识社区',general:'综合内容平台',social:'社交与图文',video:'视频社区',vertical:'垂直社区'};
- return `<details class="simple-detail"><summary>全部平台与接入进度 · ${platforms.length} 项</summary><p>文章、图文和自建网站统一管理；长文与图文分别接入。</p><p class="helper">平台清单不代表已经登录或可发布。浏览器适配仅用于本机连接器；是否可发送以你自己的账号和实际开放操作为准。</p>${Object.entries(groupNames).map(([group,label])=>`<h3>${label}</h3><div class="integration-grid">${platforms.filter(p=>p.group===group).map(p=>`<article class="integration"><h4>${esc(p.name)}</h4><p>${esc(p.stage||'待开发')}</p><p class="helper">${esc(p.note)}</p>${p.actionEvidence?'<details><summary>各项能力验收</summary>'+Object.entries(p.actionEvidence).map(([action,e])=>'<p class="helper">'+esc(({identity:'账号核验',prepare:'填入编辑器',draft:'平台草稿',publish:'公开提交'})[action]||action)+'：'+esc(e.label)+(e.evidence?.connectorVersion?' · 连接器 '+esc(e.evidence.connectorVersion):'')+'</p>').join('')+'</details>':''}</article>`).join('')}</div>`).join('')}<p class="helper">Markdown / PDF 是本地导出，不计作平台发布。待开发平台暂不申请登录权限。</p></details>`;
+ return `<details class="simple-detail"><summary>全部平台与接入进度 · ${platforms.length} 项</summary><p>文章、图文和自建网站统一管理；长文与图文分别接入。</p><p class="helper">这里展示接入进度与历史验收。当前账号状态请看账号列表；当前稿件能否发送，以文章发布页的准备检查为准。历史通过不会自动开放发布权限。</p>${Object.entries(groupNames).map(([group,label])=>`<h3>${label}</h3><div class="integration-grid">${platforms.filter(p=>p.group===group).map(p=>`<article class="integration"><h4>${esc(p.name)}</h4><p>${esc(distributionCatalogCapability(p))}</p>${publishingEvidenceDetails(p,true)}</article>`).join('')}</div>`).join('')}<p class="helper">Markdown / PDF 是本地导出，不计作平台发布。待开发平台暂不申请登录权限。</p></details>`;
+}
+function publishingBatchAvailability(d){
+ const summary=d?.batchPublishingSummary;
+ if(!summary||summary.scope!=='self_hosted_and_api_accounts_only')return '';
+ const counts=[summary.connected,summary.draft,summary.publish];
+ if(counts.some(n=>!Number.isSafeInteger(n)||n<0)||summary.draft>summary.connected||summary.publish>summary.connected)return '';
+ const available=summary.connected>0
+  ?`当前品牌：可保存草稿 ${summary.draft} 个账号，可提交 ${summary.publish} 个账号。`
+  :'当前品牌暂无你可保存草稿或提交的账号。';
+ return `<p class="helper">${available}仅统计已接入的自建网站、博客和知识库，并按当前权限和上次核验结果筛选；提交前仍会检查。</p>`;
 }
 function renderPublishingCenter(){
  if(!brand()?.id)return '';
- const d=publishingCenterCurrent(),error=publishingCenterErrorScope===wordpressBaseScope()?publishingCenterError:'';
+ const d=publishingCenterCurrent(),error=publishingCenterErrorScope===publishingCenterScope()?publishingCenterError:'';
  const actions=a=>['cnblogs','typecho','metaweblog','personal-site','yuque'].includes(a.platform)?btn('稿件与回执','publishing-account-open','small',`data-account="${esc(a.accountId)}"`)+(isManager()?btn('管理连接','publishing-account-config','small',`data-account="${esc(a.accountId)}"`):''):`${btn('查看稿件与回执','publishing-account-open','small',`data-account="${esc(a.accountId)}"`)}${isManager()?btn('管理连接','publishing-account-config','small',`data-account="${esc(a.accountId)}"`)+(a.status!=='disabled'?btn('验证身份与权限','publishing-account-verify','small',`data-account="${esc(a.accountId)}"`):''):''}`;
- return `<section class="panel publishing-accounts-panel"><div class="panel-head"><div><h2>我的发布账号</h2><p>这里只显示你实际添加的账号，连接后即可验证发布权限。</p></div>${btn('写文章','write-article','small')}${btn('刷新账号','publishing-refresh','small')}${isManager()?btn('连接博客园','publishing-cnblogs-add','small')+btn('连接语雀','publishing-yuque-add','small')+btn('连接 Typecho','publishing-typecho-add','small')+btn('连接其他博客','publishing-metaweblog-add','small')+btn('连接个人官网','publishing-personal-site-add','small')+btn('添加 WordPress 账号','publishing-account-add','primary small'):''}</div><div class="panel-body">${error?`<p class="form-error" role="alert">${esc(error)}</p>`:!d?'<p role="status">正在读取发布账号…</p>':''}${d?table(['发布账号','上次核验','操作'],d.accounts.map(a=>[esc(a.username)+'<span class="sub">'+esc(a.site)+(a.remoteAccountId?' · #'+esc(a.remoteAccountId):'')+'</span>',badge(publishingAccountStates[a.status]||a.status)+(a.verifiedAt?'<span class="sub">'+esc(a.verifiedAt.slice(0,16).replace('T',' '))+' UTC</span>':''),actions(a)]),'还没有发布账号。添加后先验证身份和权限。'):''}<p class="helper">WordPress 使用应用密码；博客园使用平台访问令牌；语雀使用用户自己的 API Token；Typecho 使用网站账号密码。连接时自动核对身份。保存连接不会发布文章；查询显示上次核验结果，执行前仍检查权限。每个账号的稿件、封面和回执分别保存。</p>${d?publishingCatalogPanel(d.platforms):''}</div></section>`;
+ return `<section class="panel publishing-accounts-panel"><div class="panel-head"><div><h2>我的发布账号</h2><p>这里只显示你实际添加的账号，连接后即可验证发布权限。</p></div>${btn('写文章','write-article','small')}${btn('刷新账号','publishing-refresh','small')}${isManager()?btn('连接博客园','publishing-cnblogs-add','small')+btn('连接语雀','publishing-yuque-add','small')+btn('连接 Typecho','publishing-typecho-add','small')+btn('连接其他博客','publishing-metaweblog-add','small')+btn('连接个人官网','publishing-personal-site-add','small')+btn('添加 WordPress 账号','publishing-account-add','primary small'):''}</div><div class="panel-body">${error?`<p class="form-error" role="alert">${esc(error)}</p>`:!d?'<p role="status">正在读取发布账号…</p>':''}${d?publishingBatchAvailability(d)+table(['发布账号','上次核验','操作'],d.accounts.map(a=>[esc(a.username)+'<span class="sub">'+esc(a.site)+(a.remoteAccountId?' · #'+esc(a.remoteAccountId):'')+'</span>',badge(publishingAccountStates[a.status]||a.status)+(a.verifiedAt?'<span class="sub">'+esc(a.verifiedAt.slice(0,16).replace('T',' '))+' UTC</span>':''),actions(a)]),'还没有发布账号。添加后先验证身份和权限。'):''}<p class="helper">WordPress 使用应用密码；博客园使用平台访问令牌；语雀使用用户自己的 API Token；Typecho 使用网站账号密码。连接时自动核对身份。保存连接不会发布文章；查询显示上次核验结果，执行前仍检查权限。每个账号的稿件、封面和回执分别保存。</p>${d?publishingCatalogPanel(d.platforms):''}</div></section>`;
 }
 async function publishingCenterAction(name,el){
  if(!name.startsWith('publishing-'))return false;

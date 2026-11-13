@@ -1,7 +1,8 @@
+import {articleMediaSnapshot,assertArticleMediaDelivery} from '../src/article-media-core.js';
 import {PLATFORMS,DESKTOP_PLATFORM_IDS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
-import {factUsable} from '../src/knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from '../src/knowledge-core.js';
 import {articlePublicUrl} from './article-public.mjs';
 
 const hash=v=>createHash('sha256').update(typeof v==='string'?v:JSON.stringify(v)).digest('hex');
@@ -26,7 +27,7 @@ function validateMedia(input,limits){
 
 // Dedicated local-only store. Pairing tokens and execution leases are never included in workspace exports.
 // One bridge = one local owner, one exact loopback origin. Hosted/team access is deliberately unsupported.
-export function publisherBridge({db,readState,origin,clock=Date.now,experimentalPublish=false,publishPlatforms=[],verifyPublic=null}){
+export function publisherBridge({db,readState,origin,clock=Date.now,experimentalPublish=false,publishPlatforms=[],verifyPublic=null,validateArticleMedia=null}){
  if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(origin))throw new Error('Publisher requires an exact IPv4 loopback origin');
  db.exec('CREATE TABLE IF NOT EXISTS publisher_meta(k TEXT PRIMARY KEY,v TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL);CREATE TABLE IF NOT EXISTS publisher_jobs(id TEXT PRIMARY KEY,fingerprint TEXT UNIQUE NOT NULL,body TEXT NOT NULL)');
  db.prepare('INSERT OR IGNORE INTO publisher_meta VALUES(?,?)').run('instance',randomUUID());
@@ -66,16 +67,19 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  function snapshot(brandId,contentId,platform='csdn'){
   brand(brandId);const s=state(),c=s.contents.find(c=>c.brandId===brandId&&c.id===contentId);
   if(!c||c.demo||c.status!=='已审核'||!c.title?.trim()||!c.text?.trim())fail(409,'请先审核有标题和正文的真实稿件');
+  if(contentDisclosureConflict(s,c))fail(409,'稿件含仅内部使用资料，请移除或取得公开授权后重新审核');
   const limits=platformConfig(platform);if([...c.title].length>limits.titleMax||[...c.text].length>limits.textMax)fail(400,limits.name+' 标题最多 '+limits.titleMax+' 字，正文最多 '+limits.textMax+' 字；请审核平台适配稿，不会自动截断');
   if(c.productId&&!s.brands.find(b=>b.id===brandId)?.productLines?.some(p=>p.id===c.productId&&p.status==='active'))fail(409,'产品已归档');
   for(const f of c.factSnapshots||[]){const current=s.facts.find(x=>x.id===f.id&&x.brandId===brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))fail(409,'事实已变化，请重新审核');}
+  if(Object.hasOwn(c,'mediaRefs')){if(c.mediaRefs?.length&&!validateArticleMedia)fail(503,'本机配图存储未连接，未发送稿件');validateArticleMedia?.(brandId,c.mediaRefs);}
   const formatted=formatArticle(c.text);
-  return {contentId:c.id,title:c.title,text:c.text,html:formatted.html,formatVersion:formatted.version,factSnapshots:c.factSnapshots||[],productId:c.productId||'',ai:!!c.ai};
+  return {contentId:c.id,title:c.title,text:c.text,html:formatted.html,formatVersion:formatted.version,factSnapshots:c.factSnapshots||[],productId:c.productId||'',ai:!!c.ai,...articleMediaSnapshot(c)};
  }
  function checkCurrent(j,s){
   if(s.transport==='desktop'&&s.connectionState!=='connected')fail(409,'平台需要重新登录，原任务已保留；登录后会自动核对账号');
   if(j.expires<clock())fail(409,'本次授权已过期');
   if(!s.account||s.account.accountId!==j.accountId||s.account.revision!==j.accountRevision||clock()-s.account.checkedAt>300000)fail(409,'账号已变化或核验过期，请重新核验');
+  assertArticleMediaDelivery(snapshot(j.brandId,j.snapshot.contentId,j.platform||'csdn'),j.media||[]);
   if(hash(snapshot(j.brandId,j.snapshot.contentId,j.platform||'csdn'))!==j.sourceHash)fail(409,'稿件或事实已变化，请重新审核和授权');
  }
  function invalidate(reason){
@@ -104,7 +108,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const brandId=u.searchParams.get('brandId');brand(brandId);const contents=state().contents;for(const j of jobs().filter(j=>j.brandId===brandId))checkPublic(j);
      const desktopPlatforms=new Set(DESKTOP_PLATFORM_IDS);
      const platformRows=[...DESKTOP_PLATFORM_IDS,...Object.keys(PLATFORMS).filter(id=>!desktopPlatforms.has(id))].map(id=>{const p=PLATFORMS[id];return {id,name:p.name,images:p.images,titleMax:p.titleMax,textMax:p.textMax,publishEnabled:publishing.has(id),desktopSupported:desktopPlatforms.has(id)}});
-     return respond({instance,experimentalPublish,platforms:platformRows,accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')}})});
+     return respond({instance,experimentalPublish,platforms:platformRows,accounts:sessions().filter(s=>s.brandId===brandId&&!s.revoked).map(s=>({id:s.id,brandId:s.brandId,platform:s.platform||'csdn',transport:s.transport||'extension',connectionState:s.connectionState||'',connectionError:s.connectionError||'',modes:['prepare',...(publishing.has(s.platform||'csdn')?['publish']:[]),...(supportsDraftProtocol(s.platform||'csdn',s.draftProtocol)?['draft']:[])],account:s.account||null,lastSeen:s.lastSeen||null})),jobs:jobs().filter(j=>j.brandId===brandId).map(j=>{const c=contents.find(c=>c.id===j.snapshot.contentId&&c.brandId===brandId);return {...publicJob(j),currentRevision:!!c&&c.status==='已审核'&&c.title===j.snapshot.title&&c.text===j.snapshot.text&&!!c.ai===j.snapshot.ai&&JSON.stringify(c.factSnapshots||[])===JSON.stringify(j.snapshot.factSnapshots||[])&&(c.productId||'')===(j.snapshot.productId||'')&&JSON.stringify(articleMediaSnapshot(c))===JSON.stringify(articleMediaSnapshot(j.snapshot))}})});
     }
     if(action==='media'){
      brand(b.brandId);snapshot(b.brandId,b.contentId,'51cto');
@@ -134,7 +138,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
      const tags=Array.isArray(b.tags)?b.tags.map(t=>String(t).trim()):[];
      const platform=s.platform||'csdn',limits=platformConfig(platform);
      if((limits.tagsRequired&&!tags.length)||tags.length>5||tags.some(t=>!t||t.length>20)||new Set(tags).size!==tags.length)fail(400,'请填写 1 至 5 个不同的文章标签');
-     const media=validateMedia(b.media||[],limits);if(platform==='51cto'&&media.length&&b.mode==='prepare')fail(400,'图片稿请选择保存草稿或发布文章，以保留完整图片回执');const snap=snapshot(b.brandId,b.contentId,platform),sourceHash=hash(snap);const mediaHash=hash(media.map(m=>m.sha256));
+     const media=validateMedia(b.media||[],limits);if(platform==='51cto'&&media.length&&b.mode==='prepare')fail(400,'图片稿请选择保存草稿或发布文章，以保留完整图片回执');const snap=snapshot(b.brandId,b.contentId,platform),sourceHash=hash(snap);assertArticleMediaDelivery(snap,media);const mediaHash=hash(media.map(m=>m.sha256));
      const fingerprint=hash(platform==='csdn'?{brandId:b.brandId,accountId:s.account.accountId,sourceHash,mode:b.mode}:{brandId:b.brandId,platform,accountId:s.account.accountId,sourceHash,mediaHash,mode:b.mode});
      const old=db.prepare('SELECT body FROM publisher_jobs WHERE fingerprint=?').get(fingerprint);
      if(old){

@@ -35,6 +35,9 @@ small,.sub,.helper{line-height:1.75}.button{min-height:38px}.button.small{min-he
 
 @media print{.analytics-filters,.runtime-banner,#main>.section-title,#main>.settings-list,#main>.helper,#main button{display:none!important}.comparison-panel,.diagnosis-grid .panel{break-inside:avoid}.diagnosis-grid{grid-template-columns:1fr}.comparison-panel{border:0}.report-sheet .table-wrap{overflow:visible}}
 
+.report-credibility{margin:28px 0;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.report-credibility>h3{margin:0 0 10px}.report-credibility-stats{display:flex;flex-wrap:wrap;gap:8px 18px;margin:16px 0;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}.report-credibility-stats b{color:var(--ink);font-variant-numeric:tabular-nums}.report-credibility-list{margin:0;padding-left:22px}.report-credibility-list li{padding:12px 0 12px 3px;border-bottom:1px solid var(--line);font-size:12px;line-height:1.7}.report-credibility-list li:last-child{border-bottom:0}.report-credibility-list b{color:var(--ink)}.report-credibility-list p,.report-credibility-list small{display:block;margin:3px 0 0;color:var(--muted);line-height:1.75}.report-credibility-list strong{color:var(--ink);font-weight:550}
+.report-credibility-list .row-actions{margin-top:9px}
+
 .check-target {padding:20px 0;border-bottom:1px solid var(--line,#e1e5eb)}
 .check-target h4 {margin:20px 0 10px;font-size:13px}
 .check-target blockquote {margin:12px 0;padding:10px 15px;background:#f4f7fb;border-left:3px solid #527ba7;white-space:pre-wrap;font-size:13px;line-height:1.8;overflow-wrap:anywhere}

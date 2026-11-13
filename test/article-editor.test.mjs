@@ -49,3 +49,19 @@ test('pasted AI drafts retain explicit disclosure and changing disclosure invali
  assert.throws(()=>articleRevision(null,{...input,ai:'true'},'save','owner'),/声明格式/);
  assert.equal(articleRevision(fresh,input,'save','owner').ai,true);
 });
+
+const mediaRef=(n,rightsConfirmed=true)=>({id:'am-'+String(n).repeat(64),sha256:String(n).repeat(64),rightsConfirmed});
+test('saved article retains image references only; reorder or rights change invalidates prior approval',()=>{
+ const refs=[mediaRef(1),mediaRef(2)],fresh=articleRevision(null,{...input,mediaRefs:refs},'save','owner');
+ assert.deepEqual(fresh.mediaRefs,refs);assert.equal(fresh.mediaVersion,1);assert.equal(fresh.media,undefined);
+ const approved={...fresh,status:'已审核',reviewedAt:'old',writingReview:{passed:true}};
+ const same=articleRevision(approved,{...input,mediaRefs:structuredClone(refs)},'save','owner');assert.equal(same.status,'已审核');assert.equal(same.mediaVersion,1);
+ for(const changedRefs of [[refs[1],refs[0]],[mediaRef(1,false),refs[1]],[]]){const next=articleRevision(approved,{...input,mediaRefs:changedRefs},'save','owner');assert.equal(next.status,'草稿');assert.equal(next.mediaVersion,2);assert.equal(next.reviewedAt,undefined);assert.equal(next.writingReview,undefined);}
+ assert.throws(()=>articleRevision(approved,{...input,mediaRefs:[refs[1]]},'approve','reviewer'),/不能修改/);
+});
+test('legacy no-media revisions remain shape-compatible; metadata is strict, duplicates rejected',()=>{
+ assert.equal(Object.hasOwn(articleRevision({...input,status:'草稿'},input,'save','owner'),'mediaRefs'),false);
+ assert.throws(()=>articleRevision(null,{...input,mediaRefs:[mediaRef(1),mediaRef(1)]},'save','owner'),/重复/);
+ assert.throws(()=>articleRevision(null,{...input,mediaRefs:[{...mediaRef(1),id:'../../other'}]},'save','owner'),/无效/);
+ const saved=articleRevision(null,{...input,mediaRefs:[{...mediaRef(1,false),dataUrl:'secret',path:'/tmp/x'}]},'save','owner');assert.deepEqual(saved.mediaRefs,[mediaRef(1,false)]);
+});

@@ -1,13 +1,14 @@
+import {createHash} from 'node:crypto';
 import {PLATFORMS,DESKTOP_PLATFORM_IDS} from '../browser-extension/platforms.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {publisherBridge} from '../local/publisher-bridge.mjs';
 const ORIGIN='http://127.0.0.1:58729',EXT='chrome-extension://'+'a'.repeat(32);
-function setup(t,experimentalPublish=true,publishPlatforms=[]){
+function setup(t,experimentalPublish=true,publishPlatforms=[],extra={}){
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());let time=1000000;
  const state={brands:[{id:'b',name:'隔离测试'},{id:'other',name:'乙'}],contents:[{id:'c',brandId:'b',title:'测试文章',text:'可验证的技术正文',status:'已审核'}],facts:[]};
- const options={db,readState:()=>state,origin:ORIGIN,clock:()=>time,experimentalPublish,publishPlatforms};let bridge=publisherBridge(options);
+ const options={db,readState:()=>state,origin:ORIGIN,clock:()=>time,experimentalPublish,publishPlatforms,...extra};let bridge=publisherBridge(options);
  const request=async(path,body,headers={},method='POST',host=ORIGIN)=>{const r=await bridge.handle(new Request(host+path,{method,headers:{'content-type':'application/json',...headers},...(method==='POST'?{body:JSON.stringify(body||{})}:{})}));return {status:r.status,data:await r.json()}};
  const app=(action,b,headers={})=>request('/api/local-publisher/'+action,b,{'x-geo-request':'1',origin:ORIGIN,...headers});
  let connection;
@@ -18,6 +19,17 @@ function setup(t,experimentalPublish=true,publishPlatforms=[]){
  const ready=async()=>{await pair();await account();const j=await enqueue();assert.equal(j.status,200);return (await ext('claim')).data.job};
  return {db,state,request,app,ext,pair,account,enqueue,ready,get connection(){return connection},restart(){bridge=publisherBridge(options)},advance(ms){time+=ms},invalidate(){bridge.invalidate('恢复备份')}};
 }
+test('internal disclosure changes block desktop enqueue, claim and final commit without suppressing old receipts',async t=>{
+ const e=setup(t);await e.pair();await e.account();
+ e.state.facts=[{id:'private',brandId:'b',value:e.state.contents[0].text,disclosure:'internal'}];
+ assert.equal((await e.enqueue()).status,409);assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,0);
+ e.state.facts[0].disclosure='public';await e.enqueue();e.state.facts[0].disclosure='internal';
+ assert.equal((await e.ext('claim')).data.job,null);
+ let status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.status,200);assert.match(status.data.jobs[0].error,/内部/);
+ e.state.facts[0].disclosure='public';await e.app('retry',{id:status.data.jobs[0].id});const j=(await e.ext('claim')).data.job;assert.ok(j);
+ e.state.facts[0].disclosure='internal';const commit=await e.ext('commit',{id:j.id,lease:j.lease,accountId:j.accountId,sourceHash:j.sourceHash});assert.equal(commit.status,409);assert.match(commit.data.error,/内部/);
+ status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.status,200);assert.equal(status.data.jobs.length,1);
+});
 test('pairing is one-time, expiring and exact-origin/instance bound; no cookie or token in status',async t=>{
  const e=setup(t);const p=await e.pair();assert.equal((await e.ext('pair',{code:p.code,instance:p.instance})).status,403);
  assert.equal((await e.ext('pending',{}, {origin:'https://evil.test'})).status,403);
@@ -324,4 +336,19 @@ test('uncertain CSDN can record a fully verified original draft without gaining 
  assert.equal((await e.app('retry',{id:j.id})).status,409);assert.equal((await e.ext('job-state',{id:j.id,lease:j.lease})).data.canResume,false);
  assert.equal((await report({url:draft.url.replace('123','124'),articleId:'124'})).status,409);
  const again=await e.enqueue();assert.equal(again.data.job.id,j.id);assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);
+});
+
+test('persistent image references enforce local ownership, exact bytes/order and usage confirmation before enqueue or claim',async t=>{
+ const hash=createHash('sha256').update(Buffer.from(png.dataUrl.split(',')[1],'base64')).digest('hex'),ref={id:'am-'+hash,sha256:hash,rightsConfirmed:true};let available=true,validated=0;
+ const e=setup(t,false,['douyin'],{validateArticleMedia:(brandId,refs)=>{validated++;assert.equal(brandId,'b');assert.deepEqual(refs,[ref]);if(!available)throw Object.assign(Error('原配图文件缺失'),{status:409});}});
+ await e.pair('douyin');await e.account();Object.assign(e.state.contents[0],{mediaRefs:[ref],mediaVersion:1});
+ assert.equal((await e.enqueue({mode:'publish'})).status,400);
+ const wrong={...ref,rightsConfirmed:false};e.state.contents[0].mediaRefs=[wrong];assert.notEqual((await e.enqueue({media:[png]})).status,200);e.state.contents[0].mediaRefs=[ref];
+ const queued=await e.enqueue({media:[png]});assert.equal(queued.status,200,JSON.stringify(queued.data));assert.ok(validated>0);
+ available=false;const blocked=await e.ext('claim');assert.equal(blocked.data.job,null);let status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.match(status.data.jobs[0].error,/缺失/);
+ available=true;e.state.contents[0].mediaVersion=2;status=await e.request('/api/local-publisher/status?brandId=b',null,{'x-geo-request':'1'},'GET');assert.equal(status.data.jobs[0].currentRevision,false);assert.equal((await e.app('retry',{id:queued.data.job.id})).status,409);
+});
+
+test('persistent image draft without the asset store fails closed; old job media contract is unaffected',async t=>{
+ const e=setup(t,false,['douyin']);await e.pair('douyin');await e.account();const hash=createHash('sha256').update(Buffer.from(png.dataUrl.split(',')[1],'base64')).digest('hex');Object.assign(e.state.contents[0],{mediaRefs:[{id:'am-'+hash,sha256:hash,rightsConfirmed:true}],mediaVersion:1});assert.equal((await e.enqueue({media:[png]})).status,503);delete e.state.contents[0].mediaRefs;delete e.state.contents[0].mediaVersion;assert.equal((await e.enqueue({media:[png]})).status,200);
 });

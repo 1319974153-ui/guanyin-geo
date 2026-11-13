@@ -11,6 +11,12 @@ function fixture(t){
  const call=async(path,method='GET',body)=>{const response=await bridge.handle(new Request(origin+path,{method,headers:{origin,'x-geo-request':'1','content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}));return{status:response.status,data:await response.json()}};
  return {state,call,advance:()=>now+=1};
 }
+test('internal disclosure blocks a new handoff but still accepts a read-only report for an already prepared original',async t=>{
+ const f=fixture(t);const first=await f.call('/api/local-wechat-handoff/prepare','POST',{brandId:'brand',contentId:'content'});assert.equal(first.status,200);
+ f.state.facts[0].disclosure='internal';const next=await f.call('/api/local-wechat-handoff/prepare','POST',{brandId:'brand',contentId:'content'});assert.equal(next.status,409);assert.match(next.data.error,/内部/);
+ const report=await f.call('/api/local-wechat-handoff/report','POST',{id:first.data.task.id,confirmPublished:true,publicUrl:'https://mp.weixin.qq.com/s/original'});assert.equal(report.status,200);assert.equal(report.data.task.state,'reported_by_user');
+ const status=await f.call('/api/local-wechat-handoff/status?brandId=brand');assert.equal(status.status,200);assert.equal(status.data.tasks.length,1);
+});
 
 test('prepared handoff is deduplicated and never implies a remote draft or publication',async t=>{
  const f=fixture(t);const first=await f.call('/api/local-wechat-handoff/prepare','POST',{brandId:'brand',contentId:'content'});

@@ -1,12 +1,12 @@
 import {contentPlan} from './content-plan.js';
 import {taskCostPolicy} from './task-cost-policy.js';
-import {writingOptions,writingRequest} from './writing.js';
+import {writingOptions,writingRequest,reviewWritingOutput} from './writing.js';
 import {createCheckPlan} from './check-tasks.js';
 import {checkStale} from './checks-core.js';
 import {validateCheckInput,checkModelRequest,checkRecord} from './check-execution.js';
 import {prepareRetest,retestRequestHash,retestActionStatement} from './retests.js';
 import {productFields,productFor,factsForProduct} from './product-core.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 import {canBrand,policy,reject,digest} from './access.js';
 import {articleTitle} from './automation.js';
 const stamp=()=>new Date().toISOString();
@@ -62,7 +62,7 @@ export async function tick(env,ctx,h,planId){
  const claim=await env.DB.prepare("UPDATE task_items SET status='running',attempts=attempts+1,lease_token=?,lease_until=?,updated=? WHERE owner=? AND id=? AND status=? AND EXISTS(SELECT 1 FROM task_plans WHERE owner=? AND id=? AND status='active')").bind(token,plus(item.spec.kind==='check'?300000:180000),stamp(),ctx.owner,item.id,item.status,ctx.owner,item.plan_id).run();if(!claim.meta.changes)return {state:'busy'};
  const runId=item.id+'-'+attempt;let reserved=false,costPolicy;
  try{
-  const limits=await policy(env,ctx.owner),definition=JSON.parse((await planFor(env,ctx,item.plan_id)).spec);costPolicy=definition.costPolicy;if(definition.repeats>limits.repeatsPerJob||definition.providers.length>limits.platformsPerJob)reject(400,'任务超过调整后的重复次数或平台配额，请修改配额或重新创建任务');
+  const limits=await policy(env,ctx.owner),definition=JSON.parse((await planFor(env,ctx,item.plan_id)).spec);costPolicy=definition.costPolicy;if(definition.reviewAuthorization&&!costPolicy)reject(412,'这批文章检查缺少可核对的模型费用授权，请重新建立检查');if(definition.repeats>limits.repeatsPerJob||definition.providers.length>limits.platformsPerJob)reject(400,'任务超过调整后的重复次数或平台配额，请修改配额或重新创建任务');
   const w=await h.loadWorkspace(env,ctx.owner),brand=w.state.brands.find(b=>b.id===item.brand_id),spec=item.spec;
   if(!brand)reject(404,'品牌已移除，停止执行任务');
   const connection=await h.connection(env,ctx.owner,spec.provider);if(!connection)reject(400,'模型连接已移除或尚未配置');
@@ -82,9 +82,10 @@ export async function tick(env,ctx,h,planId){
   if(await h.reserveRun(env,ctx.owner,runId,spec.kind))reject(409,'此执行尝试已有调用记录，需要核对结果');reserved=true;
   const writing=spec.kind==='generate'?writingRequest({brand,product:spec.question.productSnapshot?.name||'品牌通用',question:spec.question.text,facts,style:spec.style,brief:spec.brief,variant:spec.repeat}):null;
   const messages=writing?.messages||[{role:'user',content:spec.question.text}];
+  if(contentDisclosureConflict(w.state,{brandId:brand.id,productId:spec.question.productId||'',text:JSON.stringify(messages)}))reject(412,'本次内容含仅内部参考资料，未发送给模型');
   const result=await h.modelCall(env,ctx.owner,{provider:spec.provider,messages,...(costPolicy?{expectedModel:costPolicy.model}:{})});
   const base={id:item.id,brandId:brand.id,...(Object.hasOwn(spec.question,'productId')?{productId:spec.question.productId,productSnapshot:spec.question.productSnapshot||null}:{}),taskId:item.plan_id,taskItemId:item.id,questionVersion:spec.question.version,questionSnapshot:spec.question.text,questionText:spec.question.text,provider:spec.provider,model:result.model,requestId:result.requestId,usage:result.usage,date:stamp(),demo:false};
-  record=spec.kind==='generate'?{...base,questionId:spec.question.id,title:articleTitle({text:result.text,question:spec.question.text,brand:brand.name}),question:spec.question.text,status:'草稿',style:spec.style,text:result.text,ai:true,generated:false,variant:spec.repeat,brief:spec.brief,writingBasis:writing.basis,factIds:facts.map(f=>f.id),factSnapshots:facts.map(f=>({id:f.id,version:f.version||1,key:f.key,value:f.value,source:f.source,productId:f.productId||'',validFrom:f.validFrom||'',expiresAt:f.expiresAt||'',sourceDocumentId:f.sourceDocumentId||''}))}:{...base,promptId:spec.question.id,platform:h.PROVIDERS[spec.provider].name,surface:'api',entry:'api',mode:'官方 API · 不联网',region:spec.region,language:spec.language,status:'ok',text:result.text,mention:[brand.name,...String(brand.aliases||'').split(',')].map(n=>n.trim()).filter(Boolean).some(n=>result.text.toLowerCase().includes(n.toLowerCase())),recommended:false,recommendationLabeled:false,citationKnown:false,official:false,rank:null,sentiment:'待复核',citations:[]};
+  record=spec.kind==='generate'?{...base,questionId:spec.question.id,title:articleTitle({text:result.text,question:spec.question.text,brand:brand.name}),question:spec.question.text,status:'草稿',style:spec.style,text:result.text,ai:true,generated:false,variant:spec.repeat,brief:spec.brief,writingBasis:writing.basis,writingReview:reviewWritingOutput(result.text,{facts}),factIds:facts.map(f=>f.id),factSnapshots:facts.map(f=>({id:f.id,version:f.version||1,key:f.key,value:f.value,source:f.source,productId:f.productId||'',validFrom:f.validFrom||'',expiresAt:f.expiresAt||'',sourceDocumentId:f.sourceDocumentId||''}))}:{...base,promptId:spec.question.id,platform:h.PROVIDERS[spec.provider].name,surface:'api',entry:'api',mode:'官方 API · 不联网',region:spec.region,language:spec.language,status:'ok',text:result.text,mention:[brand.name,...String(brand.aliases||'').split(',')].map(n=>n.trim()).filter(Boolean).some(n=>result.text.toLowerCase().includes(n.toLowerCase())),recommended:false,recommendationLabeled:false,citationKnown:false,official:false,rank:null,sentiment:'待复核',citations:[]};
   }
   const payload=JSON.stringify({record,receivedAt:stamp()});
   // Preserve the paid response before saving business assets; replaying this phase never calls a model.
@@ -160,7 +161,7 @@ export async function tasksApi(req,env,ctx,h){
     const receipt=await env.DB.prepare("SELECT result FROM runs WHERE owner=? AND id=? AND state='complete'").bind(ctx.owner,item.id+'-'+item.attempts).first();if(!receipt)reject(404,'没有可恢复的已返回结果，请核对供应商记录');
     const saved=JSON.parse(receipt.result);if(!saved.record)reject(400,'调用回执不包含完整业务结果');await env.DB.prepare("UPDATE task_items SET status='ready',result=?,error=NULL,available=?,updated=? WHERE owner=? AND id=? AND status=?").bind(receipt.result,stamp(),stamp(),ctx.owner,item.id,item.status).run();return h.json({saved:true});
    }
-   if((item.status==='uncertain'||JSON.parse(p.spec).costPolicy)&&!item.result&&b.confirmCost!==true)reject(400,'请先核对供应商用量；确认可能重复计费后才能重试');
+   if((item.status==='uncertain'||JSON.parse(p.spec).costPolicy||JSON.parse(p.spec).reviewAuthorization)&&!item.result&&b.confirmCost!==true)reject(400,'请先核对供应商用量；确认可能重复计费后才能重试');
    if(item.attempts>=10)reject(400,'该条任务已尝试 10 次，请排查服务配置后创建新任务');
    // Already received results can only be persisted again, never regenerated by retry.
    await env.DB.prepare('UPDATE task_items SET status=?,error=NULL,available=?,updated=? WHERE owner=? AND id=? AND status=?').bind(item.result?'ready':'queued',stamp(),stamp(),ctx.owner,item.id,item.status).run();return h.json({saved:true});

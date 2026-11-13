@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
+import {deliveryMatrixVersion} from './tools/delivery-matrix-version.mjs';
 import './scripts/generate-publishing-status.mjs';
 const packageVersion=JSON.parse(fs.readFileSync('package.json','utf8')).version;
 if(!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/.test(packageVersion))throw new Error('Invalid package version');
@@ -11,8 +12,10 @@ fs.writeFileSync('public/index.html',indexHtml.replace(/运行版 [\w.-]+/,`运�
 fs.rmSync('public/assistant/guanyin-geo.zip',{force:true});
 execFileSync('zip',['-q','-r','-X','guanyin-geo.zip','guanyin-geo'],{cwd:'public/assistant'});
 import {build} from 'esbuild';
+await build({entryPoints:['src/content-options.js'],outfile:'public/content-options.js',bundle:true,format:'iife',globalName:'GEO_CONTENT_OPTIONS',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/article-format.js'],outfile:'public/article-format.js',bundle:true,format:'iife',globalName:'GEO_ARTICLE_FORMAT',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/publish-dispatch-core.js'],outfile:'public/publish-dispatch-core.js',bundle:true,format:'iife',globalName:'GEO_DISPATCH',target:'es2022',platform:'browser',minify:true});
+await build({entryPoints:['src/platform-content-adaptation.js'],outfile:'public/platform-content-adaptation-core.js',bundle:true,format:'iife',globalName:'GEO_PLATFORM_ADAPTATION',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/article-editor-core.js'],outfile:'public/article-editor-core.js',bundle:true,format:'iife',globalName:'GEO_ARTICLE_EDITOR',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/publication-core.js'],outfile:'public/publication-core.js',bundle:true,format:'iife',globalName:'GEO_PUBLICATION',target:'es2022',platform:'browser',minify:true});
 await build({entryPoints:['src/citation-import-core.js'],outfile:'public/citation-import-core.js',bundle:true,format:'iife',globalName:'GEO_CITATION_IMPORT',target:'es2022',platform:'browser',minify:true});
@@ -62,7 +65,7 @@ fs.copyFileSync('node_modules/parse5/LICENSE','public/vendor/parse5-LICENSE.txt'
 fs.copyFileSync('node_modules/robots-parser/LICENSE.md','public/vendor/robots-parser-LICENSE.txt');
 fs.copyFileSync('node_modules/entities/LICENSE','public/vendor/entities-LICENSE.txt');
 fs.copyFileSync('node_modules/xmlchars/LICENSE','public/vendor/xmlchars-LICENSE.txt');
-const matrix=fs.readFileSync('public/docs/功能验收矩阵.md','utf8'),version=matrix.match(/当前版本 ([\d.]+)/)?.[1];
+const matrix=fs.readFileSync('public/docs/功能验收矩阵.md','utf8'),version=deliveryMatrixVersion(matrix,packageVersion);
 const rows=matrix.split('\n').filter(line=>line.startsWith('| ')&&!line.startsWith('| 模块 |')).map(line=>line.split('|').slice(1,-1).map(x=>x.trim()));
 if(rows.length!==36||rows.some(row=>row.length!==5)||!version)throw new Error('功能验收矩阵必须有 36 行、5 列和版本号');
 fs.writeFileSync('public/delivery-data.js','window.GEO_DELIVERY_VERSION='+JSON.stringify(version)+';window.GEO_DELIVERY='+JSON.stringify(rows)+';\n');

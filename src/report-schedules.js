@@ -1,3 +1,4 @@
+import {reportDisclosureView} from './report-disclosure.js';
 import {LIVE_REPORT,reportDeleted} from './report-library.js';
 import {attachAttribution} from './attribution.js';
 import {validateProductFilter} from './product-core.js';
@@ -27,8 +28,8 @@ async function makeScheduledReport(env,ctx,row,h,{manual=false,clock=new Date()}
   const updated=await env.DB.prepare('UPDATE operation_records SET body=?,revision=revision+1,updated=? WHERE owner=? AND id=? AND revision=?').bind(JSON.stringify(next),clock.toISOString(),ctx.owner,row.id,row.revision).run();if(!updated.meta.changes)reject(409,'计划已更新，请刷新后查看归档');
   return {id,brandId:row.brand_id,window:{from:window.from,to:window.to},existing:true,deleted};
  }
- const report=makeReport(w.state,row.brand_id,options,clock);await attachAttribution(env,ctx.owner,report,w.state.brands.find(b=>b.id===row.brand_id));report.automation={scheduleId:row.id,frequency:old.frequency,scheduledFor:old.nextAt,generatedAt:clock.toISOString(),manual};
- const body=JSON.stringify(report);if(new TextEncoder().encode(body).byteLength>1_000_000)reject(413,'报告原文超过 1 MB，请缩小平台或入口范围');
+ let report=makeReport(w.state,row.brand_id,options,clock);await attachAttribution(env,ctx.owner,report,w.state.brands.find(b=>b.id===row.brand_id));report.automation={scheduleId:row.id,frequency:old.frequency,scheduledFor:old.nextAt,generatedAt:clock.toISOString(),manual};
+ report=reportDisclosureView(report,w.state);const body=JSON.stringify(report);if(new TextEncoder().encode(body).byteLength>1_000_000)reject(413,'报告原文超过 1 MB，请缩小平台或入口范围');
  const title=`${report.brand.name} · ${report.productScope.label} · 自动${old.frequency==='weekly'?'周报':'月报'} · ${window.from} — ${window.to} · ${old.surface==='api'?'API':'实测'}`;
 
  const next={...JSON.parse(row.body),lastReportId:id,lastNotice:'',lastWindow:{from:window.from,to:window.to},lastGeneratedAt:clock.toISOString(),lastRunAt:clock.toISOString(),lastError:'',retryAt:null,nextAt:old.enabled?window.nextAt:null};

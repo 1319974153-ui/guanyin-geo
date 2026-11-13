@@ -43,7 +43,7 @@ test('restored setup draft retains source URL and user edits with escaped HTML',
 
 test('next action prioritizes existing content instead of requiring an AI sample or goal',()=>{
  const {ctx}=ui();const data={facts:[{usable:true}],contents:[]};ctx.own=k=>data[k]||[];ctx.GEO_KNOWLEDGE={factUsable:f=>f.usable};ctx.serverConnections=[];
- assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-prepare');
+ assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-write');
  data.contents=[{id:'draft',title:'已有稿件',status:'草稿'}];assert.equal(vm.runInContext('simpleNextWork().id',ctx),'draft');
  data.contents[0].status='已审核';assert.equal(vm.runInContext('simpleNextWork().action',ctx),'distribute-article');
  vm.runInContext("simplePublishingScope=simpleScope();simplePublishing={jobs:[{contentId:'draft',state:'draft',currentRevision:true,created:1}]}",ctx);ctx.browserPublisherStates={draft:'平台草稿已保存'};
@@ -56,6 +56,26 @@ test('active flow is continued instead of prompting to create another paid task'
  const {ctx}=ui();ctx.GEO_KNOWLEDGE={factUsable:()=>true};vm.runInContext("simpleFlowScope=simpleScope();simpleFlows=[{id:'f',stage:'checking'}]",ctx);
  assert.equal(vm.runInContext('simpleNextWork().action',ctx),'simple-work-progress');
  vm.runInContext('simpleFlows[0].paused=true',ctx);assert.match(vm.runInContext('simpleNextWork().title',ctx),/暂停/);
+});
+
+test('primary writing entry opens directions for an uncovered goal without a model call',async()=>{
+ const {ctx,seen}=ui();ctx.openWritingConversation=options=>{seen.conversation=options;};ctx.serverConnections=[];
+ await vm.runInContext("simpleAction('simple-write',{})",ctx);
+ assert.equal(seen.conversation.questionId,'target');assert.equal(seen.request,undefined);assert.equal(seen.name,undefined);
+ const questions=[{id:'old',text:'旧问题？'},{id:'target',text:'新的需求问题？'}];
+ ctx.own=k=>k==='questions'?questions:k==='contents'?[{questionId:'target'}]:[];
+ await vm.runInContext("simpleAction('simple-write',{})",ctx);assert.equal(seen.conversation.questionId,'old');
+ ctx.own=()=>[];
+ await vm.runInContext("simpleAction('simple-write',{})",ctx);assert.equal(seen.conversation.questionId,'');
+ await vm.runInContext("simpleAction('simple-write',{dataset:{provider:'runninghub'}})",ctx);assert.equal(seen.conversation.provider,'runninghub');
+});
+
+test('primary writing entry cannot be opened by a read-only member',async()=>{
+ const {ctx,seen}=ui();ctx.openWritingConversation=()=>{seen.opened=true;};ctx.toast=text=>{seen.notice=text;};
+ for(const role of ['viewer','reviewer']){
+  ctx.accessInfo.current.role=role;await vm.runInContext("simpleAction('simple-write',{})",ctx);
+  assert.equal(seen.opened,undefined);assert.match(seen.notice,/编辑权限/);assert.equal(seen.request,undefined);
+ }
 });
 
 test('switching brands during progress loading discards the old result and loads the selected brand',async()=>{
@@ -106,4 +126,30 @@ test('continue from model connection uses the selected saved provider, without a
  const {ctx,seen}=ui();ctx.serverConnections.push({provider:'runninghub',model:'customer-model'});
  await vm.runInContext("simpleAction('simple-prepare',{dataset:{provider:'runninghub'}})",ctx);
  assert.equal(seen.request.body.provider,'runninghub');assert.equal(seen.request.path,'/api/simple/prepare-preview');
+});
+
+test('simple navigation groups related screens under three stable entries and counts only real article work',()=>{
+ const {ctx}=ui(),nodes={'#nav':{},'#view-mode':{}};ctx.$=id=>nodes[id];ctx.document.body={dataset:{}};ctx.icon=()=>'';
+ ctx.own=k=>k==='contents'?[{status:'草稿'},{status:'已审核'},{status:'草稿',demo:true}]:[{status:'待确认'}];
+ for(const [route,group] of [['today','today'],['inbox','inbox'],['integrations','inbox'],['reports','results'],['operations','results']]){
+  ctx.route=route;vm.runInContext('renderSimpleNavigation()',ctx);const html=nodes['#nav'].innerHTML;
+  assert.equal((html.match(/aria-current="page"/g)||[]).length,1);assert.match(html,new RegExp('href="#'+group+'" aria-current="page"'));
+  assert.match(html,/文章与发布/);assert.match(html,/GEO 诊断/);assert.match(html,/<span class="nav-num">1<\/span>/);
+ }
+});
+
+test('article home prioritizes AI writing, groups facts and retains every original article',()=>{
+ const {ctx}=ui();const data={facts:Array.from({length:30},(_,i)=>({id:String(i),key:'资料'+i,status:'待确认'})),contents:[{id:'a',title:'原稿甲',status:'已审核'},{id:'b',title:'原稿乙',status:'草稿',demo:true}],publications:[{id:'old',title:'旧发布',channel:'博客',url:''}]};
+ ctx.state={brands:[{}]};ctx.own=k=>data[k]||[];ctx.title=(t,s,actions)=>t+s+actions;ctx.contentCheckSummary=()=>'';
+ let html=vm.runInContext('renderSimpleInbox()',ctx);assert.match(html,/AI 自动写文章/);assert.match(html,/data-action="simple-write"/);
+ assert.match(html,/30 项品牌资料待核对/);assert.equal((html.match(/data-action="knowledge-review-open"/g)||[]).length,1);
+ assert.doesNotMatch(html,/data-action="confirm-fact"/);assert.match(html,/原稿甲/);assert.match(html,/原稿乙/);assert.match(html,/演练稿/);assert.match(html,/<details[^>]*><summary>1 项历史发布/);
+ ctx.accessInfo.current.role='viewer';html=vm.runInContext('renderSimpleInbox()',ctx);assert.doesNotMatch(html,/data-action="simple-write"|data-action="knowledge-review-open"|data-action="write-article"/);
+});
+
+test('simple diagnosis explicitly uses all imported evidence even after visiting API reports',()=>{
+ const {ctx}=ui(),seen={};ctx.state={brands:[{}],scope:'api'};ctx.title=(t,s)=>t+s;ctx.GEO_METRICS={makeReport:(_state,_id,options)=>{seen.options=options;return {answers:[],decision:{}}},goalEvidence:()=>({rows:[],metrics:{citationN:0},reviewed:[],recommended:[]})};
+ ctx.decisionReportPanel=(r,actionable,limit)=>{seen.actionable=actionable;seen.limit=limit;return '<section>诊断结论</section>'};ctx.isOwner=()=>false;
+ const html=vm.runInContext('renderSimpleResults()',ctx);assert.equal(seen.options.surface,'import');assert.equal(seen.options.period,'all');assert.equal(seen.limit,3);assert.equal(seen.actionable,true);
+ assert.match(html,/GEO 诊断/);assert.match(html,/完整报告与导出/);assert.match(html,/surface=import/);assert.match(html,/待核对/);assert.equal(ctx.state.scope,'api');
 });

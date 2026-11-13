@@ -1,3 +1,12 @@
+function assertPublicationHandoffDisclosure(publication){
+ if(!publication?.handoffSnapshot)return;
+ const snapshot={...publication.handoffSnapshot,brandId:publication.brandId};
+ const content=(state.contents||[]).find(c=>c.id===publication.contentId&&c.brandId===publication.brandId);
+ // Preserve the original product scope; never use another brand's current article.
+ if(snapshot.productId===undefined)snapshot.productId=content?.productId||'';
+ if(typeof GEO_KNOWLEDGE==='undefined'||typeof GEO_KNOWLEDGE.contentDisclosureConflict!=='function')throw new Error('资料权限检查未加载，请刷新后重试。');
+ if(GEO_KNOWLEDGE.contentDisclosureConflict(state,snapshot))throw new Error('这份交付稿含仅内部使用资料，已暂停复制和对外下载；原稿与历史记录仍保留。');
+}
 function publicationHandoff(c){
  if(c?.status!=='已审核')throw new Error('请先完成稿件审核');
  openArticleEditor(c);
@@ -15,7 +24,7 @@ function publicationJourney(p){
 }
 async function publishGuideAction(name,el){
  if(name==='publication-journey'){const p=own('publications').find(p=>p.id===el.dataset.id);if(p)publicationJourney(p);return true}
- if(name==='handoff-download'){const p=own('publications').find(p=>p.id===el.dataset.id);if(!p?.handoffSnapshot)throw new Error('没有可用的交付副本');download(p.handoffSnapshot.title.replace(/[\\/:*?"<>|]/g,'-')+'-'+p.channel+'.md',p.handoffSnapshot.text,'text/markdown');toast('已下载固定版本，请在平台完成发布');return true}
+ if(name==='handoff-download'){const p=own('publications').find(p=>p.id===el.dataset.id);if(!p?.handoffSnapshot)throw new Error('没有可用的交付副本');assertPublicationHandoffDisclosure(p);download(p.handoffSnapshot.title.replace(/[\\/:*?"<>|]/g,'-')+'-'+p.channel+'.md',p.handoffSnapshot.text,'text/markdown');toast('已下载固定版本，请在平台完成发布');return true}
  return false;
 }
 document.addEventListener('submit',async e=>{
