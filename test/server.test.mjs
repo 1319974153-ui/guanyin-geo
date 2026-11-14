@@ -88,3 +88,34 @@ test('preset DeepSeek verification disables thinking, has bounded output, and ca
  globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://api.deepseek.com/chat/completions');const sent=JSON.parse(options.body);assert.deepEqual(sent.thinking,{type:'disabled'});assert.equal(sent.max_tokens,32);return Response.json({id:'preset-test',choices:[{message:{content:'OK'}}],usage:{prompt_tokens:3,completion_tokens:1}})};
  try{const input={provider:'deepseek',runId:'preset-verification-0001'};assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,200);assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,409);assert.equal(calls,1)}finally{globalThis.fetch=original}
 });
+
+test('Ollama permits only installed local text models and never sends a cloud credential',async()=>{
+ const e={...env(),GEO_LOCAL_MODE:'true'}, calls=[];
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>{
+  calls.push(url);
+  assert.equal(options.redirect,'error');
+  if(url.endsWith('/tags'))return Response.json({models:[
+   {name:'local-test:1b',size:100,details:{format:'gguf'},capabilities:['completion']},
+   {name:'cloud-alias',size:100,remote_model:'remote',details:{format:'gguf'}},
+   {name:'embed',size:100,details:{format:'gguf'},capabilities:['embedding']}
+  ]});
+  assert.equal(url,'http://127.0.0.1:11434/api/chat');
+  assert.equal(options.headers.authorization,undefined);
+  assert.equal(JSON.parse(options.body).options.num_predict,32);
+  return Response.json({done:true,message:{content:'OK'},prompt_eval_count:10,eval_count:2});
+ };
+ try{
+  assert.equal((await request(env(),'local-owner','/api/connections/ollama-models')).status,403);
+  assert.equal((await request(e,'other','/api/connections','POST',{provider:'ollama',model:'local-test:1b'})).status,403);
+  assert.deepEqual(calls,[]);
+  assert.deepEqual((await request(e,'local-owner','/api/connections/ollama-models')).data.models,['local-test:1b']);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'cloud-alias'})).status,400);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'local-test:1b',key:'do-not-send'})).status,400);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'local-test:1b'})).status,200);
+  assert.equal((await request(e,'local-owner','/api/budget','PUT',{enabled:true,dailyCny:1,rates:[]})).status,200);
+  const r=await request(e,'local-owner','/api/connections/test','POST',{provider:'ollama',runId:'ollama-verification-test'});
+  assert.equal(r.status,200);assert.deepEqual(r.data.receipt.usage,{prompt_tokens:10,completion_tokens:2});
+  assert(r.data.connections[0].verifiedAt);
+ } finally {globalThis.fetch=original;}
+});

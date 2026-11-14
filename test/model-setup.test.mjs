@@ -25,7 +25,7 @@ test('provider requiring account model keeps the required model visible; managed
 });
 test('one service selector reuses saved models; fixed endpoint details stay optional and read-only',()=>{
  const {ctx,seen,calls}=ui([{provider:'ark',model:'my-endpoint'}]);ctx.openModelSetup();
- assert.match(seen.html,/value="ark" selected/);assert.match(seen.html,/value="my-endpoint"/);assert.equal((seen.html.match(/<option /g)||[]).length,4);
+ assert.match(seen.html,/value="ark" selected/);assert.match(seen.html,/value="my-endpoint"/);assert.equal((seen.html.match(/<option /g)||[]).length,5);
  assert.match(seen.html,/<details class="simple-detail model-advanced">/);assert.match(seen.html,/https:\/\/ark.cn-beijing.volces.com\/api\/v3\/chat\/completions/);
  assert.doesNotMatch(seen.html,/name="(?:url|baseUrl|protocol|endpoint)"/);assert.equal(calls.length,0);
  const rendered=ctx.renderSimpleModelConnections();assert.ok(rendered.indexOf('my-endpoint')<rendered.indexOf('需要时再连接其他服务商'));
@@ -92,4 +92,17 @@ test('saving remains explicitly unverified and viewers cannot change connections
 test('verification outcome gives a next step without exposing receipt detail by default or silently retrying',()=>{
  const {ctx,seen}=ui();vm.runInContext("modelVerifiedNext({provider:'deepseek',model:'deepseek-flash',text:'OK',requestId:'request-fixture',usage:{total_tokens:4}})",ctx);assert.match(seen.html,/<details[\s\S]*request-fixture/);assert.match(seen.html,/返回工作台/);
  vm.runInContext("modelVerificationFailed('deepseek','密钥未通过验证')",ctx);assert.match(seen.html,/检查连接配置/);assert.match(seen.html,/没有自动重新发送请求/);assert.doesNotMatch(seen.html,/data-action="test-model"/);
+});
+
+test('local model setup saves an installed model without a credential field', async()=>{
+ const {ctx,seen,form,calls}=ui([], 'owner', async()=>({connections:[{provider:'ollama',model:'qwen2.5:14b'}]}));
+ ctx.openModelSetup('ollama');
+ assert.match(seen.html,/已安装的模型/);
+ assert.doesNotMatch(seen.html,/name="key"/);
+ const f=form({provider:'ollama',model:'qwen2.5:14b'});
+ delete f.elements.key;
+ await ctx.modelSetupSave(f);
+ assert.equal(calls[0].body.model,'qwen2.5:14b');
+ assert.equal(calls[0].body.key,'');
+ assert.match(seen.html,/无模型服务费用/);
 });

@@ -40,6 +40,9 @@ test('revision prompts retain the selected article contract and use local checks
  for(const bad of [{instruction:''},{instruction:'x'.repeat(1001)},{instruction:'有效指令',includeReviewSuggestions:'yes'}])assert.throws(()=>revisionOptions(bad),e=>e.status===400);
  for(const bad of ['', '只有说明', '# 标题\n\n本文包含 AI 辅助创作', '# '+ '字'.repeat(161)+'\n正文'])assert.throws(()=>revisionOutput(bad));
  assert.match(revisionOutput('# 标题\n\n完整正文。').text,/本文包含 AI 辅助创作/);
+ assert.equal(revisionOutput('## 标题\n\n完整正文。',{promoteHeading:true}).title,'标题');
+ assert.throws(()=>revisionOutput('## 标题\n\n完整正文。'));
+
 });
 test('revisions use current brand identity and writing policy while preserving original article intent',()=>{
  const contract=articleContract({format:'品牌介绍'});

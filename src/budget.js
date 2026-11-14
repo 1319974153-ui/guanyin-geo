@@ -9,6 +9,7 @@ export function validateBudget(b){
  return {enabled:b.enabled,dailyCny:b.dailyCny,rates:b.rates.map(r=>({provider:r.provider,model:r.model.trim(),inputCny:r.inputCny,outputCny:r.outputCny}))};
 }
 export async function reserveBudget(env,owner,provider,model,input){
+ if(provider==='ollama'&&env.GEO_LOCAL_MODE==='true'&&owner==='local-owner')return null;
  const cfg=await budgetConfig(env,owner);if(!cfg.enabled)return null;
  const rate=cfg.rates.find(r=>r.provider===provider&&r.model===model);if(!rate)reject(429,'费用预算已开启，但该模型缺少单价；请所有者先在服务连接中补齐');
  // Deliberately conservative estimate: encoded request bytes plus framing allowance.

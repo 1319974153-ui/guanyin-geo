@@ -14,7 +14,7 @@ async function materialFingerprint(state,brandId,questionId){
  const facts=state.facts.filter(f=>f.brandId===brandId&&factUsable(f)&&(!f.productId||f.productId===question.productId)).map(f=>({id:f.id,version:f.version||1,key:f.key,value:f.value,source:f.source,disclosure:f.disclosure||'public',productId:f.productId||'',sourceDocumentId:f.sourceDocumentId||'',expiresAt:f.expiresAt||'',validFrom:f.validFrom||''})).sort((a,b)=>a.id.localeCompare(b.id));
  return digest(JSON.stringify({brand,question,facts}));
 }
-async function price(env,owner,provider,model){const cfg=await budgetConfig(env,owner);return cfg.rates.find(r=>r.provider===provider&&r.model===model)||null;}
+async function price(env,owner,provider,model){if(provider==='ollama'&&env.GEO_LOCAL_MODE==='true'&&owner==='local-owner')return {inputCny:0,outputCny:0};const cfg=await budgetConfig(env,owner);return cfg.rates.find(r=>r.provider===provider&&r.model===model)||null;}
 export async function writingBudgetPreview(env,ctx,h,state,input){
  if(!canBrand(ctx,input.brandId))reject(404,'找不到授权品牌');
  const cfg=await h.connection(env,ctx.owner,input.provider);if(!cfg)reject(400,'请先连接写作模型');
