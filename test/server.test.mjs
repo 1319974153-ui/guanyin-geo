@@ -50,13 +50,13 @@ test('website provenance checks real body beyond the preview; mismatch, script-o
  ['web-script','隐藏脚本中的内容不能成为正文证据。','https://example.com/product'],
  ['web-private','内网资料不可通过网页核对。','http://127.0.0.1/']
  ].map(([id,value,source])=>({id,brandId:brand.id,key:id,value,source,status:'待确认'})));await request(e,'A','/api/state','PUT',w);
- const old=globalThis.fetch;let pageCalls=0;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});pageCalls++;return new Response('<title>产品页</title><p>'+('背景说明。'.repeat(500))+'</p><p>产品支持按照项目管理客户资料。</p><p>不产品支持全自动批量发布功能。</p><script>隐藏脚本中的内容不能成为正文证据。</script>',{headers:{'content-type':'text/html'}})};
+ const old=globalThis.fetch;let pageCalls=0;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});pageCalls++;return new Response('<title>产品页</title><p>'+('背景说明。'.repeat(500))+'</p><p>产品支持按照项目管理客户资料。</p><p>不产品支持全自动批量发布功能。</p><script>隐藏脚本中的内容不能成为正文证据。</script>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/review-facts','POST',{brandId:brand.id,ids:['web-match','web-mismatch','web-script','web-private']});assert.equal(r.status,200);assert.equal(pageCalls,1);assert.deepEqual(r.data.reviews.map(x=>x.status),['matched','needs_review','needs_review','needs_review']);assert.equal(r.data.state.facts.find(f=>f.id==='web-match').status,'已确认')}finally{globalThis.fetch=old}
 });
 
 test('review response cannot confirm a concurrently edited fact',async()=>{
  const e=env(),w=await populated(e);w.state.facts.push({id:'race-source',brandId:brand.id,key:'功能',value:'产品支持按照项目管理客户资料。',source:'https://example.com',status:'待确认'});await request(e,'A','/api/state','PUT',w);
- const old=globalThis.fetch;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});const current=(await request(e,'A','/api/state')).data;current.state.facts.find(f=>f.id==='race-source').value='用户刚修改了这段内容，不能沿用旧审核。';await request(e,'A','/api/state','PUT',current);return new Response('<p>产品支持按照项目管理客户资料。</p>',{headers:{'content-type':'text/html'}})};
+ const old=globalThis.fetch;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});const current=(await request(e,'A','/api/state')).data;current.state.facts.find(f=>f.id==='race-source').value='用户刚修改了这段内容，不能沿用旧审核。';await request(e,'A','/api/state','PUT',current);return new Response('<p>产品支持按照项目管理客户资料。</p>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/review-facts','POST',{brandId:brand.id,ids:['race-source']});assert.equal(r.status,200);assert.deepEqual(r.data.reviews,[]);const f=r.data.state.facts.find(f=>f.id==='race-source');assert.equal(f.status,'待确认');assert.equal(f.sourceReview,undefined)}finally{globalThis.fetch=old}
 });
 
@@ -66,6 +66,56 @@ test('AI generation fills generated article title and preserves a manually suppl
 });
 
 test('publication metadata resolves title without creating a publication and refuses authentication pages',async()=>{
- const e=env();await populated(e);const old=globalThis.fetch;let login=false;globalThis.fetch=async url=>{if(String(url).includes('dns-query'))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});return new Response(login?'<title>账号登录</title>':'<title>产品介绍 &amp; 常见问答</title><h1>产品介绍</h1>',{headers:{'content-type':'text/html'}})};
+ const e=env();await populated(e);const old=globalThis.fetch;let login=false;globalThis.fetch=async url=>{if(['cloudflare-dns.com','dns.alidns.com'].includes(new URL(url).hostname))return Response.json({Status:0,Answer:[{type:1,data:'93.184.216.34'}]});return new Response(login?'<title>账号登录</title>':'<title>产品介绍 &amp; 常见问答</title><h1>产品介绍</h1>',{headers:{'content-type':'text/html'}})};
  try{const r=await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'});assert.equal(r.status,200);assert.equal(r.data.title,'产品介绍 & 常见问答');assert.equal((await request(e,'A','/api/state')).data.state.publications.length,0);login=true;assert.equal((await request(e,'A','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,422);assert.equal((await request(e,'B','/api/publication-info','POST',{brandId:brand.id,url:'https://example.com/article'})).status,404)}finally{globalThis.fetch=old}
+});
+test('model-only edits retain encrypted key within the same owner and provider, without network calls',async()=>{
+ const e=env(),key='TEST_ONLY_CONNECTION_SECRET';let calls=0;const fetch=globalThis.fetch;globalThis.fetch=async()=>{calls++;throw Error('must not call provider when saving')};
+ try{
+  assert.equal((await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash',key})).status,200);
+  const before=await e.DB.prepare('SELECT secret FROM connections WHERE owner=? AND provider=?').bind('A','deepseek').first();
+  const changed=await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-v4-pro',key:''});
+  assert.equal(changed.status,200);assert.equal(changed.data.connections[0].model,'deepseek-v4-pro');assert.ok(!JSON.stringify(changed).includes(key));
+  const after=await e.DB.prepare('SELECT secret FROM connections WHERE owner=? AND provider=?').bind('A','deepseek').first();assert.equal(after.secret,before.secret);
+  assert.equal((await request(e,'B','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash'})).status,400);
+  assert.equal((await request(e,'A','/api/connections','POST',{provider:'qwen',model:'qwen-plus'})).status,400);
+  for(const invalid of [{provider:'toString',model:'model',key},{provider:'deepseek',model:[],key},{provider:'deepseek',model:'model',key:{}}])assert.equal((await request(e,'A','/api/connections','POST',invalid)).status,400);
+  assert.equal(calls,0);
+ }finally{globalThis.fetch=fetch}
+});
+test('preset DeepSeek verification disables thinking, has bounded output, and cannot duplicate a request',async()=>{
+ const e=env();await request(e,'A','/api/connections','POST',{provider:'deepseek',model:'deepseek-flash',key:'TEST_ONLY_KEY'});const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://api.deepseek.com/chat/completions');const sent=JSON.parse(options.body);assert.deepEqual(sent.thinking,{type:'disabled'});assert.equal(sent.max_tokens,32);return Response.json({id:'preset-test',choices:[{message:{content:'OK'}}],usage:{prompt_tokens:3,completion_tokens:1}})};
+ try{const input={provider:'deepseek',runId:'preset-verification-0001'};assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,200);assert.equal((await request(e,'A','/api/connections/test','POST',input)).status,409);assert.equal(calls,1)}finally{globalThis.fetch=original}
+});
+
+test('Ollama permits only installed local text models and never sends a cloud credential',async()=>{
+ const e={...env(),GEO_LOCAL_MODE:'true'}, calls=[];
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url,options)=>{
+  calls.push(url);
+  assert.equal(options.redirect,'error');
+  if(url.endsWith('/tags'))return Response.json({models:[
+   {name:'local-test:1b',size:100,details:{format:'gguf'},capabilities:['completion']},
+   {name:'cloud-alias',size:100,remote_model:'remote',details:{format:'gguf'}},
+   {name:'embed',size:100,details:{format:'gguf'},capabilities:['embedding']}
+  ]});
+  assert.equal(url,'http://127.0.0.1:11434/api/chat');
+  assert.equal(options.headers.authorization,undefined);
+  assert.equal(JSON.parse(options.body).options.num_predict,32);
+  return Response.json({done:true,message:{content:'OK'},prompt_eval_count:10,eval_count:2});
+ };
+ try{
+  assert.equal((await request(env(),'local-owner','/api/connections/ollama-models')).status,403);
+  assert.equal((await request(e,'other','/api/connections','POST',{provider:'ollama',model:'local-test:1b'})).status,403);
+  assert.deepEqual(calls,[]);
+  assert.deepEqual((await request(e,'local-owner','/api/connections/ollama-models')).data.models,['local-test:1b']);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'cloud-alias'})).status,400);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'local-test:1b',key:'do-not-send'})).status,400);
+  assert.equal((await request(e,'local-owner','/api/connections','POST',{provider:'ollama',model:'local-test:1b'})).status,200);
+  assert.equal((await request(e,'local-owner','/api/budget','PUT',{enabled:true,dailyCny:1,rates:[]})).status,200);
+  const r=await request(e,'local-owner','/api/connections/test','POST',{provider:'ollama',runId:'ollama-verification-test'});
+  assert.equal(r.status,200);assert.deepEqual(r.data.receipt.usage,{prompt_tokens:10,completion_tokens:2});
+  assert(r.data.connections[0].verifiedAt);
+ } finally {globalThis.fetch=original;}
 });

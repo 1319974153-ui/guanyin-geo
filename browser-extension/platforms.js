@@ -1,0 +1,181 @@
+// Shared connector contract; this module has no browser globals or secrets.
+export const PLATFORMS = {
+ // The visible official editor exposes one guarded “发布” action. Keep the
+ // product gate false until a real account verifies the actual public article
+ // link and any mandatory account/metadata fields; `guardedPublishAdapter`
+ // records implementation without granting a desktop publish permission.
+ juejin:{name:'掘金',publishSupported:false,guardedPublishAdapter:true,draftProtocol:1,editor:'https://juejin.cn/editor/drafts/new?v=2',hosts:['https://juejin.cn/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
+ aliyun:{name:'阿里云开发者社区',publishSupported:true,draftProtocol:1,editor:'https://developer.aliyun.com/article/new',hosts:['https://developer.aliyun.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true},
+ '51cto':{name:'51CTO',draftProtocol:5,editor:'https://blog.51cto.com/blogger/publish?old=1',hosts:['https://blog.51cto.com/*'],titleMax:100,textMax:100000,images:9,optionalImages:true,desktopOnly:true},
+ tencentcloud:{name:'腾讯云开发者社区',draftProtocol:4,editor:'https://cloud.tencent.com/developer/article/write-new',hosts:['https://cloud.tencent.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true},
+ csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
+ toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
+ zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
+ segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ // The guarded visible-page adapter is present, but public dispatch stays
+ // disabled until the first real account validates its submit and public-page
+ // readback.  `guardedPublishAdapter` is implementation metadata, not a grant.
+ oschina:{name:'开源中国',editor:'https://my.oschina.net/u/0/blog/ai-write',hosts:['https://my.oschina.net/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false,guardedPublishAdapter:true},
+ // The visible desktop writer exposes one “发布文章” action. It is implemented
+ // below as a guarded page flow, but the packaged desktop app keeps public
+ // dispatch off until a real account proves its binding requirements and the
+ // public article link can be read back.
+ jianshu:{name:'简书',editor:'https://www.jianshu.com/writer',hosts:['https://www.jianshu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
+ // The current official column editor exposes one visible "发布" control. The
+ // desktop dispatcher still keeps it closed until a real-account acceptance
+ // verifies the editor's required fields and a public-link receipt.
+ bilibili:{name:'哔哩哔哩图文',editor:'https://member.bilibili.com/york/read-editor',hosts:['https://member.bilibili.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
+ // The desktop build still keeps this disabled until a real Weibo account has
+ // completed the full editor -> next -> publish -> public-link acceptance.
+ // `publishSupported` here only means the visible-page adapter has an
+ // implementation; it never grants the default desktop build permission.
+ weibo:{name:'微博头条文章',editor:'https://weibo.com/ttarticle/p/editor',hosts:['https://weibo.com/*'],titleMax:80,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
+ // The visible adapter follows the official two-step desktop path, but the
+ // packaged desktop app keeps public dispatch off until a real account has
+ // proven its required fields, review result and public article roundtrip.
+ sohu:{name:'搜狐号图文',editor:'https://mp.sohu.com/mpfe/v4/contentManagement/news/addarticle',hosts:['https://mp.sohu.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
+ // The current official editor exposes one visible “发布” action and may show
+ // one no-image warning confirmation. The desktop bundle still keeps public
+ // dispatch disabled until a real account proves required fields, review state
+ // and a separately readable article receipt.
+ netease:{name:'网易号图文',editor:'https://mp.163.com/subscribe_v4/index.html#/article-publish',hosts:['https://mp.163.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
+ baijiahao:{name:'百家号图文',editor:'https://baijiahao.baidu.com/builder/rc/edit?type=news',hosts:['https://baijiahao.baidu.com/*'],titleMax:30,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ douyin:{name:'抖音图文',editor:'https://creator.douyin.com/creator-micro/content/upload',hosts:['https://creator.douyin.com/*'],titleMax:20,textMax:1000,images:9},
+ xiaohongshu:{name:'小红书图文',editor:'https://creator.xiaohongshu.com/publish/publish?source=official',hosts:['https://creator.xiaohongshu.com/*'],titleMax:20,textMax:1000,images:9}
+};
+// The desktop app owns these official-window adapters. Keep the list beside
+// their route contracts so account setup, desktop navigation and the UI cannot
+// quietly drift into three different platform catalogues.
+//
+// This only makes a platform available for first-login and editor preparation.
+// Draft and public-submission permissions remain separately gated by each
+// account's verified action evidence.
+export const DESKTOP_PLATFORM_IDS=Object.freeze([
+ 'toutiao','zhihu','csdn','segmentfault','oschina','jianshu','bilibili',
+ 'weibo','sohu','netease','baijiahao','douyin','xiaohongshu','51cto',
+ 'tencentcloud','juejin','aliyun'
+]);
+export function platformConfig(id='csdn'){const value=PLATFORMS[id];if(!value)throw new Error('不支持的发布平台');return value;}
+const neteaseAccountId=/^W[A-Za-z0-9_-]{7,99}$/;
+function neteaseAccountFromHash(hash,route){
+ try{
+  const prefix='#'+route;if(typeof hash!=='string'||!hash.startsWith(prefix))return null;
+  const tail=hash.slice(prefix.length);if(!tail.startsWith('?'))return null;
+  const entries=[...new URL('https://params.invalid/'+tail).searchParams.entries()];
+  return entries.length===1&&entries[0][0]==='wemediaId'&&neteaseAccountId.test(entries[0][1])?entries[0][1]:null;
+ }catch{return null}
+}
+// 网易号把当前创作者选择放在官方单页应用的片段参数中。该值只作为本机
+// 账号键使用；只接受一项、精确路由和官方域名，绝不读取 Cookie 或解码它。
+export function loginEditorUrl(platform,value){
+ const p=platformConfig(platform);if(platform!=='netease')return p.editor;
+ try{
+  const u=new URL(value);if(u.origin!=='https://mp.163.com'||u.username||u.password||u.port||u.pathname!=='/subscribe_v4/index.html'||u.search)return null;
+  const accountId=neteaseAccountFromHash(u.hash,'/home');
+  return accountId?p.editor+'?wemediaId='+encodeURIComponent(accountId):null;
+ }catch{return null}
+}
+export function editorEvidence(platform,url){
+ try{const u=new URL(url),p=platformConfig(platform);if(u.origin!==new URL(p.editor).origin||u.username||u.password||u.hash&&!((platform==='aliyun'&&u.hash==='#/')||platform==='netease'))return false;
+ if(platform==='juejin')return u.pathname==='/editor/drafts/new'&&u.search==='?v=2'||/^\/editor\/drafts\/[1-9]\d{0,29}$/.test(u.pathname)&&!u.search;
+ if(platform==='aliyun')return u.pathname==='/article/new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('edit')));
+ if(platform==='51cto')return u.pathname==='/blogger/publish'&&u.search==='?old=1'||/^\/blogger\/draft\/[1-9]\d{0,19}$/.test(u.pathname)&&!u.search;
+ if(platform==='tencentcloud')return u.pathname==='/developer/article/write-new'&&(!u.search||u.searchParams.size===1&&/^[1-9]\d{0,19}$/.test(u.searchParams.get('draftId')));
+ if(platform==='csdn')return /^\/mp_blog\/creation\/editor(?:\/[1-9]\d{0,29})?$/.test(u.pathname)&&!u.search;
+ if(platform==='toutiao')return u.pathname==='/profile_v4/graphic/publish';
+ if(platform==='zhihu')return u.pathname==='/write'||/^\/p\/\d+\/edit$/.test(u.pathname);
+ if(platform==='segmentfault')return u.pathname==='/write'&&!u.search;
+ if(platform==='oschina')return u.origin==='https://my.oschina.net'&&/^\/u\/(?:0|[1-9]\d{0,19})\/blog\/ai-write$/.test(u.pathname)&&!u.search;
+ if(platform==='jianshu')return u.origin==='https://www.jianshu.com'&&u.pathname==='/writer'&&!u.search;
+ if(platform==='bilibili')return u.origin==='https://member.bilibili.com'&&u.pathname==='/york/read-editor'&&!u.search;
+ if(platform==='weibo')return u.origin==='https://weibo.com'&&u.pathname==='/ttarticle/p/editor'&&!u.search;
+ if(platform==='sohu')return u.origin==='https://mp.sohu.com'&&u.pathname==='/mpfe/v4/contentManagement/news/addarticle'&&!u.search;
+ if(platform==='netease')return u.origin==='https://mp.163.com'&&u.pathname==='/subscribe_v4/index.html'&&!u.search&&(u.hash==='#/article-publish'||!!neteaseAccountFromHash(u.hash,'/article-publish'));
+ if(platform==='baijiahao')return u.origin==='https://baijiahao.baidu.com'&&u.pathname==='/builder/rc/edit'&&u.search==='?type=news';
+ if(platform==='douyin')return ['/creator-micro/content/upload','/creator-micro/content/post/image'].includes(u.pathname);
+ return u.pathname==='/publish/publish';
+ }catch{return false}
+}
+// Accept only observed platform-owned article URLs, never a generic dashboard/success toast.
+export function receiptEvidence(platform,url,articleId){
+ try{const u=new URL(url);if(u.username||u.password||u.hash)return false;let m;
+ if(platform==='aliyun')return u.origin==='https://developer.aliyun.com'&&!u.search&&(m=u.pathname.match(/^\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
+ if(platform==='51cto')return u.origin==='https://blog.51cto.com'&&!u.search&&(m=u.pathname.match(/^\/blogger\/success\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
+ if(platform==='tencentcloud')return u.origin==='https://cloud.tencent.com'&&!u.search&&(m=u.pathname.match(/^\/developer\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
+ if(platform==='csdn')return u.origin==='https://mp.csdn.net'&&!u.search&&(m=u.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/))&&m[1]===String(articleId);
+ if(platform==='toutiao')return ['https://www.toutiao.com','https://toutiao.com'].includes(u.origin)&&(m=u.pathname.match(/^\/article\/(\d+)\/?$/))&&m[1]===String(articleId);
+ if(platform==='zhihu')return u.origin==='https://zhuanlan.zhihu.com'&&(m=u.pathname.match(/^\/p\/(\d+)\/?$/))&&m[1]===String(articleId);
+ if(platform==='weibo'){
+  if(!['https://weibo.com','https://www.weibo.com'].includes(u.origin)||u.pathname!=='/ttarticle/p/show')return false;
+  const ids=u.searchParams.getAll('id'),modes=u.searchParams.getAll('mod');
+  return ids.length===1&&modes.length<=1&&u.searchParams.size===ids.length+modes.length&&/^\d{1,30}$/.test(ids[0])&&(!modes.length||modes[0]==='zwenzhang')&&ids[0]===String(articleId);
+ }
+ if(platform==='sohu')return !!(u.origin==='https://www.sohu.com'&&!u.search&&(m=u.pathname.match(/^\/a\/([1-9]\d{0,19})_[1-9]\d{0,19}\/?$/))&&m[1]===String(articleId));
+ if(platform==='jianshu')return !!(u.origin==='https://www.jianshu.com'&&!u.search&&(m=u.pathname.match(/^\/p\/([a-f0-9]{12})\/?$/))&&m[1]===String(articleId));
+ if(platform==='oschina')return !!(u.origin==='https://my.oschina.net'&&!u.search&&(m=u.pathname.match(/^\/u\/[1-9]\d{0,19}\/blog\/([1-9]\d{0,19})\/?$/))&&m[1]===String(articleId));
+ if(platform==='douyin')return u.origin==='https://www.douyin.com'&&(m=u.pathname.match(/^\/(?:video|note)\/(\d+)\/?$/))&&m[1]===String(articleId);
+ return platform==='xiaohongshu'&&u.origin==='https://www.xiaohongshu.com'&&(m=u.pathname.match(/^\/explore\/([a-fA-F0-9]{24})\/?$/))&&m[1]===String(articleId);
+ }catch{return false}
+}
+
+// A preparation checkpoint is an editor location, never proof of platform storage/publication.
+export function preparationEditorUrl(platform,url){
+ try{
+  const u=new URL(url);if(u.username||u.password||!editorEvidence(platform,u.href))return null;
+  const base=u.origin+u.pathname;
+  if(platform==='aliyun')return base+u.search;
+  if(platform==='netease'){
+   const accountId=neteaseAccountFromHash(u.hash,'/article-publish');
+   return accountId?base+'#/article-publish?wemediaId='+encodeURIComponent(accountId):null;
+  }
+  if(platform==='baijiahao')return base+u.search;
+  if(['tencentcloud','51cto','juejin'].includes(platform))return u.href;
+  if(platform!=='toutiao'||!u.searchParams.has('pgc_id'))return base;
+  const ids=u.searchParams.getAll('pgc_id');
+  if(ids.length!==1||!/^[1-9]\d{0,29}$/.test(ids[0]))return null;
+  return base+'?pgc_id='+ids[0];
+ }catch{return null}
+}
+export function preparationEvidence(platform,value){
+ try{if(!value||value.contentVerified!==true)return null;
+ const editorUrl=preparationEditorUrl(platform,value.evidenceUrl);if(!editorUrl)return null;
+ return {editorUrl,accountId:value.accountId,...(['segmentfault','oschina','jianshu','bilibili'].includes(platform)&&value.autosaveObserved===true&&value.autosaveStatus==='visible_autosave_notice'?{autosaveObserved:true,autosaveStatus:'visible_autosave_notice'}:{}),...(platform==='douyin'&&value.temporaryVerified===true&&value.verification==='temporary_reopened_content'&&Number.isInteger(value.mediaCount)&&value.mediaCount>0?{temporaryVerified:true,verification:'temporary_reopened_content',mediaCount:value.mediaCount}:{})};
+ }catch{return null}
+}
+
+export function supportsDraftProtocol(platform,version){return Number.isInteger(version)&&version>0&&PLATFORMS[platform]?.draftProtocol===version;}
+
+// Draft destinations are editor URLs, never public article receipts.
+export function draftEvidence(platform,value){
+ try{
+  if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;
+  if(platform==='juejin'){const u=new URL(value.url),id=u.pathname.match(/^\/editor\/drafts\/([1-9]\d{0,29})$/)?.[1];if(!id||!editorEvidence(platform,u.href)||String(value.articleId)!==id||value.verification!=='reopened_content')return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'reopened_content'};}
+  if(platform==='aliyun'){const u=new URL(value.url),id=u.searchParams.get('edit');if(!editorEvidence(platform,u.href)||!id||id!==String(value.articleId))return null;return {url:u.origin+u.pathname+u.search,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content'};}
+  if(platform==='51cto'){const u=new URL(value.url),m=u.pathname.match(/^\/blogger\/draft\/([1-9]\d{0,19})$/);if(!editorEvidence(platform,u.href)||u.username||u.password||!m||m[1]!==String(value.articleId))return null;return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,verification:'draft_list_and_reopened_content',...(value.mediaProof?{mediaProof:value.mediaProof}:{})};}
+  if(platform==='tencentcloud'){const u=new URL(value.url),id=u.searchParams.get('draftId');if(!editorEvidence(platform,u.href)||u.username||u.password||!id||id!==String(value.articleId))return null;return {url:u.href,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};}
+  if(platform==='toutiao'){
+   const url=preparationEditorUrl(platform,value.url);if(!url||url!==value.url)return null;
+   const id=new URL(url).searchParams.get('pgc_id');if(!id||id!==String(value.articleId))return null;
+   return {url,articleId:id,accountId:value.accountId,savedVerified:true,contentVerified:true};
+  }
+  if(platform==='csdn'){
+   const u=new URL(value.url),m=u.pathname.match(/^\/mp_blog\/creation\/editor\/([1-9]\d{0,29})$/);
+   if(u.origin!=='https://mp.csdn.net'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
+   return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true,...(value.verification==='draft_list_and_reopened_content'?{verification:value.verification}:{})};
+  }
+  if(platform!=='zhihu')return null;
+  const u=new URL(value.url),m=u.pathname.match(/^\/p\/(\d+)\/edit$/);
+  if(u.origin!=='https://zhuanlan.zhihu.com'||u.username||u.password||u.search||u.hash||!m||m[1]!==String(value.articleId))return null;
+  return {url:u.href,articleId:m[1],accountId:value.accountId,savedVerified:true,contentVerified:true};
+ }catch{return null}
+}
+
+// Immutable upload lineage: bind ordered source hashes to the platform's uploaded assets.
+export function fiftyoneMediaProof(value,media=[]){
+ if(!Array.isArray(value)||value.length!==media.length||value.length>9)return null;
+ try{return value.map((p,i)=>{const u=new URL(p.url);if(u.protocol!=='https:'||!/^s[12]\.51cto\.com$/.test(u.hostname)||u.port||u.username||u.password||!u.pathname.startsWith('/images/')||p.sha256!==media[i].sha256||!/^[a-f0-9]{64}$/.test(p.sha256))throw Error();return {sha256:p.sha256,url:u.origin+u.pathname}})}catch{return null}
+}
+export function fiftyonePublicUrl(job){
+ if(job.platform!=='51cto'||job.mode!=='publish'||!job.attempted||!['submitted','published'].includes(job.state)||!/^[1-9]\d{0,19}$/.test(job.accountId)||!receiptEvidence('51cto',job.receipt?.url,job.receipt?.articleId))return null;
+ return 'https://blog.51cto.com/u_'+job.accountId+'/'+job.receipt.articleId;
+}

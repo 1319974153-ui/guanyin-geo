@@ -1,0 +1,137 @@
+/* Customer-report output only. Screen layout and editing remain unchanged. */
+@media print {
+  @page { size:A4 portrait; margin:10mm; @bottom-right { content:counter(page); color:#64748b; font-size:8pt; } }
+  :root, :root[data-theme], body, body[data-theme] {
+    color-scheme:light !important;
+    --bg:#fff !important; --surface:#fff !important; --sidebar:#fff !important;
+    --surface-raised:#f4f6f8 !important; --ink:#17212e !important; --text:#17212e !important;
+    --muted:#475569 !important; --line:#c7cdd5 !important; --control-line:#c7cdd5 !important;
+    --accent:#174f7d !important; --accent-hover:#174f7d !important; --primary-ink:#17212e !important;
+    --pale:#eef3f7 !important; --green:#23513b !important; --green-bg:#f1f5f2 !important;
+    --amber:#614614 !important; --amber-bg:#f8f5ed !important; --red:#842525 !important;
+    --danger-bg:#f8eeee !important; --hover:#fff !important; --selected-line:#627487 !important;
+    --hero-ground:#fff !important; --hero-beam:transparent !important;
+    --light-wash:transparent !important; --light-edge:transparent !important; --focus-edge:transparent !important;
+  }
+  html, body {
+    background:#fff !important; background-image:none !important; color:#17212e !important;
+    margin:0 !important; padding:0 !important; min-width:0 !important; min-height:0 !important;
+    width:auto !important; height:auto !important; overflow:visible !important;
+  }
+  .app {
+    display:block !important; margin:0 !important; margin-left:0 !important; padding:0 !important;
+    min-width:0 !important; width:100% !important; max-width:none !important;
+    min-height:0 !important; height:auto !important; overflow:visible !important;
+    background:#fff !important; transform:none !important;
+  }
+  body:has(.report-print-body) > :not(.app),
+  body:has(.report-print-body) .app > :not(#main),
+  #sidebar, .topbar, .runtime-banner, .demo-banner, footer, .skip,
+  #toast, #nav-backdrop, dialog, .luminous-canvas {
+    display:none !important;
+  }
+  body:has(.report-print-body) #main > :not(.report-print-body) { display:none !important; }
+  body:has(.report-print-body) #main,
+  body[data-view="simple"]:has(.report-print-body) #main,
+  .report-print-body {
+    display:block !important; width:100% !important; max-width:none !important;
+    min-width:0 !important; min-height:0 !important; margin:0 !important; padding:0 !important;
+    overflow:visible !important; background:#fff !important;
+  }
+  .report-print-body, .report-print-body * {
+    color:#17212e !important; background-color:transparent !important; background-image:none !important;
+    box-shadow:none !important; text-shadow:none !important; filter:none !important;
+    animation:none !important; transition:none !important; overflow-wrap:anywhere !important;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  .report-print-body { font-size:10pt !important; line-height:1.55 !important; }
+  .report-print-body button, .report-print-body .button,
+  .report-print-body input, .report-print-body select, .report-print-body textarea,
+  .report-print-body form, .report-print-body a[href^="#"],
+  .report-print-body [role="button"] { display:none !important; }
+  .report-print-body .report-sheet,
+  .report-print-body .panel,
+  .report-print-body .panel-body,
+  .report-print-body .panel-head {
+    width:auto !important; max-width:none !important; min-width:0 !important;
+    margin:0 0 5mm !important; padding:0 !important; overflow:visible !important;
+    border:0 !important; border-radius:0 !important; height:auto !important; max-height:none !important;
+    break-inside:auto; page-break-inside:auto;
+  }
+  .report-print-body h2 { font-size:18pt !important; line-height:1.35 !important; margin:5mm 0 3mm !important; }
+  .report-print-body .report-sheet > h2 { margin-top:3mm !important; }
+  .report-print-body h3 { font-size:12pt !important; line-height:1.4 !important; margin:6mm 0 2.5mm !important; }
+  .report-print-body h2, .report-print-body h3, .report-print-body h4,
+  .report-print-body summary { break-after:avoid-page; page-break-after:avoid; }
+  .report-print-body p, .report-print-body li, .report-print-body small,
+  .report-print-body .helper { font-size:9.5pt !important; line-height:1.6 !important; }
+  .report-print-body p { margin:2mm 0 !important; widows:3; orphans:3; max-width:none !important; }
+  .report-print-body ol, .report-print-body ul { margin:2mm 0 3mm; padding-left:6mm; }
+  .report-print-body li { margin-bottom:2mm; }
+  .report-print-body .report-decision > ol > li,
+  .report-print-body .report-credibility-list > li { break-inside:avoid-page; page-break-inside:avoid; }
+  .report-print-body details { display:block !important; margin:2mm 0; }
+  .report-print-body details::details-content { display:block !important; content-visibility:visible !important; height:auto !important; }
+  .report-print-body details:not([open]) > :not(summary) { display:block !important; }
+  .report-print-body summary { display:block !important; list-style:none !important; font-weight:600; }
+  .report-print-body summary::marker, .report-print-body summary::-webkit-details-marker { display:none !important; content:""; }
+  .report-print-body .table-wrap, .report-print-body .responsive-table {
+    display:block !important; width:100% !important; min-width:0 !important; max-width:100% !important;
+    height:auto !important; max-height:none !important; overflow:visible !important; margin:3mm 0 !important;
+  }
+  .report-print-body table, .report-print-body .responsive-table table {
+    display:table !important; width:100% !important; min-width:0 !important; max-width:100% !important;
+    table-layout:fixed !important; border-collapse:collapse !important; white-space:normal !important;
+    font-size:8.5pt !important; margin:0 !important; overflow:visible !important;
+  }
+  .report-print-body thead, .report-print-body .responsive-table thead {
+    display:table-header-group !important; position:static !important; width:auto !important;
+    height:auto !important; clip:auto !important; clip-path:none !important; overflow:visible !important;
+  }
+  .report-print-body tbody, .report-print-body .responsive-table tbody { display:table-row-group !important; }
+  .report-print-body tr, .report-print-body .responsive-table tr {
+    display:table-row !important; break-inside:avoid-page; page-break-inside:avoid;
+  }
+  .report-print-body th, .report-print-body td,
+  .report-print-body .responsive-table th, .report-print-body .responsive-table td {
+    display:table-cell !important; position:static !important; width:auto !important; min-width:0 !important;
+    max-width:none !important; white-space:normal !important; overflow:visible !important;
+    overflow-wrap:anywhere !important; word-break:normal !important; vertical-align:top !important;
+    padding:2mm !important; border:1px solid #c7cdd5 !important; font-size:8.5pt !important;
+    line-height:1.5 !important; text-align:left !important;
+  }
+  .report-print-body th { font-weight:650 !important; background-color:#f1f3f5 !important; }
+  .report-print-body td::before, .report-print-body .responsive-table td::before { display:none !important; content:none !important; }
+  .report-print-body td *, .report-print-body th *,
+  .report-print-body .table-question, .report-print-body .fact-copy {
+    min-width:0 !important; max-width:100% !important; white-space:normal !important;
+  }
+  .report-print-body .metric-strip {
+    display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+    width:100% !important; gap:0 !important; padding:3mm 0 !important; margin:4mm 0 !important;
+    border-top:1px solid #c7cdd5 !important; border-bottom:1px solid #c7cdd5 !important;
+    break-inside:avoid-page; page-break-inside:avoid;
+  }
+  .report-print-body .metric { min-width:0 !important; padding:2mm !important; border-bottom:0 !important; }
+  .report-print-body .metric-value { font-size:18pt !important; line-height:1.4 !important; }
+  .report-print-body .metric-label, .report-print-body .metric-note { font-size:8.5pt !important; line-height:1.5 !important; }
+  .report-print-body .comparison-grid { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)) !important; gap:3mm !important; break-inside:avoid-page; }
+  .report-print-body .comparison-grid > div { padding:2mm !important; min-width:0 !important; }
+  .report-print-body .diagnosis-grid { display:block !important; }
+  .report-print-body .diagnosis-grid > .panel { break-inside:avoid-page; page-break-inside:avoid; }
+  .report-print-body .report-signature, .report-print-body .report-credibility-stats {
+    display:flex !important; flex-wrap:wrap !important; gap:2mm 5mm !important; margin:3mm 0 !important;
+  }
+  .report-print-body .badge { padding:1mm 2mm !important; border:1px solid #c7cdd5 !important; font-size:8pt !important; }
+  .report-print-body a { color:#174f7d !important; text-decoration:underline !important; word-break:break-all !important; }
+  .report-print-body .report-print-appendix[hidden] { display:block !important; break-before:page; page-break-before:always; }
+  .report-print-body .report-print-answer { break-inside:auto; page-break-inside:auto; margin:0 0 6mm; }
+  .report-print-body .report-print-answer-text {
+    display:block !important; font-family:inherit !important; font-size:9.5pt !important;
+    line-height:1.65 !important; white-space:pre-wrap !important; word-break:normal !important;
+    overflow-wrap:anywhere !important; overflow:visible !important; max-width:100% !important;
+    min-width:0 !important; margin:2mm 0 !important; padding:0 !important; border:0 !important;
+    break-inside:auto; page-break-inside:auto; widows:3; orphans:3;
+  }
+  .report-print-body img, .report-print-body svg, .report-print-body canvas { max-width:100% !important; height:auto !important; }
+}

@@ -1,8 +1,25 @@
-export function factUsable(f,at=new Date().toISOString()){
+export function factDisclosure(f={}){
+ if(f.private===true||f.confidential===true||f.allowPublic===false)return 'internal';
+ return f.disclosure===undefined||f.disclosure==='public'?'public':'internal';
+}
+export function factValid(f,at=new Date().toISOString()){
  const time=Date.parse(at);return f.status==='已确认'&&!!String(f.source||'').trim()&&!!String(f.value||'').trim()&&(!f.validFrom||Number.isFinite(Date.parse(f.validFrom))&&Date.parse(f.validFrom)<=time)&&(!f.expiresAt||Number.isFinite(Date.parse(f.expiresAt))&&Date.parse(f.expiresAt)>=time);
 }
+export function factUsable(f,at=new Date().toISOString()){return factDisclosure(f)==='public'&&factValid(f,at)}
 export function factAvailability(f,at=new Date().toISOString()){
- if(f.status==='已归档')return '已归档';if(f.expiresAt&&(!Number.isFinite(Date.parse(f.expiresAt))||Date.parse(f.expiresAt)<Date.parse(at)))return '已过期';if(f.validFrom&&Date.parse(f.validFrom)>Date.parse(at))return '未生效';return f.status==='已确认'?factUsable(f,at)?'有效':'资料不完整':'待确认';
+ if(f.status==='已归档')return '已归档';if(f.expiresAt&&(!Number.isFinite(Date.parse(f.expiresAt))||Date.parse(f.expiresAt)<Date.parse(at)))return '已过期';if(f.validFrom&&Date.parse(f.validFrom)>Date.parse(at))return '未生效';return f.status==='已确认'?factValid(f,at)?'有效':'资料不完整':'待确认';
+}
+// Prevent resending an old draft after one of its sources becomes internal.
+// This is an exact-source guard, not a claim to detect every semantic paraphrase.
+export function contentDisclosureConflict(state,content){
+ if(!content?.brandId)return false;
+ const linked=new Set([...(content.factIds||[]),...(content.factSnapshots||[]).map(f=>f.id)]);
+ const sourceText=[content.title,content.text,content.question,content.questionText,content.questionSnapshot,content.brief,JSON.stringify(content.writingBasis||null)].filter(Boolean).join('\n');
+ const snapshots=(content.factSnapshots||[]).filter(f=>factDisclosure(f)==='internal');
+ if(snapshots.length)return true;
+ // Product labels affect evidence selection, not confidentiality. Relabeling a
+ // draft must not release an explicitly linked or copied internal source.
+ return (state.facts||[]).some(f=>f.brandId===content.brandId&&factDisclosure(f)==='internal'&&(linked.has(f.id)||[f.value,...(f.history||[]).flatMap(h=>[h.values?.value,h.before?.value,h.after?.value])].some(value=>{const text=String(value||'').trim();return text.length>=8&&sourceText.includes(text)})));
 }
 export const FACT_PLAN_VERSION=2;
 // Structural text stays in the original document, never a stand-alone business fact.

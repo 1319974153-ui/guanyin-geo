@@ -1,3 +1,4 @@
+import {restoreAnswerReviewAudits} from './answer-review-audit.js';
 import {reject,digest,checkQuota} from './access.js';
 const now=()=>new Date().toISOString();
 // Business assets only. Credentials, memberships, permissions and API request counters stay live.
@@ -24,11 +25,12 @@ export async function trimBackups(env,owner){await env.DB.batch([
  env.DB.prepare("DELETE FROM backups WHERE owner=? AND kind='automatic' AND id NOT IN (SELECT id FROM backups WHERE owner=? AND kind='automatic' ORDER BY created DESC,id DESC LIMIT COALESCE((SELECT keep FROM backup_schedules WHERE owner=?),7))").bind(owner,owner,owner),
  env.DB.prepare('DELETE FROM backup_assets WHERE owner=? AND backup_id NOT IN (SELECT id FROM backups WHERE owner=?)').bind(owner,owner)
 ]);}
-export async function createBackup(env,owner,label){
- const id=crypto.randomUUID(),at=now();await env.DB.batch(backupStatements(env,owner,label,id,at));return {id,created:at};
+export async function createBackup(env,owner,label,options={}){
+ const id=crypto.randomUUID(),at=now();await env.DB.batch(backupStatements(env,owner,label,id,at,null,options));return {id,created:at};
 }
-export function backupStatements(env,owner,label,id,at,guard=null){
- const statements=[env.DB.prepare("INSERT INTO backups(id,owner,label,body,revision,created,kind) SELECT ?,?,?,json_object('format','guanyin-backup-v2','state',json(body)),revision,?,? FROM workspaces WHERE owner=?"+(guard?" AND EXISTS(SELECT 1 FROM backup_schedules WHERE owner=? AND enabled=1 AND lease_token=? AND revision=?)":"")).bind(id,owner,label,at,guard?'automatic':'manual',owner,...(guard?[owner,guard.token,guard.revision]:[]))];
+export function backupStatements(env,owner,label,id,at,guard=null,options={}){
+ const media=env.LOCAL_ARTICLE_MEDIA?.backupSnapshot(owner,{verifyFiles:!options.allowMissingMedia});
+ const statements=[env.DB.prepare("INSERT INTO backups(id,owner,label,body,revision,created,kind) SELECT ?,?,?,json_object('format','guanyin-backup-v2','state',json(body)"+(media?",'articleMedia',json(?)":"")+"),revision,?,? FROM workspaces WHERE owner=?"+(guard?" AND EXISTS(SELECT 1 FROM backup_schedules WHERE owner=? AND enabled=1 AND lease_token=? AND revision=?)":"")).bind(id,owner,label,...(media?[JSON.stringify(media)]:[]),at,guard?'automatic':'manual',owner,...(guard?[owner,guard.token,guard.revision]:[]))];
  for(const[table,columns]of Object.entries(ASSET_TABLES)){
   const values=columns.map(c=>`'${c}',${c==='lease_token'||c==='lease_until'?'NULL':table==='operation_records'&&c==='body'?"CASE WHEN kind IN ('publication_watch','site_audit') THEN CAST(json_remove(body,'$.leaseToken','$.leaseUntil') AS TEXT) ELSE body END":c}`).join(',');
   statements.push(env.DB.prepare(`INSERT INTO backup_assets(owner,backup_id,table_name,record_id,body) SELECT ?,?,?,id,json_object(${values}) FROM ${table} WHERE owner=? AND EXISTS(SELECT 1 FROM backups WHERE owner=? AND id=?)`).bind(owner,id,table,owner,owner,id));
@@ -40,14 +42,34 @@ export async function downloadBackup(env,owner,id){
  const parsed=JSON.parse(copy.body),state=parsed.format==='guanyin-backup-v2'?parsed.state:parsed;
  const rows=(await env.DB.prepare('SELECT table_name,body FROM backup_assets WHERE owner=? AND backup_id=? ORDER BY table_name,record_id').bind(owner,id).all()).results;
  const tables=Object.fromEntries(Object.keys(ASSET_TABLES).map(t=>[t,rows.filter(r=>r.table_name===t).map(r=>JSON.parse(r.body))]));
- const bundle={format:parsed.format||'guanyin-legacy-assets',created:copy.created,label:copy.label,revision:copy.revision,state,tables};return {...bundle,checksum:await digest(JSON.stringify(bundle))};
+ const bundle={format:parsed.format||'guanyin-legacy-assets',created:copy.created,label:copy.label,revision:copy.revision,state,tables,...(parsed.articleMedia?{articleMedia:parsed.articleMedia}:{})};return {...bundle,checksum:await digest(JSON.stringify(bundle))};
+}
+export function backupArticleMedia(env,owner,snapshot){
+ const hasRefs=(snapshot.state.contents||[]).some(c=>c.mediaRefs?.length),media=snapshot.articleMedia;
+ if(!media&&!hasRefs)return [];
+ if(!env.LOCAL_ARTICLE_MEDIA)reject(503,'此备份含本机稿件配图，请在支持素材库的原观引工作区恢复');
+ return env.LOCAL_ARTICLE_MEDIA.validateSnapshot(owner,media||{version:1,items:[]},snapshot.state);
+}
+export async function readBackupArticleMedia(env,owner,item,options={}){
+ if(item.fileKey.startsWith('article-media/'))return env.LOCAL_ARTICLE_MEDIA.backupObject(owner,item,options);
+ const object=await env.FILES?.get(item.fileKey);if(!object||object.size>2*1024*1024)reject(409,'备份图片原件缺失或过大，未继续恢复');const bytes=new Uint8Array(await object.arrayBuffer());if(bytes.byteLength!==item.bytes||bytes.byteLength>2*1024*1024)reject(409,'备份图片长度不一致');return bytes;
 }
 export async function restoreBackup(env,owner,id,revision,h){
  const copy=await env.DB.prepare('SELECT body FROM backups WHERE owner=? AND id=?').bind(owner,id).first();if(!copy)reject(404,'备份不存在');
  const current=await h.loadWorkspace(env,owner);if(current.revision!==revision)reject(409,'当前资料已改变，请刷新后再恢复');
- const parsed=JSON.parse(copy.body),full=parsed.format==='guanyin-backup-v2',state=full?parsed.state:parsed;for(const p of state.publications||[])p.autoRetest=false;h.validateState(state);await checkQuota(env,owner,state);
- const protection=await createBackup(env,owner,'恢复前自动保护');
+ const parsed=JSON.parse(copy.body),full=parsed.format==='guanyin-backup-v2',state=full?parsed.state:parsed;for(const p of state.publications||[])p.autoRetest=false;const reviewAudit=await restoreAnswerReviewAudits(current.state,state,owner);h.validateState(state);await checkQuota(env,owner,state);
+ const mediaItems=backupArticleMedia(env,owner,{...parsed,state}),mediaObjects=[];
+ for(const item of mediaItems)mediaObjects.push({id:item.id,bytes:await readBackupArticleMedia(env,owner,item,{allowInactive:true})});
+ const mediaRows=mediaItems.length?env.LOCAL_ARTICLE_MEDIA.prepareRestore(owner,parsed.articleMedia,state,mediaObjects):[];
+ for(const content of state.contents||[])if(content.mediaRefs?.length){content.mediaRefs=content.mediaRefs.map(ref=>({...ref,rightsConfirmed:false}));content.mediaVersion=(Number.isSafeInteger(content.mediaVersion)?content.mediaVersion:0)+1;content.status='草稿';for(const key of ['reviewedAt','reviewNote','writingReview'])delete content[key];}
+ const protection=await createBackup(env,owner,'恢复前自动保护',{allowMissingMedia:true});
  const statements=[env.DB.prepare('UPDATE workspaces SET body=?,revision=revision+1,updated=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),now(),owner,revision)];
+ for(const row of mediaRows)statements.push(env.DB.prepare('INSERT OR IGNORE INTO article_media(id,brand_id,sha256,name,type,bytes,width,height,created_at,rights_confirmed) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM workspaces WHERE owner=? AND revision=? AND body=?)').bind(row.id,row.brand_id,row.sha256,row.name,row.type,row.bytes,row.width,row.height,row.created_at,0,owner,revision+1,JSON.stringify(state)));
+ // Restoring material cannot revive an old permission to spend. Actual usage
+ // remains cumulative, so writing_budget_calls is deliberately not restored.
+ statements.push(env.DB.prepare("UPDATE writing_budgets SET status='canceled' WHERE owner=? AND status='active'").bind(owner));
+ statements.push(env.DB.prepare("UPDATE publish_schedules SET state=CASE WHEN state='scheduled' THEN 'needs_confirmation' ELSE 'needs_attention' END,updated=? WHERE owner=? AND state IN ('scheduled','executing','cancel_requested')").bind(now(),owner));
+ statements.push(env.DB.prepare("UPDATE publish_schedule_attempts SET state='uncertain' WHERE owner=? AND state='started'").bind(owner));
  statements.push(env.DB.prepare("INSERT INTO backup_schedules(owner,enabled,created,updated,last_error) VALUES(?,0,?,?,'恢复后自动备份已暂停，请核对后重新启用') ON CONFLICT(owner) DO UPDATE SET enabled=0,next_at=NULL,lease_token=NULL,lease_until=NULL,pending_id=NULL,revision=revision+1,last_error=excluded.last_error,updated=excluded.updated").bind(owner,now(),now()));
  if(full){
   // Paid calls and their usage never roll back. Lost ledger entries can be restored, newer ones win.
@@ -83,14 +105,15 @@ export async function restoreBackup(env,owner,id,revision,h){
  statements.push(env.DB.prepare("DELETE FROM webhook_configs WHERE owner=? AND brand_id NOT IN (SELECT json_extract(value,'$.id') FROM json_each(?,'$.brands'))").bind(owner,JSON.stringify(state)));
  statements.push(env.DB.prepare('UPDATE webhook_configs SET enabled=0,revision=revision+1,enqueue_token=NULL,updated=? WHERE owner=?').bind(now(),owner));
  statements.push(env.DB.prepare("UPDATE webhook_deliveries SET state='canceled',lease_token=NULL,lease_until=NULL,error='备份恢复后取消待发送回调；历史事件不自动重发',updated=? WHERE owner=? AND state IN ('queued','retry','sending')").bind(now(),owner));
- statements.push(env.DB.prepare("UPDATE connections SET model=json_set(model,'$.enabled',json('false'),'$.verifiedAt',NULL,'$.canPublish',json('false'),'$.revision',?),updated=? WHERE owner=? AND provider LIKE 'wordpress:%'").bind(crypto.randomUUID(),now(),owner));
+ statements.push(env.DB.prepare("UPDATE connections SET model=json_set(model,'$.enabled',json('false'),'$.verifiedAt',NULL,'$.canPublish',json('false'),'$.revision',?),updated=? WHERE owner=? AND (provider LIKE 'wordpress:%' OR provider LIKE 'cnblogs:%' OR provider LIKE 'metaweblog:%' OR provider LIKE 'typecho:%' OR provider LIKE 'personal-site:%' OR provider LIKE 'yuque:%')").bind(crypto.randomUUID(),now(),owner));
  const result=await env.DB.batch(statements);if(!result[0].meta.changes)reject(409,'恢复期间工作区版本改变，保护副本已保留');await trimBackups(env,owner);
- return {state,revision:revision+1,backupId:protection.id,full,notice:full?'资料、任务、报告和执行记录已恢复。未完成计划已暂停，调用记录和已用配额保持累计。':'旧版备份仅恢复品牌资产；现有任务和报告保留，活动任务已暂停，请人工核对关联。'};
+ return {state,revision:revision+1,backupId:protection.id,full,reviewAudit,notice:(full?'资料、任务、报告和执行记录已恢复。未完成计划已暂停，调用记录和已用配额保持累计。':'旧版备份仅恢复品牌资产；现有任务和报告保留，活动任务已暂停，请人工核对关联。')+(reviewAudit.invalidated?` ${reviewAudit.invalidated} 条回答的标签需要重新核对。`:'')};
 }
 export async function deleteBrand(env,owner,brandId,confirmName,h){
  const w=await h.loadWorkspace(env,owner),b=w.state.brands.find(b=>b.id===brandId);if(!b)reject(404,'品牌不存在');if(confirmName!==b.name)reject(400,'请输入完整品牌名称以确认删除');
  const backup=await createBackup(env,owner,'删除品牌前：'+b.name),state=structuredClone(w.state);
  state.brands=state.brands.filter(b=>b.id!==brandId);for(const[k,v]of Object.entries(state))if(k!=='brands'&&Array.isArray(v))state[k]=v.filter(x=>x.brandId!==brandId);if(state.currentBrand===brandId)state.currentBrand=state.brands[0]?.id||'';h.validateState(state);
- await env.DB.batch([env.DB.prepare('UPDATE workspaces SET body=?,revision=revision+1,updated=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),now(),owner,w.revision),env.DB.prepare('DELETE FROM connections WHERE owner=? AND provider=?').bind(owner,'wordpress:'+brandId),...['task_items','task_plans','report_snapshots','operation_records','publication_checks','attribution_events','webhook_configs','webhook_events','webhook_deliveries'].map(t=>env.DB.prepare(`DELETE FROM ${t} WHERE owner=? AND brand_id=?`).bind(owner,brandId))]);
+ const deletionStatements=[env.DB.prepare('UPDATE workspaces SET body=?,revision=revision+1,updated=? WHERE owner=? AND revision=?').bind(JSON.stringify(state),now(),owner,w.revision),env.DB.prepare("UPDATE writing_budgets SET status='canceled' WHERE owner=? AND brand_id=? AND status='active'").bind(owner,brandId),env.DB.prepare("DELETE FROM connections WHERE owner=? AND (provider=? OR substr(provider,1,length(?))=?)").bind(owner,'wordpress:'+brandId,'wordpress:'+brandId+':','wordpress:'+brandId+':'),env.DB.prepare("DELETE FROM connections WHERE owner=? AND substr(provider,1,length(?))=?").bind(owner,'cnblogs:'+brandId+':','cnblogs:'+brandId+':'),env.DB.prepare("DELETE FROM connections WHERE owner=? AND substr(provider,1,length(?))=?").bind(owner,'typecho:'+brandId+':','typecho:'+brandId+':'),env.DB.prepare("DELETE FROM connections WHERE owner=? AND substr(provider,1,length(?))=?").bind(owner,'metaweblog:'+brandId+':','metaweblog:'+brandId+':'),env.DB.prepare("DELETE FROM connections WHERE owner=? AND substr(provider,1,length(?))=?").bind(owner,'personal-site:'+brandId+':','personal-site:'+brandId+':'),env.DB.prepare("DELETE FROM connections WHERE owner=? AND substr(provider,1,length(?))=?").bind(owner,'yuque:'+brandId+':','yuque:'+brandId+':'),...['task_items','task_plans','report_snapshots','operation_records','publication_checks','attribution_events','webhook_configs','webhook_events','webhook_deliveries'].map(t=>env.DB.prepare(`DELETE FROM ${t} WHERE owner=? AND brand_id=?`).bind(owner,brandId))];
+ deletionStatements.push(env.DB.prepare("UPDATE publish_schedules SET state=CASE WHEN state='scheduled' THEN 'needs_confirmation' ELSE 'needs_attention' END,updated=? WHERE owner=? AND brand_id=? AND state IN ('scheduled','executing','cancel_requested')").bind(now(),owner,brandId),env.DB.prepare("UPDATE publish_schedule_attempts SET state='uncertain' WHERE owner=? AND brand_id=? AND state='started'").bind(owner,brandId));await env.DB.batch(deletionStatements);
  await trimBackups(env,owner);return {backupId:backup.id,state,revision:w.revision+1};
 }

@@ -53,3 +53,14 @@ test('report reads and archives respect workspace and brand roles, and never acc
  assert.equal((await call(e,'/api/reports/snapshot?id='+archive.id,'GET',null,'reader',h)).status,200);assert.equal((await call(e,'/api/reports/archive','POST',{...archive,id:'forbidden-archive-fixture'},'reader',h)).status,403);
  const r=await call(e,'/api/reports/snapshot?id='+archive.id);assert.ok(!JSON.stringify(r.data).includes('CLIENT_FORGERY'));assert.equal((await call(e,'/api/reports/current?brandId=missing')).status,400);
 });
+
+test('report export and archive reject stale requested source revisions and invalid revision values',async()=>{
+ const e=environment();await seed(e);const w=(await call(e,'/api/state')).data,options={period:'all',to:'2026-09-29'};let result=await call(e,'/api/reports/current?'+new URLSearchParams({brandId:'b',...options,sourceRevision:w.revision}));assert.equal(result.status,200);assert.equal(result.data.sourceRevision,w.revision);
+ for(const value of ['bad','-1','1.5','999999999999999999999'])assert.equal((await call(e,'/api/reports/current?brandId=b&sourceRevision='+value)).status,400);
+ w.state.brands[0].name='新的品牌名';assert.equal((await call(e,'/api/state','PUT',w)).status,200);assert.equal((await call(e,'/api/reports/current?brandId=b&sourceRevision='+w.revision)).status,409);assert.equal((await call(e,'/api/reports/archive','POST',{...archive,id:'stale-revision-archive-0001',sourceRevision:w.revision})).status,409);assert.equal((await call(e,'/api/reports?brandId=b')).data.reports.length,0);
+});
+test('lost archive responses recover the original revision and never reuse an ID for another report range',async()=>{
+ const e=environment();await seed(e);const w=(await call(e,'/api/state')).data,input={...archive,sourceRevision:w.revision};const first=await call(e,'/api/reports/archive','POST',input);assert.equal(first.status,200);const before=(await call(e,'/api/reports/snapshot?id='+input.id)).data;
+ w.state.answers[0].text='归档后的另一版本';assert.equal((await call(e,'/api/state','PUT',w)).status,200);const retry=await call(e,'/api/reports/archive','POST',input);assert.equal(retry.status,200);assert.equal(retry.data.existing,true);assert.equal(retry.data.sourceRevision,w.revision);assert.deepEqual((await call(e,'/api/reports/snapshot?id='+input.id)).data,before);
+ assert.equal((await call(e,'/api/reports/archive','POST',{...input,sourceRevision:w.revision+1})).status,409);assert.equal((await call(e,'/api/reports/archive','POST',{...input,options:{...input.options,platform:'wrong scope'}})).status,409);assert.equal((await call(e,'/api/reports/archive','POST',{...archive,options:{...archive.options,surface:'api'}})).status,409);
+});

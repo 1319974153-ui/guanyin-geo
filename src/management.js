@@ -2,6 +2,7 @@ import {attachCaptureBaseline} from './capture-core.js';
 import {importedAnswer,importIdentity} from './answer-import-core.js';
 import {access,accessibleWorkspaces,visibleState,mergeVisibleState,requireAdmin,requireOwner,canBrand,policy,DEFAULT_POLICY,reject,digest,elevated} from './access.js';
 import {createBackup,trimBackups,downloadBackup,restoreBackup,deleteBrand} from './governance.js';
+import {externalStateView} from './external-disclosure.js';
 const stamp=()=>new Date().toISOString();
 const keyColumns='id,name,prefix,scopes,brands,daily_limit,created,expires,revoked,last_used';
 function ids(value,state){if(!Array.isArray(value)||!value.length||value.length>50||value.some(id=>!state.brands.some(b=>b.id===id)))reject(400,'请选择现有品牌授权');return [...new Set(value)];}
@@ -23,10 +24,11 @@ export async function management(req,env,ctx,h){
  if(path==='/api/manage/members'&&['POST','DELETE'].includes(method)){
   requireOwner(ctx);const b=await body(req),email=String(b.email||'').trim().toLowerCase();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)reject(400,'请输入成员的登录邮箱');if(email===ctx.email)reject(400,'所有者不需要重复授权');
-  if(method==='DELETE'){await env.DB.prepare('DELETE FROM members WHERE owner=? AND email=?').bind(owner,email).run();return json({revoked:true})}
+  const revokeBudgets=()=>env.DB.prepare("UPDATE writing_budgets SET status='canceled' WHERE owner=? AND status='active' AND (lower(json_extract(body,'$.authorizedEmail'))=? OR (COALESCE(json_extract(body,'$.authorizedEmail'),'')='' AND json_extract(body,'$.authorizedBy')<>?))").bind(owner,email,owner);
+  if(method==='DELETE'){await env.DB.batch([env.DB.prepare('DELETE FROM members WHERE owner=? AND email=?').bind(owner,email),revokeBudgets()]);return json({revoked:true})}
   if(!['admin','editor','reviewer','viewer'].includes(b.role))reject(400,'角色不正确');
   const w=await loadWorkspace(env,owner),brands=b.role==='admin'?[]:ids(b.brands,w.state);
-  await env.DB.prepare('INSERT INTO members(owner,email,role,brands,created,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,email) DO UPDATE SET role=excluded.role,brands=excluded.brands,updated=excluded.updated').bind(owner,email,b.role,JSON.stringify(brands),stamp(),stamp()).run();
+  await env.DB.batch([env.DB.prepare('INSERT INTO members(owner,email,role,brands,created,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,email) DO UPDATE SET role=excluded.role,brands=excluded.brands,updated=excluded.updated').bind(owner,email,b.role,JSON.stringify(brands),stamp(),stamp()),revokeBudgets()]);
   return json({saved:true,accessNote:'成员需先获得此网站访问权并用这个邮箱登录。此操作保存工作区授权，不会发送邀请邮件或改变网站访问策略。'});
  }
  if(path==='/api/manage/policy'&&method==='PUT'){
@@ -53,7 +55,7 @@ export async function management(req,env,ctx,h){
  if(path==='/api/manage/backups/download'&&method==='POST'){requireOwner(ctx);const b=await body(req);return json(await downloadBackup(env,owner,b.id));}
  if(path==='/api/manage/backups/restore'&&method==='POST'){requireOwner(ctx);const b=await body(req);return json(await restoreBackup(env,owner,b.id,b.revision,h));}
  if(path==='/api/manage/brands/delete'&&method==='POST'){requireOwner(ctx);const b=await body(req);return json(await deleteBrand(env,owner,b.brandId,b.confirmName,h));}
- if(path==='/api/v1/state'&&method==='GET'){return json(await h.workspace(env,owner));}
+ if(path==='/api/v1/state'&&method==='GET'){const w=await h.workspace(env,owner);return json(ctx.key?{...w,state:externalStateView(w.state)}:w);}
  if(path==='/api/v1/answers'&&method==='POST'){
   if(!ctx.key&&!['owner','admin','editor'].includes(ctx.role))reject(403,'当前角色不能导入回答');
   const b=await body(req),w=await h.workspace(env,owner),brand=w.state.brands.find(x=>x.id===b.brandId),question=w.state.questions.find(x=>x.brandId===b.brandId&&x.id===b.questionId);

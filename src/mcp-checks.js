@@ -3,6 +3,7 @@ import {selectAnswers,rangeOptions,questionText,entryOf} from './analytics-core.
 import {validateProductFilter} from './product-core.js';
 import {checkStale} from './checks-core.js';
 import {sourceHash} from './automation.js';
+import {externalCheckSection} from './external-disclosure.js';
 
 const pick=(row,keys)=>Object.fromEntries(keys.filter(k=>row[k]!==undefined).map(k=>[k,row[k]]));
 const slice=(rows,a)=>({items:rows.slice(a.offset,a.offset+a.limit),total:rows.length,nextOffset:a.offset+a.limit<rows.length?a.offset+a.limit:null});
@@ -27,8 +28,8 @@ export function registerCheckTools(tool,{z,id,requestId,page,window,brandState,r
  });
  tool('geo_get_check','读取检查结果与依据','分段读取 result 结果及人工复核 JSON、input 原文与事实快照 JSON、raw 模型原始返回。保留有效引句和被排除的引句；拼接各段前核对 textHash，不把模型建议当作已审核事实。',{brandId:id,checkId:id,section:z.enum(['result','input','raw']).default('result'),...textPage},['read'],async a=>{
   const w=await brandState(a.brandId),r=w.state.analysisChecks.find(r=>r.brandId===a.brandId&&r.id===a.checkId);if(!r)reject(404,'找不到当前品牌检查回执');
-  const text=a.section==='raw'?String(r.rawText||''):JSON.stringify(a.section==='input'?r.input:pick(r,['results','parseError','parserVersion','parseRepair','parsingHistory','reviews','reviewVersion']));
-  return {...checkSummary(r,w.state),inputHash:r.inputHash,section:a.section,format:a.section==='raw'?'text':'json',...await fragment(text,a),sourceRevision:w.revision};
+  const view=externalCheckSection(r,w.state,a.section);if(!view)reject(403,'检查回执涉及仅内部参考资料，原始记录保留在本机工作区，不提供给外部助手');
+  return {...checkSummary(r,w.state),inputHash:r.inputHash,section:a.section,format:a.section==='raw'?'text':'json',...await fragment(view.text,a),...(view.filtered?{disclosureView:{filtered:true,notice:'此输入副本仅包含可供外部读取的事实；inputHash仍是完整本地快照摘要，textHash对应当前副本。'}}:{}),sourceRevision:w.revision};
  });
- tool('geo_create_check_task','创建后台检查任务','将已有回答或稿件交给模型批量检查，复用工作台队列与配额，可能产生费用。须有用户授权；重试必须保持 id 和全部参数不变。onlyPending=true 跳过有效且资料未变化的结果。原文或资料在排队后变化会停止对应批次，不自动通过审核。',{id:requestId,brandId:id,name:z.string().min(1).max(120),checkKind:z.enum(['answer','content','competitor']),targetIds:z.array(id).min(1).max(400),provider:z.enum(['runninghub','deepseek','qwen','ark']),onlyPending:z.boolean().default(true)},['write','run'],async a=>{await brandState(a.brandId);return route('/api/v1/tasks','POST',{...a,kind:'check'})});
+ tool('geo_create_check_task','创建后台检查任务','将已有回答或稿件交给模型批量检查，复用工作台队列与配额，可能产生费用。须有用户授权；新建内容质检须传 confirmCost=true，表示用户已确认本批费用，默认不重试；重试必须保持 id 和全部参数不变。onlyPending=true 跳过有效且资料未变化的结果。原文或资料在排队后变化会停止对应批次，不自动通过审核。',{id:requestId,brandId:id,name:z.string().min(1).max(120),checkKind:z.enum(['answer','content','competitor']),targetIds:z.array(id).min(1).max(400),provider:z.enum(['runninghub','deepseek','qwen','ark']),onlyPending:z.boolean().default(true),confirmCost:z.boolean().optional()},['write','run'],async a=>{await brandState(a.brandId);return route('/api/v1/tasks','POST',{...a,kind:'check'})});
 }

@@ -26,7 +26,7 @@ function context() { return new URLSearchParams(location.hash.split('?')[1] || '
 function routeLink(target,values={},inherit=true) { values=inherit?analyticsNavigationValues(target,values):values;const p=new URLSearchParams();for(const [k,v] of Object.entries(values))if(v)p.set(k,v);return '#'+target+(p.size?'?'+p:''); }
 function go(target,values={},inherit=true) { const next=routeLink(target,values,inherit); if(location.hash===next)render();else location.hash=next; }
 function replaceContext(values) { const p=context();for(const [k,v] of Object.entries(values)){if(v)p.set(k,v);else p.delete(k)}history.replaceState(null,'',routeLink(route,Object.fromEntries(p),false)); }
-function pageName(id) {return ({today:'今天',inbox:'待我确认',results:'效果','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',setup:'品牌初始化',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
+function pageName(id) {return ({today:'工作台',inbox:'文章与发布',results:'GEO 诊断','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',brands:'品牌管理',setup:'建立公开资料',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
 function renderNavigation() {
   if(state.viewMode==='simple'){renderSimpleNavigation();return;}
   const client=state.viewMode==='client';
@@ -41,7 +41,7 @@ function renderNavigation() {
   document.body.dataset.view=state.viewMode;
 }
 function sectionNavigation() {
-  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回今天</a></p>';
+  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回工作台</a></p>';
   let links=[];
   if(['monitor','demand','tasks','operations'].includes(route)) links=[['monitor','监测问题'],['answers','回答记录'],['demand','需求数据'],['tasks','任务与批量执行'],['operations','告警与待办'],['insights','品牌与竞品'],['sources','引用来源'],['audit','网站诊断']];
   if(['knowledge','content','dso'].includes(route)&&state.viewMode!=='client')links=[['content','内容工作台'],['knowledge','品牌资料'],['dso','DSO 内容实验室']];
@@ -102,7 +102,7 @@ function renderFactLibrary() {
 }
 function renderContentWorkspace() {
   const productId=context().get('productId')||'',contents=own('contents').filter(c=>GEO_METRICS.matchesProduct(c,productId));const status=context().get('status')||'',statuses=status?[status]:['草稿','待审核','已审核'];
-  return title(state.viewMode==='client'?'内容确认':'内容工作台','问题、资料、草稿和审核放在同一条工作路径中。',btn('批量质检','check-contents')+pendingChecksButton()+btn('批量生成','batch-write')+btn('＋ 创建内容','new-content','primary'))+brandFilter()+
+  return title(state.viewMode==='client'?'内容确认':'内容工作台','问题、资料、草稿和审核放在同一条工作路径中。',btn('批量质检','check-contents')+pendingChecksButton()+btn('批量生成','batch-write')+btn('从资料生成','new-content')+btn('写文章','write-article','primary'))+brandFilter()+
   `<div class="toolbar">${productScopeSelect('产品范围','productId',productId,true,'data-content-product')}<div class="segment" aria-label="内容状态">${['全部','草稿','待审核','已审核'].map(s=>`<a class="button ${status===(s==='全部'?'':s)?'selected':''}" href="${routeLink('content',{productId,status:s==='全部'?'':s})}">${s} ${contents.filter(c=>s==='全部'||c.status===s).length}</a>`).join('')}</div></div>`+
   (status?filterNotice(`只显示${status}内容`):'')+
   `<div class="workflow-board ${status?'single-status':''}">${statuses.map(s=>`<section class="board-col"><h3>${esc(s)}<span>${contents.filter(c=>c.status===s).length}</span></h3>${contents.filter(c=>c.status===s).map(c=>`<article class="content-item">${badge(c.style,'blue')}<h3>${esc(c.title)}</h3><p>${esc(savedProductLabel(c))} · ${c.demo?'演示内容':'自有内容'} · ${c.generated?'本地模板草稿':c.ai?'AI 草稿':'可编辑'}${c.variant?' · 版本 '+c.variant:''}</p>${c.question?`<p class="linked-question">对应问题：${esc(c.question)}</p>`:''}${contentCheckSummary(c)}<div class="item-footer">${btn('自动质检','check-one','ghost small',`data-kind="content" data-id="${c.id}"`)}${latestCheck('content',c.id)?btn('检查结果','check-detail','ghost small',`data-id="${latestCheck('content',c.id).record.id}"`):''}${btn(s==='待审核'?'核对并审核':s==='已审核'?'查看与发布':'继续编辑','edit-content','small',`data-id="${c.id}"`)}</div></article>`).join('')||`<p class="empty-inline">${s==='待审核'?'没有待审核内容。草稿送审后会出现在这里。':s==='已审核'?'审核通过后，可以创建发布任务。':'从客户问题开始，创建第一篇内容。'}</p>`}</section>`).join('')}</div>`+
@@ -116,7 +116,7 @@ function renderSiteAudit() {
 }
 function renderSettings() {
  return title('设置与完整功能','日常操作保持简洁，专业配置集中管理。')+(typeof localRuntimeNotice==='function'?localRuntimeNotice():'')+
- `<section class="settings-list">${[['guide','GEO 执行指南','九个环节的具体做法、入口与效果核验。','book'],['brands','客户与品牌','切换客户、创建品牌、开始资料初始化。','building'],['team','团队与访问范围','成员角色、品牌授权、配额、审计与备份恢复。','users'],['integrations','外部服务连接','检查采样、模型与发布服务的接入状态。','plug'],['roadmap','完整功能与实施路径','36 项能力、API、开源工具、开发阶段和验收标准。','layers']].map(([id,t,d,i])=>`<a href="#${id}" class="setting-row"><span class="task-icon">${icon(i)}</span><div><h3>${t}</h3><p>${d}</p></div><span>→</span></a>`).join('')}</section><div class="section-title"><h2>工作区资料</h2></div><div class="settings-actions">${btn('导出工作区','backup-workspace')}<a class="button" href="docs/当前版本与使用说明.md" download>下载使用说明</a><a class="button" href="docs/实施方案.md" download>下载完整实施方案</a></div><div class="callout"><b>视图与权限：</b>“运营视图 / 客户视图”只改变当前界面的组织方式；${typeof isLocalRuntime==='function'&&isLocalRuntime()?'当前是本机单用户实例，访问同一实例的人共用数据；团队角色需在配置真实登录身份的托管版使用。':'账号由平台登录保护，团队成员由服务器按角色与品牌授权；两种视图只改变展示方式。'}</div>`;
+ `<section class="settings-list">${[['guide','GEO 执行指南','九个环节的具体做法、入口与效果核验。','book'],['brands','客户与品牌','切换客户、创建品牌、开始资料初始化。','building'],['team','团队与访问范围','成员角色、品牌授权、配额、审计与备份恢复。','users'],['integrations','外部服务连接','检查采样、模型与发布服务的接入状态。','plug'],['roadmap','完整功能与实施路径','36 项能力、API、开源工具、开发阶段和验收标准。','layers']].map(([id,t,d,i])=>`<a href="#${id}" class="setting-row"><span class="task-icon">${icon(i)}</span><div><h3>${t}</h3><p>${d}</p></div><span>→</span></a>`).join('')}</section><div class="section-title"><h2>工作区资料</h2></div><div class="settings-actions"><a class="button primary" href="#team?section=backups">备份与恢复</a>${btn('导出资料 JSON','backup-workspace')}<a class="button" href="docs/当前版本与使用说明.md" download>下载使用说明</a><a class="button" href="docs/实施方案.md" download>下载完整实施方案</a></div><p class="helper">资料 JSON 不包含图片原件；需要保留配图和附件，请在“备份与恢复”中下载完整 ZIP。完整 ZIP 用于原工作区恢复。</p><div class="callout"><b>视图与权限：</b>“运营视图 / 客户视图”只改变当前界面的组织方式；${typeof isLocalRuntime==='function'&&isLocalRuntime()?'当前是本机单用户实例，访问同一实例的人共用数据；团队角色需在配置真实登录身份的托管版使用。':'账号由平台登录保护，团队成员由服务器按角色与品牌授权；两种视图只改变展示方式。'}</div>`;
 }
 
 function suggestedQuestions(industry,name) {
@@ -139,7 +139,7 @@ function rememberSetup(form) {
  const d=setupDraft();Object.assign(d,Object.fromEntries(new FormData(form)));state.setupDraft={...d};save();
 }
 function documentForm() {
- return `<form data-form="import-document"><p class="setup-intro">支持 TXT / Markdown，或直接粘贴产品资料。内容保存在当前品牌下，导入后自动比对出处，通过项直接用于写作，异常项集中处理。</p><label class="file-picker">选择文本文件<input id="document-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>${field('资料出处','source','','例如：产品手册第 2 页')}<label class="field">资料正文<textarea name="material" required rows="10" maxlength="50000" placeholder="保留标题、问题与答案；系统会将标题或问题和后续正文一起整理，再自动核对出处。"></textarea><small>保存原文并逐段比对；PDF / Word 可在完成建档后从知识库上传原文件。</small></label><p class="form-error" role="alert"></p><div class="form-actions">${btn('取消','','','type="button" data-close')}<button type="submit" class="button primary">导入并自动核对</button></div></form>`;
+ return `<form data-form="import-document"><p class="setup-intro">支持 TXT / Markdown，或直接粘贴产品资料。内容保存在当前品牌下，导入后自动比对出处；仅公开使用且核对通过的资料用于写作。</p><label class="file-picker">选择文本文件<input id="document-file" type="file" accept=".txt,.md,text/plain,text/markdown"></label>${field('资料出处','source','','例如：产品手册第 2 页')}${knowledgeDisclosureField()}<label class="field">资料正文<textarea name="material" required rows="10" maxlength="50000" placeholder="保留标题、问题与答案；系统会将标题或问题和后续正文一起整理，再自动核对出处。"></textarea><small>保存原文并逐段比对；PDF / Word 可在完成建档后从知识库上传原文件。</small></label><p class="form-error" role="alert"></p><div class="form-actions">${btn('取消','','','type="button" data-close')}<button type="submit" class="button primary">导入并自动核对</button></div></form>`;
 }
 async function experienceAction(name,el) {
  const id=el.dataset.id;

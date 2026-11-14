@@ -1,0 +1,81 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import {deflateSync} from 'node:zlib';
+import {createHash} from 'node:crypto';
+import {articleMediaStore} from '../local/article-media.mjs';
+import {r2Adapter} from '../local/r2-adapter.mjs';
+import {d1Adapter} from '../local/d1-adapter.mjs';
+import worker from '../src/worker.js';
+import {archiveWriter,addObject,buildArchive,readArchive,readObject} from '../src/offline-archive.js';
+
+const origin='http://127.0.0.1:18871',sha=s=>createHash('sha256').update(s).digest('hex');
+function crc(b){let n=0xffffffff;for(const x of b){n^=x;for(let i=0;i<8;i++)n=n&1?0xedb88320^(n>>>1):n>>>1;}return(n^0xffffffff)>>>0;}
+function chunk(type,data){const b=Buffer.alloc(data.length+12);b.writeUInt32BE(data.length);b.write(type,4);data.copy(b,8);b.writeUInt32BE(crc(b.subarray(4,8+data.length)),8+data.length);return b;}
+function png(color=20){const h=Buffer.alloc(13);h.writeUInt32BE(1);h.writeUInt32BE(1,4);h[8]=8;h[9]=2;return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',h),chunk('IDAT',deflateSync(Buffer.from([0,color,color,color]))),chunk('IEND',Buffer.alloc(0))]);}
+function fixture(t){const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'guanyin-media-backup-')),db=new DatabaseSync(path.join(root,'workspaces.sqlite'));for(const f of fs.readdirSync(new URL('../drizzle',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(fs.readFileSync(new URL('../drizzle/'+f,import.meta.url),'utf8'));const env={db,root,DB:d1Adapter(db),GEO_LOCAL_MODE:'true',GEO_ENCRYPTION_KEY:Buffer.alloc(32,4).toString('base64'),FILES:r2Adapter(path.join(root,'files'))};env.LOCAL_ARTICLE_MEDIA=articleMediaStore({db,root:path.join(root,'files','article-media'),origin,readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});t.after(()=>{db.close();fs.rmSync(root,{recursive:true,force:true});});return env;}
+async function call(e,url,method='GET',body){const r=await worker.fetch(new Request(origin+url,{method,headers:{origin,'x-geo-request':'1','content-type':'application/json'},...(body!==undefined?{body:body instanceof Uint8Array?body:JSON.stringify(body)}:{})}),e);return {status:r.status,data:r.headers.get('content-type')?.includes('application/json')?await r.json():new Uint8Array(await r.arrayBuffer()),headers:r.headers};}
+async function storeCall(e,action,body){const r=await e.LOCAL_ARTICLE_MEDIA.handle(new Request(origin+'/api/article-media/'+action,{method:'POST',headers:{origin,'x-geo-request':'1','content-type':'application/json'},body:JSON.stringify(body)}));return {status:r.status,data:await r.json()};}
+async function seed(e){let w=(await call(e,'/api/state')).data;w.state.brands=[{id:'b1',name:'品牌一'},{id:'b2',name:'品牌二'}];assert.equal((await call(e,'/api/state','PUT',w)).status,200);const images=[];for(const [brandId,color]of [['b1',20],['b1',30],['b2',40]]){const result=await storeCall(e,'upload',{brandId,media:[{name:'素材.png',type:'image/png',rightsConfirmed:false,dataUrl:'data:image/png;base64,'+png(color).toString('base64')}]});assert.equal(result.status,200,JSON.stringify(result));images.push({...result.data.media[0],brandId});}w=(await call(e,'/api/state')).data;w.state.contents=[{id:'c1',brandId:'b1',title:'图片稿',text:'配图与稿件一起保留。',ai:false,status:'已审核',reviewedAt:'2026-11-13',reviewNote:'先前确认',writingReview:{old:true},mediaVersion:4,mediaRefs:[images[1],images[0]].map(m=>({id:m.id,sha256:m.sha256,rightsConfirmed:true}))}];assert.equal((await call(e,'/api/state','PUT',w)).status,200);return {images,workspace:(await call(e,'/api/state')).data};}
+async function exportZip(e){const copy=await call(e,'/api/manage/backups','POST',{label:'含图片完整离线测试'});assert.equal(copy.status,200,JSON.stringify(copy));const plan=await call(e,'/api/manage/offline/export','POST',{id:copy.data.id});assert.equal(plan.status,200,JSON.stringify(plan));const z=archiveWriter(),receipts=[];for(const spec of plan.data.objects){const object=await call(e,'/api/manage/offline/export-object','POST',{ticket:plan.data.ticket,name:spec.name});assert.equal(object.status,200,JSON.stringify(object));const receipt=JSON.parse(object.headers.get('x-geo-backup-receipt'));receipts.push(receipt);await addObject(z,spec,object.data,receipt);}const blob=await buildArchive(z,plan.data.snapshot,receipts);return {...plan.data,copy:copy.data,archive:await readArchive(blob)};}
+async function begin(e,p,id=crypto.randomUUID()){const result=await call(e,'/api/manage/offline/import','POST',{id,manifest:p.archive.manifest});assert.equal(result.status,200,JSON.stringify(result));return result.data.transfer;}
+async function stage(e,p,t){for(const spec of t.objects){const result=await call(e,'/api/manage/offline/object?'+new URLSearchParams({id:t.id,name:spec.name}),'PUT',await readObject(p.archive,spec));assert.equal(result.status,200,JSON.stringify(result));}}
+const key=(t,id)=>'article-media-restored/'+sha('local-owner')+'/'+t.id+'/'+id+'.bin';
+
+test('actual ZIP includes brand media bytes and metadata; staging and finish leave current workspace and library untouched',async t=>{
+ const e=fixture(t),before=await seed(e),p=await exportZip(e);assert.equal(p.summary.articleMedia,3);assert.equal(p.objects.length,3);assert.equal(p.snapshot.value.snapshot.articleMedia.items.length,3);assert.ok(!JSON.stringify(p.snapshot).includes('data:image/'));
+ for(const item of p.snapshot.value.snapshot.articleMedia.items){const spec=p.objects.find(s=>s.docId===item.id);assert.equal(sha(await readObject(p.archive,{...spec,bytes:item.bytes,sha256:item.sha256})),item.sha256);}
+ const tx=await begin(e,p);await stage(e,p,tx);const finished=await call(e,'/api/manage/offline/finish','POST',{id:tx.id});assert.equal(finished.status,200,JSON.stringify(finished));assert.equal(finished.data.transfer.status,'imported');assert.deepEqual((await call(e,'/api/state')).data,before.workspace);assert.equal(e.db.prepare('SELECT count(*) n FROM article_media').get().n,3);assert.equal((await call(e,'/api/manage/offline/cancel','POST',{id:tx.id})).status,409);
+});
+
+test('offline restore recreates lost image files and metadata, preserves order and brands, and requires new article approval',async t=>{
+ const e=fixture(t),before=await seed(e),p=await exportZip(e);fs.rmSync(path.join(e.root,'files','article-media'),{recursive:true});fs.mkdirSync(path.join(e.root,'files','article-media'));e.db.exec('DELETE FROM article_media');
+ e.LOCAL_ARTICLE_MEDIA=articleMediaStore({db:e.db,root:path.join(e.root,'files','article-media'),origin,readState:()=>JSON.parse(e.db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner').body)});
+ const tx=await begin(e,p);await stage(e,p,tx);const done=await call(e,'/api/manage/offline/finish','POST',{id:tx.id});assert.equal(done.status,200,JSON.stringify(done));assert.equal(e.db.prepare('SELECT count(*) n FROM article_media').get().n,0);
+ const restored=await call(e,'/api/manage/backups/restore','POST',{id:done.data.transfer.backupId,revision:before.workspace.revision});assert.equal(restored.status,200,JSON.stringify(restored));const article=restored.data.state.contents[0];assert.deepEqual(article.mediaRefs.map(m=>m.id),before.workspace.state.contents[0].mediaRefs.map(m=>m.id));assert.ok(article.mediaRefs.every(m=>m.rightsConfirmed===false));assert.equal(article.mediaVersion,5);assert.equal(article.status,'草稿');for(const name of ['reviewedAt','reviewNote','writingReview'])assert.ok(!(name in article));
+ const loaded=await storeCall(e,'load',{brandId:'b1',ids:article.mediaRefs.map(m=>m.id)});assert.equal(loaded.status,200);assert.deepEqual(loaded.data.media.map(m=>m.sha256),[before.images[1],before.images[0]].map(m=>m.sha256));assert.equal((await storeCall(e,'load',{brandId:'b2',ids:article.mediaRefs.map(m=>m.id)})).status,404);assert.equal(e.db.prepare('SELECT count(*) n FROM article_media').get().n,3);assert.equal(e.db.prepare("SELECT count(*) n FROM runs WHERE kind='publish-authorization' AND state='authorized'").get().n,0);
+ const reexport=await call(e,'/api/manage/offline/export','POST',{id:done.data.transfer.backupId});assert.equal(reexport.status,200);const binary=await call(e,'/api/manage/offline/export-object','POST',{ticket:reexport.data.ticket,name:reexport.data.objects[0].name});assert.equal(binary.status,200);
+});
+
+test('missing or altered staged images cannot finish; missing originals cannot claim complete export',async t=>{
+ const e=fixture(t),before=await seed(e),p=await exportZip(e),tx=await begin(e,p);await stage(e,p,tx);const target=key(tx,p.objects[0].docId);await e.FILES.delete(target);assert.equal((await call(e,'/api/manage/offline/finish','POST',{id:tx.id})).status,409);
+ await e.FILES.put(target,Buffer.from('bad'));assert.equal((await call(e,'/api/manage/offline/finish','POST',{id:tx.id})).status,409);assert.deepEqual((await call(e,'/api/state')).data,before.workspace);await stage(e,p,tx);assert.equal((await call(e,'/api/manage/offline/finish','POST',{id:tx.id})).status,200);
+ const original=p.snapshot.value.snapshot.articleMedia.items[0];fs.unlinkSync(path.join(e.root,'files',original.fileKey));const failed=await call(e,'/api/manage/offline/export-object','POST',{ticket:p.ticket,name:p.objects[0].name});assert.equal(failed.status,409);assert.equal((await call(e,'/api/manage/backups','POST',{label:'不能漏图'})).status,409);
+});
+
+test('expired/corrupted staging cancellation only removes this transfer and refuses linked deletion paths',async t=>{
+ const e=fixture(t),before=await seed(e),p=await exportZip(e),tx=await begin(e,p);await stage(e,p,tx);e.db.prepare("UPDATE backup_transfers SET expires='2000-01-01' WHERE id=?").run(tx.id);const p2=await exportZip(e),other=await begin(e,p2);await stage(e,p2,other);
+ const currentDir=path.join(e.root,'files','article-media-restored',sha('local-owner'),tx.id),moved=currentDir+'-saved';fs.renameSync(currentDir,moved);fs.symlinkSync(path.join(e.root,'files','article-media-restored',sha('local-owner'),other.id),currentDir,'dir');assert.equal((await call(e,'/api/manage/offline/cancel','POST',{id:tx.id})).status,503);assert.ok(await e.FILES.get(key(other,p.objects[0].docId)));fs.unlinkSync(currentDir);fs.renameSync(moved,currentDir);
+ const row=e.db.prepare('SELECT body FROM backup_transfers WHERE id=?').get(tx.id),body=JSON.parse(row.body);body.objects[0].docId='../../article-media/escape';e.db.prepare('UPDATE backup_transfers SET body=? WHERE id=?').run(JSON.stringify(body),tx.id);assert.equal((await call(e,'/api/manage/offline/cancel','POST',{id:tx.id})).status,503);e.db.prepare('UPDATE backup_transfers SET body=? WHERE id=?').run(row.body,tx.id);
+ assert.equal((await call(e,'/api/manage/offline/cancel','POST',{id:tx.id})).status,200);assert.equal(await e.FILES.get(key(tx,p.objects[0].docId)),null);assert.ok(await e.FILES.get(key(other,p.objects[0].docId)));assert.equal((await storeCall(e,'load',{brandId:'b1',ids:[before.images[0].id]})).status,200);assert.deepEqual((await call(e,'/api/state')).data,before.workspace);
+});
+
+test('same workspace signature remains required; changed media brand or reference hash cannot be imported',async t=>{
+ const e=fixture(t);await seed(e);const p=await exportZip(e),changed=structuredClone(p.archive.manifest);changed.snapshot.value.snapshot.articleMedia.items[0].brandId='b2';assert.equal((await call(e,'/api/manage/offline/import','POST',{id:crypto.randomUUID(),manifest:changed})).status,400);
+ const signature=e.GEO_ENCRYPTION_KEY;e.GEO_ENCRYPTION_KEY=Buffer.alloc(32,8).toString('base64');assert.equal((await call(e,'/api/manage/offline/import','POST',{id:crypto.randomUUID(),manifest:p.archive.manifest})).status,400);e.GEO_ENCRYPTION_KEY=signature;
+ const snapshot=structuredClone(p.snapshot.value.snapshot);snapshot.state.contents[0].mediaRefs[0].sha256='0'.repeat(64);assert.throws(()=>e.LOCAL_ARTICLE_MEDIA.validateSnapshot('local-owner',snapshot.articleMedia,snapshot.state),/配图缺失/);assert.throws(()=>e.LOCAL_ARTICLE_MEDIA.validateSnapshot('different-owner',snapshot.articleMedia,snapshot.state),/工作区/);
+});
+
+test('R2 batch deletion validates every key before any removal',async t=>{
+ const e=fixture(t);await e.FILES.put('test/safe.bin',Buffer.from('keep'));await assert.rejects(e.FILES.delete(['test/safe.bin','../other.bin']),/Invalid object key/);assert.ok(await e.FILES.get('test/safe.bin'));await e.FILES.delete(['test/safe.bin','test/missing.bin']);assert.equal(await e.FILES.get('test/safe.bin'),null);
+});
+
+test('staging cannot write or read through a directory link into another transfer',async t=>{
+ const e=fixture(t);await seed(e);const p=await exportZip(e),tx=await begin(e,p),folder=path.join(e.root,'files','article-media-restored',sha('local-owner')),outside=path.join(e.root,'other-transfer');fs.mkdirSync(folder,{recursive:true});fs.mkdirSync(outside);fs.writeFileSync(path.join(outside,p.objects[0].docId+'.bin'),Buffer.from('must remain'));
+ fs.symlinkSync(outside,path.join(folder,tx.id),'dir');const result=await call(e,'/api/manage/offline/object?'+new URLSearchParams({id:tx.id,name:tx.objects[0].name}),'PUT',await readObject(p.archive,tx.objects[0]));assert.equal(result.status,503);assert.equal(fs.readFileSync(path.join(outside,p.objects[0].docId+'.bin'),'utf8'),'must remain');await assert.rejects(e.FILES.get(key(tx,p.objects[0].docId)),/linked/);
+});
+
+test('restore pauses pending scheduled permissions and keeps uncertain or completed attempts monotonic',async t=>{
+ const e=fixture(t);await seed(e);const p=await exportZip(e),at=new Date().toISOString();for(const [id,state]of [['scheduled','scheduled'],['executing','executing'],['done','complete']])e.db.prepare('INSERT INTO publish_schedules VALUES(?,?,?,?,?,?,?,?,?)').run('local-owner',id,'b1',state,at,at,'{}',at,at);
+ for(const [id,state]of [['executing','started'],['done','submitted']])e.db.prepare('INSERT INTO publish_schedule_attempts VALUES(?,?,?,?,?,?,?,?,?,?)').run('local-owner',id,'target','b1','zhihu','account',id,state,at,'{}');
+ const current=(await call(e,'/api/state')).data;const restored=await call(e,'/api/manage/backups/restore','POST',{id:p.copy.id,revision:current.revision});assert.equal(restored.status,200,JSON.stringify(restored));assert.deepEqual(e.db.prepare('SELECT id,state FROM publish_schedules ORDER BY id').all().map(r=>({...r})),[{id:'done',state:'complete'},{id:'executing',state:'needs_attention'},{id:'scheduled',state:'needs_confirmation'}]);assert.deepEqual(e.db.prepare('SELECT state FROM publish_schedule_attempts ORDER BY schedule_id').all().map(r=>r.state),['submitted','uncertain']);
+});
+
+test('deleting one brand pauses only its scheduled work, retains media physically and blocks access until explicit restore',async t=>{
+ const e=fixture(t),before=await seed(e),at=new Date().toISOString();for(const id of ['b1','b2']){e.db.prepare('INSERT INTO publish_schedules VALUES(?,?,?,?,?,?,?,?,?)').run('local-owner',id,id,'scheduled',at,at,'{}',at,at);e.db.prepare('INSERT INTO publish_schedule_attempts VALUES(?,?,?,?,?,?,?,?,?,?)').run('local-owner',id,'target',id,'zhihu','account',id,'started',at,'{}');}
+ const deleted=await call(e,'/api/manage/brands/delete','POST',{brandId:'b1',confirmName:'品牌一'});assert.equal(deleted.status,200,JSON.stringify(deleted));assert.equal((await storeCall(e,'load',{brandId:'b1',ids:[before.images[0].id]})).status,404);assert.equal(e.db.prepare('SELECT count(*) n FROM article_media').get().n,3);assert.deepEqual(e.db.prepare('SELECT id,state FROM publish_schedules ORDER BY id').all().map(r=>({...r})),[{id:'b1',state:'needs_confirmation'},{id:'b2',state:'scheduled'}]);assert.deepEqual(e.db.prepare('SELECT state FROM publish_schedule_attempts ORDER BY schedule_id').all().map(r=>r.state),['uncertain','started']);
+ const current=(await call(e,'/api/state')).data,restored=await call(e,'/api/manage/backups/restore','POST',{id:deleted.data.backupId,revision:current.revision});assert.equal(restored.status,200,JSON.stringify(restored));assert.equal((await storeCall(e,'load',{brandId:'b1',ids:[before.images[0].id]})).status,200);
+});

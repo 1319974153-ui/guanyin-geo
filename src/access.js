@@ -82,7 +82,7 @@ export function allowRoute(ctx,path,method){
  if(path.startsWith('/api/manage')||path==='/api/workspaces'||path==='/api/state')return;
  if(method==='GET'||path==='/api/schema/validate'&&method==='POST')return;
  if(path.startsWith('/api/connections'))requireAdmin(ctx);
- else if(!['owner','admin','editor'].includes(ctx.role)&&!(ctx.role==='reviewer'&&['/api/dso/script','/api/operations/retests/collect','/api/knowledge/fact','/api/review-facts','/api/checks/run','/api/checks/reparse','/api/checks/competitor-review','/api/operations/actions','/api/operations/acknowledge','/api/operations/evaluate'].includes(path)))reject(403,'当前角色不能执行此操作');
+ else if(!['owner','admin','editor'].includes(ctx.role)&&!(ctx.role==='reviewer'&&['/api/dso/script','/api/operations/retests/collect','/api/knowledge/fact','/api/knowledge/review-preview','/api/knowledge/review-batch','/api/answer-reviews','/api/review-facts','/api/checks/run','/api/checks/reparse','/api/checks/competitor-review','/api/operations/actions','/api/operations/acknowledge','/api/operations/evaluate'].includes(path)))reject(403,'当前角色不能执行此操作');
 }
 export async function audit(env,ctx,action,status,detail={}){
  await env.DB.prepare('INSERT INTO audit_events(id,owner,actor,action,status,detail,created) VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),ctx.owner,ctx.actor,action,status,JSON.stringify(detail),stamp()).run();

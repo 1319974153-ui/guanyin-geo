@@ -9,12 +9,35 @@ import {checkInput,checkStale,parseChecks,duplicates,factUsable} from '../src/ch
 function env(){const db=new DatabaseSync(':memory:');for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(x=>x.endsWith('.sql')).sort())db.exec(readFileSync(new URL('../drizzle/'+f,import.meta.url),'utf8'));return {DB:d1Adapter(db),GEO_RUNNINGHUB_OWNER_ID:'owner',GEO_RUNNINGHUB_KEY:'TEST_FIXTURE',GEO_RUNNINGHUB_MODEL:'fixture-model'}}
 async function call(e,path,method='GET',body,user='owner',headers={}){const r=await worker.fetch(new Request('https://geo.test'+path,{method,headers:{'oai-authenticated-user-id':user,'x-geo-request':'1','content-type':'application/json',...headers},...(body?{body:JSON.stringify(body)}:{})}),e);return {status:r.status,data:await r.json()};}
 async function seed(e){const w=(await call(e,'/api/state')).data;w.state.brands.push({id:'b1',name:'甲产品',aliases:'甲软件'},{id:'b2',name:'乙产品'});w.state.facts.push({id:'f1',brandId:'b1',key:'适用范围',value:'甲产品仅支持企业账号导入资料。',source:'产品原始说明',status:'已确认'},{id:'f2',brandId:'b1',value:'甲产品支持普通账号导入资料。',source:'过期说明',status:'已确认',expiresAt:'2000-01-01'});w.state.contents.push({id:'c1',brandId:'b1',title:'使用指南',text:'甲产品支持所有账号导入资料。每一个账号都能直接迁移和使用全部功能，不需要企业认证即可开始。',status:'草稿',factIds:['f1']},{id:'c2',brandId:'b1',title:'另一份稿件',text:'甲产品支持所有账号导入资料。每一个账号都能直接迁移和使用全部功能，不需要企业认证即可开始。',status:'草稿'},{id:'c3',brandId:'b2',title:'未授权品牌稿件',text:'甲产品支持所有账号导入资料。每一个账号都能直接迁移和使用全部功能，不需要企业认证即可开始。',status:'草稿'});w.state.answers.push({id:'a1',brandId:'b1',surface:'import',status:'ok',text:'甲产品并不适合个人用户。可以考虑其他工具。',citations:[],sentiment:'待复核',recommended:false,recommendationLabeled:false});assert.equal((await call(e,'/api/state','PUT',w)).status,200);return (await call(e,'/api/state')).data;}
-const request={brandId:'b1',provider:'runninghub',kind:'content',ids:['c1'],runId:'check-fixture-request-001'};
+const request={brandId:'b1',provider:'runninghub',kind:'content',ids:['c1'],runId:'check-fixture-request-001',confirmCost:true};
 const result={results:[{id:'c1',claims:[{quote:'甲产品支持所有账号导入资料。',relation:'条件遗漏',factId:'f1',factQuote:'甲产品仅支持企业账号导入资料。',reason:'遗漏企业账号限制'}]}]};
 async function mock(response,fn){const previous=globalThis.fetch;let count=0;globalThis.fetch=async(u,o)=>{count++;return typeof response==='function'?response(u,o):Response.json({id:'fixture-check-receipt',choices:[{message:{content:JSON.stringify(response)}}],usage:{total_tokens:99}})};try{await fn(()=>count)}finally{globalThis.fetch=previous}}
 const run=e=>call(e,'/api/checks/run','POST',request);
 test('content checks preserve exact quotes, source snapshots, local duplicates and never approve a draft',async()=>{
  const e=env();await seed(e);await mock(result,async count=>{const r=await run(e);assert.equal(r.status,200);const c=r.data.record;assert.equal(c.results[0].claims[0].relation,'条件遗漏');assert.equal(c.input.targets[0].duplicates.length,1);assert.equal(c.input.targets[0].duplicates[0].id,'c2');assert.equal(c.input.targets[0].duplicates[0].score,1);assert.equal(c.inputHash.length,64);assert.equal(r.data.state.contents[0].status,'草稿');assert.equal(r.data.stale,false);assert.equal((await run(e)).status,200);assert.equal(count(),1);assert.equal((await call(e,'/api/checks/run','POST',{...request,ids:['c2']})).status,409)});
+});
+test('actual review request never sends unavailable evidence and receipt recovery makes no extra model call',async()=>{
+ const e=env(),w=await seed(e);
+ w.state.facts.push({id:'private-candidate',brandId:'b1',key:'待确认资料',value:'UNCONFIRMED-VALUE-SENTINEL',source:'UNCONFIRMED-SOURCE-SENTINEL',status:'待确认'},{id:'archived-evidence',brandId:'b1',key:'旧资料',value:'ARCHIVED-VALUE-SENTINEL',source:'ARCHIVED-SOURCE-SENTINEL',status:'已归档'});
+ assert.equal((await call(e,'/api/state','PUT',w)).status,200);
+ await mock(async(url,options)=>{
+  const payload=JSON.parse(options.body),input=JSON.parse(payload.messages.find(message=>message.role==='user').content);
+  assert.deepEqual(input.facts.map(f=>f.id),['f1']);
+  for(const text of ['UNCONFIRMED-','ARCHIVED-','过期说明'])assert.ok(!options.body.includes(text),`${text} was sent to the model`);
+  return Response.json({choices:[{message:{content:JSON.stringify(result)}}]});
+ },async count=>{
+  const first=await run(e);assert.equal(first.status,200);assert.equal(first.data.record.input.facts.length,4);assert.ok(first.data.record.input.facts.some(f=>f.value==='UNCONFIRMED-VALUE-SENTINEL'));
+  const again=await call(e,'/api/checks/run','POST',{...request,confirmCost:false});assert.equal(again.status,200);assert.equal(count(),1);assert.deepEqual(again.data.record,first.data.record);
+ });
+});
+test('a model changed after direct-check consent cannot be charged through the reservation race',async()=>{
+ const e=env();await seed(e);const prepare=e.DB.prepare.bind(e.DB);
+ e.DB.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('INSERT OR IGNORE INTO runs'))return statement;return {...statement,bind(...values){const bound=statement.bind(...values);return {...bound,async run(){const result=await bound.run();e.GEO_RUNNINGHUB_MODEL='different-model-after-consent';return result;}};}};};
+ await mock(result,async count=>{
+  const response=await run(e);assert.equal(response.status,412);assert.match(response.data.error,/模型.*变化/);assert.equal(count(),0);
+  assert.equal((await run(e)).status,409);assert.equal(count(),0);
+  assert.equal((await call(e,'/api/state')).data.state.analysisChecks.length,0);
+ });
 });
 test('long checks allow a supplier response beyond the ordinary deadline and reuse its persisted receipt',async()=>{
  const e=env();await seed(e);const timeout=AbortSignal.timeout;let deadline;
@@ -97,4 +120,11 @@ test('product evidence is accepted only for its own target or as brand-general e
  input.targets[0].productId='p1';assert.equal(parse().claims[0].relation,'条件遗漏');
  input.facts[0].productId='';input.targets[0].productId='p2';assert.equal(parse().claims[0].relation,'条件遗漏');
  const old={brandId:'b1',kind:'content',input:checkInput(w.state,'b1','content',['c1'])};old.input.version=1;assert.equal(checkStale(old,w.state),true);
+});
+test('new content checks require cost consent, while existing durable receipts recover without a second consent or call',async()=>{
+ const e=env();await seed(e);await mock(result,async count=>{
+  const denied=await call(e,'/api/checks/run','POST',{...request,confirmCost:false});assert.equal(denied.status,400);assert.equal(count(),0);
+  const done=await run(e);assert.equal(done.status,200);assert.equal(done.data.record.costAuthorization.confirmed,true);assert.equal(done.data.record.costAuthorization.maxModelCalls,1);
+  const recovered=await call(e,'/api/checks/run','POST',{...request,confirmCost:false});assert.equal(recovered.status,200);assert.equal(count(),1);
+ });
 });

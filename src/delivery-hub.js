@@ -1,7 +1,8 @@
+import {assertArticleMediaDelivery} from './article-media-core.js';
 import {canBrand,reject,digest} from './access.js';
 import {makeReport} from './analytics-core.js';
 import {publicationStage} from './publication-core.js';
-import {factUsable} from './knowledge-core.js';
+import {factUsable,contentDisclosureConflict} from './knowledge-core.js';
 
 const engines=['Google','Bing','百度'];
 const dimensions=['ownership','crawl','index_request','index','sitemap'];
@@ -39,11 +40,13 @@ export async function deliveryHubApi(req,env,ctx,h){
   if(!['owner','admin','editor'].includes(ctx.role))reject(403,'编辑或管理员可制作发布包');
   const c=w.state.contents.find(c=>c.id===input.contentId&&c.brandId===input.brandId);
   if(!c||c.status!=='已审核'||!c.title?.trim()||!c.text?.trim())reject(400,'请选择已审核且有标题和正文的稿件');
+  assertArticleMediaDelivery(c);if(contentDisclosureConflict(w.state,c))reject(409,'稿件含仅内部使用资料，不能制作对外发布包；请移除或取得公开授权后重新审核');
   const brand=w.state.brands.find(b=>b.id===input.brandId);
   if(c.productId&&brand.productLines?.find(p=>p.id===c.productId)?.status!=='active')reject(409,'稿件产品已归档');
   for(const f of c.factSnapshots||[]){const current=w.state.facts.find(x=>x.id===f.id&&x.brandId===c.brandId);if(!current||!factUsable(current)||current.value!==f.value||current.source!==f.source||(current.version||1)!==(f.version||1))reject(409,'依据已变化或失效，请重新审核');}
   const snapshot={contentId:c.id,brandId:c.brandId,title:c.title,text:c.text,factSnapshots:c.factSnapshots||[],reviewedAt:c.reviewedAt||null};
   return h.json({format:'guanyin-publication-package-v1',snapshot,hash:await digest(JSON.stringify(snapshot)),createdAt:new Date().toISOString(),channels:[
+   {id:'csdn',name:'CSDN',entryUrl:'https://editor.csdn.net/md/',mode:'manual_editor_handoff'},
    {id:'zhihu',name:'知乎',entryUrl:'https://zhuanlan.zhihu.com/write',mode:'browser_assisted'},
    {id:'toutiao',name:'头条号',entryUrl:'https://mp.toutiao.com/',mode:'browser_assisted'},
    {id:'baijiahao',name:'百家号',entryUrl:'https://baijiahao.baidu.com/',mode:'browser_assisted'},

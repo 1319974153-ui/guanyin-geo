@@ -12,6 +12,10 @@ function url(value){try{const u=new URL(value);if(!['http:','https:'].includes(u
 // Normalize the collector's supplied evidence, not assumptions about the platform.
 export function importedAnswer(input,brand,question,clock=new Date()){
  if(input.dataPurpose!==undefined&&!['formal','trial'].includes(input.dataPurpose))invalid('请选择正式采集或试用演练');
+ if(input.captureKind!==undefined){
+  if(!['consumer','api','trial'].includes(input.captureKind))invalid('请选择消费端回答、模型 API 结果或演练记录');
+  if(input.captureKind==='consumer'&&(!['web','app'].includes(input.entry)||input.dataPurpose==='trial')||input.captureKind==='api'&&(input.entry!=='api'||input.dataPurpose==='trial')||input.captureKind==='trial'&&input.dataPurpose!=='trial')invalid('记录来源与采样入口或用途不一致，请重新选择');
+ }
  const externalId=text(input.externalId,'采集编号',160),platform=text(input.platform,'平台',80),mode=text(input.mode,'回答模式',100);
  if(!['web','app','api'].includes(input.entry))invalid('请选择 Web、App 或 API 入口');
  const region=text(input.region,'地区',80),language=text(input.language,'语言',40);
@@ -31,4 +35,4 @@ export function importedAnswer(input,brand,question,clock=new Date()){
 }
 
 // Hash only submitted context. Later brand aliases or review labels do not change a retry.
-export function importIdentity(a){return JSON.stringify({...Object.fromEntries(['externalId','brandId','promptId','questionVersion','questionText','platform','entry','mode','region','language','model','sourceUrl','date','dateZone','text','citations','publicSearchProcess'].map(k=>[k,a[k]??''])),...(a.demo?{demo:true}:{}),...(a.baselineAnswerId?{baselineAnswerId:a.baselineAnswerId,baselineContext:a.baselineContext,baselineDate:a.baselineDate}:{})})}
+export function importIdentity(a){return JSON.stringify({...Object.fromEntries(['externalId','brandId','promptId','questionVersion','questionText','platform','entry','mode','region','language','model','sourceUrl','date','dateZone','text','citations','publicSearchProcess'].map(k=>[k,a[k]??''])),...(a.demo?{demo:true}:{}),...(a.baselineAnswerId?{baselineAnswerId:a.baselineAnswerId,baselineContext:a.baselineContext,baselineDate:a.baselineDate,...(a.baselineConditionKey?{baselineConditionKey:a.baselineConditionKey}:{})}:{})})}

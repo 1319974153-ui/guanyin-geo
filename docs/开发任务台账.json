@@ -1,0 +1,1354 @@
+{
+  "schema": 2,
+  "updatedAt": "2026-11-13T08:52:56.404234+00:00",
+  "timezone": "Asia/Shanghai",
+  "approved": true,
+  "sourceDirectory": "当前观引开发工作区",
+  "branch": "codex/wechat-official-publishing",
+  "priority": [
+    "article_quality",
+    "publishing",
+    "geo_diagnosis"
+  ],
+  "masterPlan": "产品完整落地开发计划.md",
+  "tasks": [
+    {
+      "id": "Q01",
+      "title": "通用目标、文体、表达和自由要求",
+      "acceptance": "个人、商品、服务、企业使用同一套选项；历史稿件可恢复；选项本身不触发付费调用",
+      "statusDescription": "已完成基础",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "U01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "Q02",
+      "title": "选定方向真正约束成稿",
+      "acceptance": "结构化保存目标、文体、受众、提纲；选择“品牌介绍/科普”不再被旧技术选型策略覆盖；计划变更使旧确认失效",
+      "statusDescription": "本批实现，已通过相关回归；真实模型/平台效果另验",
+      "state": "implemented_regression_passed",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "真实输出或完整端到端外部结果仍需按任务要求验收",
+      "evidence": "第三批开发与验收记录.md",
+      "dependsOn": [
+        "Q01",
+        "Q03",
+        "Q04",
+        "Q09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "Q03",
+      "title": "问题来源与需求依据",
+      "acceptance": "显示模型候选/演示/来源未标注；有资料时关联原记录；建议优先级与真实搜索量分开；旧问题不伪造来源",
+      "statusDescription": "问题来源溯源已实现：区分用户录入、建档规则、文件导入、模型候选；关联原文件/工作表/行号/导入回执或模型输入和请求，编辑保留原来源，旧记录不补造来源；自动回归通过",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "真实客户咨询或站长查询材料的完整导入及业务需求排序仍待真实数据验收；没有搜索量接口，不宣称高频或概率",
+      "dependsOn": [
+        "Q08"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "真实咨询/站长查询导入去重；展示来源、时间窗和统计范围。没有搜索数据时只给选题建议及理由，不显示高频/最大概率。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6,
+      "isolatedUiAcceptanceThisBatch": false
+    },
+    {
+      "id": "Q04",
+      "title": "事实、案例、引用和品牌表达",
+      "acceptance": "保留事实版本与出处，分清团队/个人、设想/结果；无案例材料时不编客户故事；出处能回查，缺失内容给补资料建议",
+      "statusDescription": "已有基础；结合 Q02 扩展回归",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "Q08"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "Q05",
+      "title": "内容质量检查与修改闭环",
+      "acceptance": "检查答题程度、标题兑现、信息增量、重复宣传、文体符合度、事实支撑；可按检查意见改稿，保留原稿和版本；修改使旧发布确认失效",
+      "statusDescription": "五项语义审校、原句定位、有效事实关联和按建议改稿已实现；前三项优先展示，旧稿和旧回执保留；相关自动测试及隔离改稿入口实际点击通过",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "真实模型语义质量、六类品牌18任务与人工评审未执行；不以模拟响应或界面通过代替文章质量",
+      "dependsOn": [
+        "Q02",
+        "Q04",
+        "Q09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "新增原句—事实依据的语义复核、答题完整度、标题兑现与文体检查；风险定位到原句，AI检查不当作事实定论；收费审校并入客户确认预算。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6
+    },
+    {
+      "id": "Q06",
+      "title": "平台内容适配",
+      "acceptance": "同一事实底稿生成适用标题、摘要、正文、图文卡片/标签；不静默截断、丢出处或移花接木；适配后重新核对",
+      "statusDescription": "平台标题、摘要、完整正文、标签及图片要求预览已实现；保留出处和声明，AI按平台改稿复用计划与费用确认；隔离界面已实际点击",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "Q02",
+        "Q04",
+        "Q05",
+        "Q10",
+        "P01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实模型平台改版、图文完整适配与逐平台当前真实账号效果仍待验收；当前约束来自连接器，不代表全部平台官方最新规则",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6
+    },
+    {
+      "id": "Q07",
+      "title": "跨品牌真实模型评测",
+      "acceptance": "六类品牌材料、六种文体的基准集；逐条核查真实性、相关性、可读性、信息量、文体符合度；保留原输出、模型/版本、用量和人工意见",
+      "statusDescription": "待真实验收，依赖客户自有模型与费用确认",
+      "state": "fixtures_ready_live_pending",
+      "liveAcceptanceThisBatch": false,
+      "materialPack": "文章质量评测/README.md",
+      "remaining": "六类品牌18个任务的真实模型生成和人工评审尚未运行；本批真实模型调用0次",
+      "dependsOn": [
+        "Q02",
+        "Q03",
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q08",
+        "Q09",
+        "Q10"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "按现有100分标准完成6类×3任务：总分≥80，真实性≥27/30，材料可核对≥12/15，硬性失败0；逐项保留至少3段评审证据及首次/修复输出。18项正常流程最多36次基础调用，附加另计；18项最终全部合格。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P01",
+      "title": "统一勾选与发送前检查",
+      "acceptance": "每个平台显示当前账号、可执行动作、稿件/图片/标签要求；只检查所选平台；不满足条件在发送前说明",
+      "statusDescription": "平台适配预览与勾选入口已贯通；当前账号/历史能力分开，发布写权限校验已修复并回归；隔离界面实际点击通过",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "36项目标的当前账号、稿件图片要求和实际发布动作仍需逐平台验收，目录或预览不等于接通",
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "dependsOn": [
+        "U01",
+        "P02"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "仅依据当前账号、权限、稿件和实际开放动作允许勾选；历史验收标签显示日期/版本，不等同当前可用。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "isolatedUiAcceptanceThisBatch": true,
+      "updatedInBatch": 6
+    },
+    {
+      "id": "P02",
+      "title": "登录持久化与失效恢复",
+      "acceptance": "正常重启保留允许持久化的会话；过期提示重新登录；验证完成接回原稿；换账号或品牌不能错发",
+      "statusDescription": "已有基础；逐平台真实回归",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "I07"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P03",
+      "title": "批次、幂等与未知结果恢复",
+      "acceptance": "内容版本和批准范围冻结；双击不重发；断网先查原任务；部分成功只处理剩余项；已登记不当作已提交",
+      "statusDescription": "批次、原稿和未知结果恢复基础保留；本批补齐发布权限与授权检查回归，登记记录不自动变成平台提交",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P02"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "一个批次同时覆盖成功、审核、待验证/未知结果；双击、断网、重启和切换账户不重复发送。已登记任务仅在明确发送后执行。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "当前版本真实三平台混合批次、断网重启及账号失效恢复仍待验收",
+      "isolatedUiAcceptanceThisBatch": false,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6
+    },
+    {
+      "id": "P04",
+      "title": "六个历史公开渠道回归",
+      "acceptance": "个人官网、知乎、博客园、腾讯云、51CTO、抖音图文在当前版本核对账户/原回执；必要的公开新验收仅在具体稿件获准后一次执行",
+      "statusDescription": "待真实验收",
+      "state": "awaiting_live_acceptance",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P01",
+        "P03",
+        "P09",
+        "Q06"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P05",
+      "title": "核心草稿渠道补齐",
+      "acceptance": "CSDN、掘金、阿里云补公开提交/审核回执；头条按当前作者资格补保存与发布；已有提交先查重",
+      "statusDescription": "待账号资格与逐项验收",
+      "state": "remaining",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P01",
+        "P03",
+        "P09",
+        "Q06"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P06",
+      "title": "微信公众号优先闭环",
+      "acceptance": "同一平台卡片管理登录、图文编辑、草稿、发表/审核和公开链接；出现扫码保留任务交给本人；个人与认证账号按实际能力展示",
+      "statusDescription": "公众号适配基础与统一平台入口保留；本批修复桌面授权校验缺口并通过自动回归；未操作受限后台",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P01",
+        "P03",
+        "P09",
+        "Q06"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "公众号并入同一平台列表；允许的真实环境分别验收登录、正文图片、草稿、发表、扫码暂停恢复和回执。不把用户过去手动发文认作连接器通过。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "允许的真实环境下登录、图片草稿、发表、扫码恢复与公开回执尚未验收，历史手动发文不计连接器完成",
+      "isolatedUiAcceptanceThisBatch": false,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6
+    },
+    {
+      "id": "P07",
+      "title": "已有适配器扩展验收",
+      "acceptance": "小红书、思否、开源中国、微博、简书、搜狐号、网易号、百家号、B站、语雀及自建站逐项补齐",
+      "statusDescription": "按逐平台计划实施；缺账号/权限则保留阻点",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P01",
+        "P03",
+        "P09",
+        "Q06"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P08",
+      "title": "其余目录渠道开发",
+      "acceptance": "慕课手记、人人都是产品经理、大鱼号、一点号、抖音长文、小红书长文、X、豆瓣、雪球、东方财富、什么值得买、搜狐焦点",
+      "statusDescription": "先核实可发布入口及内容类型，再实现；不承诺不存在的公开能力",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P01",
+        "P03",
+        "P09",
+        "Q06"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "P09",
+      "title": "审核后核验与产品回执",
+      "acceptance": "区分草稿、已提交、审核中、公开可访问、驳回、待本人验证、结果未知；重启后可继续查原结果；不把发布量当效果",
+      "statusDescription": "已有基础；随平台逐项闭环",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "P03"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "D01",
+      "title": "真实可解释的指标",
+      "acceptance": "按模型、时间、模式和问题版本展示样本；区分提及、主动推荐、正文引用、参考列表、官网引用；无样本显示不足而非零分",
+      "statusDescription": "已有基础，持续回归",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "D02",
+      "title": "可执行的诊断结论",
+      "acceptance": "说明现象、依据、影响与下一步；区分网站可抓取、搜索收录、消费者引用；分析推断明确标注",
+      "statusDescription": "已有基础；覆盖缺资料/未收录等场景",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "D01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "D03",
+      "title": "品牌可信材料补齐建议",
+      "acceptance": "针对缺少案例、客户反馈、第三方报道/报告给获取路径、所需材料、可用表达；不生成假的报告/评价，不承诺买到排名",
+      "statusDescription": "已有基础；核对行业通用性",
+      "state": "foundation_verified",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "Q04",
+        "D02"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "D04",
+      "title": "建议→待办→证据→复核",
+      "acceptance": "待办冻结原目标、问题及采样条件；不同问题、旧资料、API 回答不能冒充同条件消费端复测；重复创建保持同一任务",
+      "statusDescription": "标签核对可自动回原待办并带出有效回执；实时可信建议绑定原报告与范围，服务端指纹核对和同建议去重已实现；停止/已复核任务不重开",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "真实客户任务与真实消费端改进效果尚待验收；新增资料版本可形成新建议，不改历史报告",
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "dependsOn": [
+        "D08",
+        "D09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "isolatedUiAcceptanceThisBatch": true,
+      "updatedInBatch": 6
+    },
+    {
+      "id": "D05",
+      "title": "客户报告归档与导出",
+      "acceptance": "导出范围、分母、日期、来源和建议一致；历史报告不可随最新数据悄悄变化；客户/品牌隔离",
+      "statusDescription": "报告/样本导出及归档固定品牌、筛选、角色和资料版本，等待中变化取消，历史只读并按当前公开范围脱敏；8页A4隔离样本PDF逐页视觉通过：白底、无管理控件、表格无横向截断、原回答附录完整",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "D01",
+        "D02",
+        "D03",
+        "D04",
+        "D06",
+        "D07",
+        "D08",
+        "D09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "页面/导出时间、分母、来源和结论一致；统一时区；历史快照固定；中文打印/PDF无截断；超过限制明确提示；报告导出不是业务备份。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "当前PDF仅隔离模拟样本；真实客户数据、较大报告与正式包导出仍待验收。打印附录最多20条并显示精确省略数量，完整原文通过Markdown导出；不等于完整业务备份",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6,
+      "isolatedPdfAcceptance": {
+        "status": "passed_isolated_fixture",
+        "report": "../观引开发方案-2026-11-13/隔离报告打印验收.pdf",
+        "pageCount": 8,
+        "paper": "A4",
+        "visualCheck": "根任务逐页查看全部8张PNG，白底、无后台管理/按钮、表格完整无横向截断、原回答附录完整",
+        "data": "明确标识的模拟样本，不是客户真实报告",
+        "formalDeliveryAccepted": false
+      }
+    },
+    {
+      "id": "D06",
+      "title": "主动复测与前后比较",
+      "acceptance": "客户主动确认采样范围和可能费用后执行；按相同问题和模式比较；单次结果不推广为全平台排名",
+      "statusDescription": "待真实消费端样本验收，不新建每日付费监测",
+      "state": "awaiting_live_acceptance",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "D01",
+        "D09",
+        "D10"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "豆包、元宝、千问各保存同问题基线和复测，至少6条真实样本；条件可比才计算变化；零推荐也可代表采样流程通过，不冒充效果达标。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "D07",
+      "title": "标签核对独立审计",
+      "acceptance": "原回答标签修改保存新旧值、操作者和时间；可用于完成标签修复待办，不伪装为新采样",
+      "statusDescription": "独立标签审计已接入诊断修复回执；保留原回答版本、旧新标签、操作者和时间；核对后自动返回原待办的隔离网页闭环已实际点通",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "D01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实客户操作与最终安装包验收待完成；不把标签修改算新增采样或效果改善",
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true,
+      "updatedInBatch": 6
+    },
+    {
+      "id": "D08",
+      "title": "各类待办绑定正确产物",
+      "acceptance": "补事实、写内容、获取外部依据分别关联类型正确且相关的证据；不以任意网页检查完成所有建议",
+      "statusDescription": "排名依据合同和投稿材料完成条件已补齐，旧无合同任务只保留历史，不把材料就绪当作第三方认可",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "remaining": "真实第三方材料及外部结果需相应凭据，不由自动测试代替",
+      "dependsOn": [
+        "D07",
+        "Q05",
+        "P09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "isolatedUiAcceptanceThisBatch": false,
+      "evidence": "../观引开发方案-2026-11-13/第七批开发与验收记录.md",
+      "updatedInBatch": 7
+    },
+    {
+      "id": "D09",
+      "title": "原条件采集与停止跟进",
+      "acceptance": "一键带出原问题、平台、模式、语言和地区；过时目标可说明原因停止或替代，不伪装成已复核",
+      "statusDescription": "原条件复测入口带出冻结问题与采样条件，缺失条件明确拒绝；停止跟进单独计状态，校验失败可补正、未知结果保持原意图恢复；隔离点击已检查",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "D01",
+        "D07"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实同条件消费端采集与前后对照未执行；当前入口不会自动调用收费模型或擅自新采样",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "updatedInBatch": 6
+    },
+    {
+      "id": "I01",
+      "title": "新客户完整旅程",
+      "acceptance": "空白安装→品牌→资料→问题→方向→草稿→检查→勾选→回执→诊断待办→复测，无需 Codex 帮填中间字段",
+      "statusDescription": "新增一句话改稿、原稿保留与排版折叠；客户真实模型到发布全旅程仍待验收",
+      "state": "remaining",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "Q07",
+        "P04",
+        "P05",
+        "P06",
+        "D05",
+        "D06",
+        "I03"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "I02",
+      "title": "隔离与故障测试",
+      "acceptance": "不同客户数据/密钥/账号隔离；预算、取消、断网、重启、权限失效、旧版升级可恢复；日志不暴露凭据",
+      "statusDescription": "完整回归1712/1712通过；最终Mac包隔离启动、恢复、计划重启/取消及正常退出通过",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "I07",
+        "I05",
+        "Q05",
+        "P03"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "补查通用状态写入与历史批准状态的组合；当前稿件变化必须使旧发布批准失效。两客户/工作区密钥账号正文任务均隔离，诊断日志脱敏。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实账号和系统密钥隔离、Windows真机、客户正式数据升级故障验收仍未关闭",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
+      "updatedInBatch": 8
+    },
+    {
+      "id": "I03",
+      "title": "Mac / Windows 干净安装包",
+      "acceptance": "固定源码生成包；无开发者密钥、账号和样本数据；下载解压启动、退出重开、升级保留数据通过",
+      "statusDescription": "最终Mac/Windows beta.5 Batch8预览ZIP已生成；Mac精确ZIP干净启动、重启、恢复、正常退出实测通过；Windows仅静态校验通过",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "I02",
+        "I05",
+        "I06",
+        "Q07",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P08",
+        "P10",
+        "D05",
+        "D06",
+        "I08"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "验收同一最终安装文件：干净解压/安装、中文空格路径、无需开发依赖、正常启动、重启、故障恢复、退出和卸载；Mac arm64/Windows x64分别真机留证。 正式范围功能冻结后才关闭最终包验收；运行代码或打包配置改变使旧最终包验收失效，须重建并重新执行受影响检查。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "updatedInBatch": 8,
+      "remaining": "Windows真机、正式支持范围全部门槛、新客户安装和卸载待验收",
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true
+    },
+    {
+      "id": "I04",
+      "title": "GitHub 与桌面同步",
+      "acceptance": "提交清楚的源码/中文文档/真实能力表/变更记录；发行包对应固定提交和校验值；未验收能力保持受限",
+      "statusDescription": "实现已推送GitHub开发分支，草稿PR #4已建立；最终双平台预览包已本地生成，正式Release未发布",
+      "state": "partial_implemented",
+      "liveAcceptanceThisBatch": false,
+      "dependsOn": [
+        "I01",
+        "U02",
+        "Q07",
+        "P04",
+        "P05",
+        "P06",
+        "P07",
+        "P08",
+        "P10",
+        "D05",
+        "D06",
+        "I08"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "deliveryAcceptance": "源码提交、中文README、逐平台真实能力表、桌面版本、安装包、校验值和变更说明一致；未通过本计划全目录门槛不宣称全平台完成。",
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "完整计划门槛尚未关闭；主分支合并、正式发行与新客户同版交付未完成",
+      "updatedInBatch": 8,
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
+    },
+    {
+      "id": "Q08",
+      "title": "品牌资料一次入库与持续复用",
+      "state": "partial_implemented",
+      "statusDescription": "资料公开/内部范围已实现并版本化；内部资料可本地核对但不进入新写作、改稿、检查、平台外发、MCP/外部API和客户报告；历史回执及完整私有备份保留；隔离与隐私自动回归通过",
+      "acceptance": "官网、文档、既有资料形成候选事实；集中确认公开范围/数字/归属，未确认与保密资料不进入外部模型；同一版本不重复填写，修改可追溯。",
+      "deliveryAcceptance": "官网、文档、既有资料形成候选事实；集中确认公开范围/数字/归属，未确认与保密资料不进入外部模型；同一版本不重复填写，修改可追溯。",
+      "dependsOn": [
+        "U01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实多类文件/官网资料入库、公开范围设置到真实模型成稿的整条客户链路仍待验收；精确原文与引用关系过滤不能保证识别所有语义改写",
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true,
+      "updatedInBatch": 6
+    },
+    {
+      "id": "Q09",
+      "title": "简单模型连接与整次写作预算",
+      "state": "partial_implemented",
+      "statusDescription": "整篇写作有限额度已实现；本地模拟界面走通方向、首稿、质检、改稿四阶段，权限/恢复取消旧额度，失败不无限重试",
+      "acceptance": "服务商预设和高级自定义分离；两类已声明支持的模型服务通过真实流程；错误可读、密钥脱敏、预算有限且显式确认，免费动作不调用模型。",
+      "deliveryAcceptance": "服务商预设和高级自定义分离；两类已声明支持的模型服务通过真实流程；错误可读、密钥脱敏、预算有限且显式确认，免费动作不调用模型。",
+      "dependsOn": [
+        "U01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "两类真实模型服务和六类品牌18任务质量评测未执行，模拟流程不代替质量效果",
+      "evidence": "../观引开发方案-2026-11-13/第七批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true,
+      "updatedInBatch": 7
+    },
+    {
+      "id": "Q10",
+      "title": "图文素材与格式适配",
+      "state": "partial_implemented",
+      "statusDescription": "本品牌配图持久化、顺序/使用权确认、素材复用、完整ZIP图片备份已实现；最终Mac包真实原生恢复、原图哈希与390px布局通过",
+      "acceptance": "客户图片和品牌素材复用；生成图文保留事实、可编辑、无伪造证据；图片数量顺序尺寸与权利信息可核对；图像模型收费另行明确。",
+      "deliveryAcceptance": "客户图片和品牌素材复用；生成图文保留事实、可编辑、无伪造证据；图片数量顺序尺寸与权利信息可核对；图像模型收费另行明确。",
+      "dependsOn": [
+        "Q04"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "quality",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "updatedInBatch": 8,
+      "isolatedUiAcceptanceThisBatch": true,
+      "remaining": "真实平台图文发布、Windows真机及客户素材全链路待验收",
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
+    },
+    {
+      "id": "P10",
+      "title": "批准稿件的定时发送与取消",
+      "state": "partial_implemented",
+      "statusDescription": "六类已有API账号单次定时发送、取消、版本冻结、恢复防重已实现；29项专项及最终Mac包隔离创建/重启保留/取消通过",
+      "acceptance": "定时默认关闭；客户主动设置时间和额度，只发送已批准版本；重启恢复、时区、取消及错过时段有明确行为，不自动堆积补发或生成付费稿。",
+      "deliveryAcceptance": "定时默认关闭；客户主动设置时间和额度，只发送已批准版本；重启恢复、时区、取消及错过时段有明确行为，不自动堆积补发或生成付费稿。",
+      "dependsOn": [
+        "P03",
+        "P09"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "publishing",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "updatedInBatch": 8,
+      "isolatedUiAcceptanceThisBatch": true,
+      "remaining": "真实API账号定时回执待验收；浏览器社交平台未开放定时发送",
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md"
+    },
+    {
+      "id": "D10",
+      "title": "真实消费端采集与资料导入",
+      "state": "partial_implemented",
+      "statusDescription": "同条件采样表单复用、TXT/MD原文导入、时间确认和候选来源选择已实现，演练隔离界面验收通过",
+      "acceptance": "按允许入口采集或导入原回答和引用；自动带出采样条件；验证码交本人；不把API、规则、示例冒充消费端回答；收费范围先确认。",
+      "deliveryAcceptance": "按允许入口采集或导入原回答和引用；自动带出采样条件；验证码交本人；不把API、规则、示例冒充消费端回答；收费范围先确认。",
+      "dependsOn": [
+        "D01",
+        "Q03"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "diagnosis",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "真实消费端同条件采样与官方来源核验未执行",
+      "updatedInBatch": 7,
+      "evidence": "../观引开发方案-2026-11-13/第七批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true
+    },
+    {
+      "id": "U01",
+      "title": "三入口与最少必要操作",
+      "state": "partial_implemented",
+      "statusDescription": "三入口布局在服务器回写与旧状态迁移后保持；整篇写作四阶段复用一次有限额度确认",
+      "acceptance": "主界面工作台、文章与发布、GEO诊断；常见任务单一主按钮、默认合理；模型/账号/资料复用，高级选项折叠，费用与公开状态清楚。",
+      "deliveryAcceptance": "主界面工作台、文章与发布、GEO诊断；常见任务单一主按钮、默认合理；模型/账号/资料复用，高级选项折叠，费用与公开状态清楚。",
+      "dependsOn": [
+        "I07"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "experience",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "陌生客户独立试用、正式桌面完整流程与跨平台真实验收未完成",
+      "isolatedUiAcceptanceThisBatch": true,
+      "evidence": "../观引开发方案-2026-11-13/第七批开发与验收记录.md",
+      "updatedInBatch": 7
+    },
+    {
+      "id": "U02",
+      "title": "新客户独立操作试用",
+      "state": "planned",
+      "statusDescription": "本次补入正式落地范围，尚未验收",
+      "acceptance": "5名未参与开发的使用者，至少4名不靠开发者代填完成规定流程；所有账户和收费/发布误操作阻断问题清零；失败路径复验，不以开发者操作代替。",
+      "deliveryAcceptance": "5名未参与开发的使用者，至少4名不靠开发者代填完成规定流程；所有账户和收费/发布误操作阻断问题清零；失败路径复验，不以开发者操作代替。",
+      "dependsOn": [
+        "I01"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "experience",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "I05",
+      "title": "正式数据迁移、备份与回滚",
+      "state": "partial_implemented",
+      "statusDescription": "最终Mac包原生完整备份恢复、原图哈希、恢复前保护备份通过；升级恢复暂停旧定时许可，普通重启保留未来计划",
+      "acceptance": "预览版数据迁入正式应用前备份；迁移失败可恢复；品牌、稿件、附件、任务、报告完整；不可迁移的会话单独提示；报告导出与业务备份明确区分。",
+      "deliveryAcceptance": "预览版数据迁入正式应用前备份；迁移失败可恢复；品牌、稿件、附件、任务、报告完整；不可迁移的会话单独提示；报告导出与业务备份明确区分。",
+      "dependsOn": [
+        "I07"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "Windows真机和客户正式数据升级验收未完成；完整ZIP暂不承诺跨新工作区签名密钥恢复",
+      "updatedInBatch": 8,
+      "evidence": "../观引开发方案-2026-11-13/第八批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": true
+    },
+    {
+      "id": "I06",
+      "title": "Windows免插件桌面构建",
+      "state": "partial_implemented",
+      "statusDescription": "Windows免插件打包器已实现；修复Electron 45官方运行时结构兼容：不强制不存在的ANGLE DLL，保留electron_wer及附带组件；架构/版本/清洁包/ZIP校验回归通过",
+      "acceptance": "产出Windows x64 Electron桌面版，功能状态与Mac一致；无需Node/浏览器扩展/手工配对；Windows真机首次登录、重启与草稿/发布路径验收。",
+      "deliveryAcceptance": "产出Windows x64 Electron桌面版，功能状态与Mac一致；无需Node/浏览器扩展/手工配对；Windows真机首次登录、重启与草稿/发布路径验收。",
+      "dependsOn": [
+        "I07",
+        "P02"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ],
+      "remaining": "最终Windows预览ZIP已生成，CRC/SHA256/29个应用文件一致性通过；测试机Windows 测试机 SSH连接超时。Windows首次启动、登录、发布、重启、升级与回滚仍待真机验收。",
+      "evidence": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+      "isolatedUiAcceptanceThisBatch": false,
+      "updatedInBatch": 6
+    },
+    {
+      "id": "I07",
+      "title": "冻结正式应用与版本身份",
+      "state": "planned",
+      "statusDescription": "本次补入正式落地范围，尚未验收",
+      "acceptance": "固定唯一源码、应用名/标识、支持系统、数据目录、预览/正式路由和构建来源；历史预览与正式包可区分，不改名后丢数据。",
+      "deliveryAcceptance": "固定唯一源码、应用名/标识、支持系统、数据目录、预览/正式路由和构建来源；历史预览与正式包可区分，不改名后丢数据。",
+      "dependsOn": [],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    },
+    {
+      "id": "I08",
+      "title": "客户自助排错与发布维护",
+      "state": "planned",
+      "statusDescription": "本次补入正式落地范围，尚未验收",
+      "acceptance": "产品内导出脱敏诊断包，错误提供一步处理入口；适配器状态带版本日期，失效关闭受影响动作；更新可回滚，有中文帮助与备份卸载说明。",
+      "deliveryAcceptance": "产品内导出脱敏诊断包，错误提供一步处理入口；适配器状态带版本日期，失效关闭受影响动作；更新可回滚，有中文帮助与备份卸载说明。",
+      "dependsOn": [
+        "P09",
+        "I05"
+      ],
+      "deliveryStatus": "not_accepted",
+      "track": "delivery",
+      "owner": "开发助手负责技术执行；用户仅完成必要的本人验证与费用/素材授权",
+      "liveAcceptanceThisBatch": false,
+      "completionEvidenceRequired": [
+        "对应源码版本",
+        "针对性测试或质检记录",
+        "适用的真实界面/账号/安装包回执",
+        "缺口全部关闭或经用户明确变更范围"
+      ]
+    }
+  ],
+  "latestBatch": {
+    "batch": 8,
+    "state": "implemented_and_isolated_package_verified",
+    "updatedAt": "2026-11-13T08:52:56.404234+00:00",
+    "targets": [
+      "Q10 稿件配图持久化、复用及完整离线备份",
+      "P10 已批准稿件的单次定时发送与取消",
+      "I05 恢复保护与定时暂停屏障"
+    ],
+    "formalAcceptance": false,
+    "previousBatchReceipt": "../观引开发方案-2026-11-13/第七批推进回执.json",
+    "fullRegression": {
+      "tests": 1712,
+      "passed": 1712,
+      "failed": 0
+    },
+    "macFinalArchiveUi": "passed_isolated_profiles",
+    "windowsFinalArchive": "static_only_real_machine_pending",
+    "receipt": "../观引开发方案-2026-11-13/第八批Mac实际安装包验收.json",
+    "github": {
+      "sourceCommit": "640d4a5490d4f687d987ac717fb08e95a1ce2f02",
+      "branch": "codex/wechat-official-publishing",
+      "draftPr": "https://github.com/1319974153-ui/guanyin-geo/pull/4",
+      "merged": false,
+      "formalRelease": false
+    },
+    "resolvedBlocker": "用户已解锁并关闭侧边确认框；最终Mac包原生界面验收完成",
+    "realModelCalls": 0,
+    "externalDrafts": 0,
+    "publicPosts": 0
+  },
+  "interactionPrinciples": [
+    "文章质量优先于新增按钮与功能数量",
+    "常用操作就近完成，复杂选项默认收起",
+    "复用已保存资料与模型，不让客户重复填写",
+    "每次收费操作明确确认；未知结果先查原记录",
+    "真实调用与平台验收独立记账，不以测试代替实际质量"
+  ],
+  "planRevision": "launch-v2",
+  "planningOnlyThisTurn": false,
+  "deliveryTarget": {
+    "systems": [
+      "macOS arm64",
+      "Windows x64"
+    ],
+    "deployment": "本机免插件桌面应用，客户自有模型与平台账号",
+    "catalogTargetCount": 36,
+    "definition": "完整功能、当前版本真实验收、最终安装包、陌生使用者试用和版本一致交付均通过；保留阻点不算完成"
+  },
+  "gates": [
+    {
+      "id": "G0",
+      "name": "正式基线与简单流程",
+      "tasks": [
+        "I07",
+        "U01"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G1",
+      "name": "文章质量",
+      "tasks": [
+        "Q01",
+        "Q02",
+        "Q03",
+        "Q04",
+        "Q05",
+        "Q06",
+        "Q07",
+        "Q08",
+        "Q09",
+        "Q10"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G2",
+      "name": "核心发布与公众号",
+      "tasks": [
+        "P01",
+        "P02",
+        "P03",
+        "P04",
+        "P05",
+        "P06",
+        "P09"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G3",
+      "name": "诊断到复测",
+      "tasks": [
+        "D01",
+        "D02",
+        "D03",
+        "D04",
+        "D05",
+        "D06",
+        "D07",
+        "D08",
+        "D09",
+        "D10"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G4",
+      "name": "其余平台与调度",
+      "tasks": [
+        "P07",
+        "P08",
+        "P10"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G5",
+      "name": "正式安装与客户试用",
+      "tasks": [
+        "I01",
+        "I02",
+        "I03",
+        "I05",
+        "I06",
+        "I08",
+        "U02"
+      ],
+      "passed": false
+    },
+    {
+      "id": "G6",
+      "name": "GitHub与桌面正式交付",
+      "tasks": [
+        "I04"
+      ],
+      "passed": false
+    }
+  ],
+  "approvalScope": "延续已批准的产品优先级与开发范围；本轮请求生成完整落地计划。费用、新权限、具体公开稿件等按实际范围另行明确，计划不代表已完成。",
+  "executionMode": "agent_owned_implementation",
+  "responsibility": {
+    "planning": "由开发助手拆分和维护全部技术任务",
+    "implementation": "由开发助手负责实现、测试、故障修复、打包、文档及交付核对",
+    "userParticipation": "仅本人登录/验证码、收费确认、真实素材授权或无法代替的客户体验反馈",
+    "continueRule": "按依赖和影响选择下一项，不把技术任务交回用户；未验收范围持续保留，不把阶段成果当全量完成"
+  },
+  "latestBatch5": {
+    "batch": 5,
+    "record": "第五批开发与验收记录.md",
+    "receipt": "第五批执行回执.json",
+    "tests": {
+      "initial": {
+        "total": 1390,
+        "passed": 1389,
+        "failed": 1
+      },
+      "finalFullRegression": {
+        "total": 1401,
+        "passed": 1401,
+        "failed": 0,
+        "skipped": 0
+      },
+      "doNotSumRepeatedRuns": true
+    },
+    "browserPreview": "http://127.0.0.1:18772/#today",
+    "isolatedUiAcceptance": true,
+    "modelCalls": 0,
+    "newPublications": 0,
+    "githubUpdated": false,
+    "formalInstallerUpdated": false
+  },
+  "latestBatch6": {
+    "batch": 6,
+    "status": "automated_and_isolated_acceptance_passed_formal_delivery_pending",
+    "asOf": "2026-11-13T07:00:28.555528+00:00",
+    "record": "../观引开发方案-2026-11-13/第六批开发与验收记录.md",
+    "receipt": "../观引开发方案-2026-11-13/执行回执.json",
+    "tests": {
+      "latestCompletedFullRegression": {
+        "total": 1554,
+        "passed": 1554,
+        "failed": 0,
+        "skipped": 0,
+        "log": "../观引开发方案-2026-11-13/第六批交付前完整回归.log"
+      },
+      "doNotSumRepeatedRuns": true,
+      "laterChangesRequireRerun": true,
+      "priorFullRegression": {
+        "total": 1509,
+        "passed": 1509,
+        "failed": 0,
+        "skipped": 0,
+        "log": "../观引开发方案-2026-11-13/第六批安全修复后完整回归.log"
+      }
+    },
+    "browserPreview": "http://127.0.0.1:18772/#today",
+    "isolatedUiAcceptance": true,
+    "browserScope": [
+      "三入口桌面与390px窄屏",
+      "文章编辑、平台适配预览与AI改稿计划入口",
+      "标签核对自动返回待办、关联回执并完成复核",
+      "报告下载、归档及归档只读",
+      "停止原因校验失败后可直接补正",
+      "PDF打印已重建后复验：8页A4隔离报告逐页视觉通过"
+    ],
+    "modelCalls": 0,
+    "newPublications": 0,
+    "newExternalDrafts": 0,
+    "githubUpdated": false,
+    "formalInstallerUpdated": false,
+    "desktopBuild": {
+      "previewVersion": "0.49.0-beta.5",
+      "macExactPackage": "实际启动/原资料保留/正常退出通过",
+      "windowsExactPackage": "构建、ZIP CRC、SHA256及29个应用文件一致性通过；真机待验收",
+      "record": "../观引开发方案-2026-11-13/执行回执.json",
+      "formalRelease": false
+    },
+    "deliveryStatus": "not_accepted",
+    "open": [
+      "Q07六类18任务真实模型质量评测与人工评审未跑",
+      "Q09两类真实模型服务、整次写作预算与完整调用费用体验待验收",
+      "Q03/Q08真实客户资料到成稿完整链路待验收",
+      "36项平台当前版本真实账号、图文、提交、审核回执和异常恢复未全部完成",
+      "D06/D09/D10真实同条件消费端采样与前后对照未完成",
+      "D05真实客户/较大报告/最终安装包导出验收未完成",
+      "本批GitHub尚未同步、正式发行未完成",
+      "最终Mac预览包已实机启动退出；Windows预览包已构建，真机22端口超时；迁移回滚与新客户独立试用未完成"
+    ],
+    "pdfAcceptance": {
+      "status": "passed_isolated_fixture",
+      "path": "../观引开发方案-2026-11-13/隔离报告打印验收.pdf",
+      "pages": 8,
+      "visual": "所有8页PNG已逐页查看：白底、无后台管理/操作按钮、表格无横向截断、原回答附录完整",
+      "source": "隐私过滤后的隔离模拟样本",
+      "notEvidenceFor": "真实客户质量、消费端效果或正式桌面包验收"
+    },
+    "implementedThisBatch": [
+      "Q03问题来源和不可伪造导入/模型回执关联",
+      "Q05五项语义审校与原句定位、Q06平台改版预览",
+      "Q08公开/内部资料范围与写作/发布/报告/MCP外部出口过滤",
+      "D04/D07/D08回答核对回执自动闭环、建议范围绑定和去重",
+      "D09原条件入口与停止跟进故障补正",
+      "D05报告归档/导出范围保护、历史只读脱敏与A4打印原文附录",
+      "U01三入口与简化操作",
+      "I06 Electron45 Windows运行时打包兼容修复"
+    ]
+  },
+  "latestBatch7": {
+    "batch": 7,
+    "startedAt": "2026-11-13T07:11:33.035887+00:00",
+    "state": "implemented_and_isolated_ui_verified_following_batch_in_progress",
+    "sourceDirectory": "当前观引开发工作区",
+    "targets": {
+      "Q09": "有限整篇写作调用预算，单次授权覆盖明确阶段，未运行真实模型",
+      "P03": "单平台登录失败不阻断其他合格目标；已有提交仅核对不重复发送",
+      "D10": "消费端/API/演练来源区分；复测条件复用，本地原文导入",
+      "I05": "升级前完整业务备份；启动失败可安排恢复；自动执行器延迟至升级提交后启动"
+    },
+    "tests": {
+      "desktopUpgradeTargeted": {
+        "passed": 12,
+        "failed": 0,
+        "log": "第七批桌面升级专项.log"
+      },
+      "intermediateFullRegression": {
+        "passed": 1619,
+        "failed": 0,
+        "skipped": 0,
+        "log": "第七批完整回归.log",
+        "scope": "在成员权限竞态修复、三入口迁移、排名依据合同及第八批配图改动前的中间完整回归"
+      },
+      "lifecycle": {
+        "passed": 23,
+        "failed": 0,
+        "log": "第七批恢复与预算生命周期专项.log"
+      },
+      "credibilityContract": {
+        "passed": 114,
+        "failed": 0,
+        "log": "第七批排名与申请材料专项.log"
+      }
+    },
+    "externalModelCalls": 0,
+    "externalDrafts": 0,
+    "publicPosts": 0,
+    "batch6Packages": "冻结保留，未包含第七批新增代码，不作为第七批交付包",
+    "formalAcceptance": false,
+    "updatedAt": "2026-11-13T07:47:41.510309+00:00",
+    "actualUi": {
+      "writing": "第七批写作模拟界面回执.json",
+      "answerImport": "第七批界面导入回执.json",
+      "MacUpgrade": "第七批Mac实际升级回执.json"
+    },
+    "realModelCalls": 0,
+    "simulatedModelRequests": 4,
+    "remaining": [
+      "六类品牌18个任务真实模型质量评测未执行",
+      "两类真实模型服务尚未验收",
+      "36个平台目标尚未全部真实验收",
+      "Windows真机升级与发布尚未验收",
+      "新客户独立试用尚未完成",
+      "第七批尚未制作独立发行包，源代码继续进入第八批",
+      "本轮尚未同步GitHub或发布正式发行包"
+    ]
+  },
+  "latestBatch8": {
+    "batch": 8,
+    "state": "implemented_and_isolated_package_verified",
+    "updatedAt": "2026-11-13T08:52:56.404234+00:00",
+    "targets": [
+      "Q10 稿件配图持久化、复用及完整离线备份",
+      "P10 已批准稿件的单次定时发送与取消",
+      "I05 恢复保护与定时暂停屏障"
+    ],
+    "formalAcceptance": false,
+    "previousBatchReceipt": "../观引开发方案-2026-11-13/第七批推进回执.json",
+    "fullRegression": {
+      "tests": 1712,
+      "passed": 1712,
+      "failed": 0
+    },
+    "macFinalArchiveUi": "passed_isolated_profiles",
+    "windowsFinalArchive": "static_only_real_machine_pending",
+    "receipt": "../观引开发方案-2026-11-13/第八批Mac实际安装包验收.json",
+    "github": {
+      "sourceCommit": "640d4a5490d4f687d987ac717fb08e95a1ce2f02",
+      "branch": "codex/wechat-official-publishing",
+      "draftPr": "https://github.com/1319974153-ui/guanyin-geo/pull/4",
+      "merged": false,
+      "formalRelease": false
+    },
+    "resolvedBlocker": "用户已解锁并关闭侧边确认框；最终Mac包原生界面验收完成",
+    "realModelCalls": 0,
+    "externalDrafts": 0,
+    "publicPosts": 0
+  }
+}

@@ -1,0 +1,46 @@
+// Product acceptance evidence only. Never used to grant an account permission.
+export const PUBLISHING_EVIDENCE_DATE='2026-11-06';
+export const PUBLISHING_ACTION_LABELS={identity:'账号核验',prepare:'填入编辑器',draft:'平台草稿',publish:'公开提交'};
+export const PUBLISHING_ACCEPTANCE_LABELS={passed:'实机已验收',pending:'待实机验收',paused:'验收已暂停',not_implemented:'待开发'};
+const receipt='docs/全平台发布接入计划.md';
+export function publishingEvidence(id){
+ const browser=['csdn','toutiao','zhihu','segmentfault','oschina','jianshu','bilibili','weibo','sohu','netease','baijiahao','douyin','xiaohongshu','tencentcloud'].includes(id),wechat=id==='wechat',wp=['wordpress','typecho','metaweblog','personal-site','yuque'].includes(id);
+ const tested=['csdn','toutiao','zhihu','douyin'].includes(id);
+ return Object.fromEntries(Object.keys(PUBLISHING_ACTION_LABELS).map(action=>{
+  const implemented=id==='juejin'?true:id==='aliyun'?true:id==='51cto'?true:wechat?true:['weibo','sohu','netease','oschina','jianshu','bilibili'].includes(id)?action!=='draft':['segmentfault','baijiahao'].includes(id)?['identity','prepare'].includes(action):id==='cnblogs'||id==='yuque'?action!=='prepare':wp?action!=='prepare':browser&&(action!=='draft'||['zhihu','toutiao','csdn','tencentcloud'].includes(id));
+  const passed=id==='juejin'&&['identity','prepare','draft'].includes(action)||id==='aliyun'&&['identity','prepare','draft'].includes(action)||id==='51cto'&&['identity','prepare','draft','publish'].includes(action)||id==='tencentcloud'&&['identity','prepare','draft','publish'].includes(action)||id==='personal-site'&&['identity','draft','publish'].includes(action)||id==='cnblogs'&&['identity','draft','publish'].includes(action)||tested&&['identity','prepare'].includes(action)||['zhihu','csdn'].includes(id)&&action==='draft'||['zhihu','douyin'].includes(id)&&action==='publish';
+  // 小红书已恢复开发，但只有正确账号完成实机核对后才会开放草稿或公开提交。
+  const status=!implemented?'not_implemented':passed?'passed':'pending';
+  return [action,{implemented,liveAcceptance:status,label:PUBLISHING_ACCEPTANCE_LABELS[status],
+   evidence:passed?{reference:id==='personal-site'?'docs/PERSONAL-SITE.md':receipt,connectorVersion:id==='zhihu'&&action==='draft'?'0.2.7':null,scope:id==='douyin'?'2026-10-29 Mac 桌面：自动识别21037695064、上传两图并填入全文；观引自动暂存离开、重新打开原图文核对标题、完整正文及图片数量，回执自动回收。仅确认当前设备暂存，未取得云端草稿编号；图片内容人工核对。两图正式稿7701977994482437414经本人短信验证后已公开，原任务自动找回作品编号并通过匿名全文核对，观引显示发布成功':id==='juejin'?'2026-10-28 Mac 桌面：账号1202233484255738自动识别；观引勾选掘金后自动填入纯文本与AI声明，编号草稿7701511332076519424重开核对完整正文及行数，产品显示草稿已保存；隔离实例正常退出重开后登录保留；公开提交和图片稿未开放':id==='aliyun'?'2026-10-26 Mac 桌面 r61：账号 lcl4vykma3p5c 自动识别；唯一非公开稿 1694249 由观引填写并保存，从草稿箱定位编号后重新打开核对全文及 AI 声明，产品显示草稿已保存。会话恢复有人工导航，登录回跳全自动与重启持久性未通过；图片未开放；公开提交代码已接入，实机验收待完成':id==='51cto'?'2026-10-23 Mac 桌面：账号17802063；新建两图草稿2103901自动保存并重开核对标题、全文和图片顺序；纯文本稿15031390审核通过后已由产品自动匿名核对全文并显示发布成功；两图草稿重启恢复通过，图片稿公开提交仍待实测':id==='tencentcloud'?'2026-10-23 Mac 桌面：账号 12809181、新建草稿 334630、完整正文重开核对、同稿自动公开提交与回执 2767527 已验收；后台已发布且匿名完整正文已人工核对；r39 已自动核对匿名完整正文并显示发布成功':id==='personal-site'?'2026-10-23 Mac 桌面实机：非公开草稿、勾选公开发布、匿名 HTTPS 全文哈希已核对；限已配置静态官网':id==='cnblogs'?'r19 真账号发布与匿名公开正文核验通过，原文 23402288':id==='zhihu'&&action==='publish'?'真实公开文章 2096634179358401344 已人工核对；产品公开正文自动核验尚未通过':id==='csdn'&&action==='draft'?'原稿 168768477 已保存并在草稿箱核对；公开提交因平台当日额度未完成':'专用非公开稿件验收'}:null}];
+ }));
+}
+export function publishingEvidenceSummary(id,actions=publishingEvidence(id)){
+ if(id==='juejin')return {stage:'纯文本草稿已实测 · 公开流程代码已接入',note:'Mac 桌面已通过自动识别账号、勾选平台、填稿、保存编号草稿及重开全文核对，回执自动回到观引；正常重开后登录保留。公开流程仅接受唯一的可见“发布”操作并最多点击一次；绑定手机、实名认证、账号受限、验证码、异常跳转或成功提示都会停止。当前官方公开文章链接尚未在真实账号核对，因此桌面版不开放掘金直接发布。'};
+ if(id==='aliyun')return {stage:'纯文本草稿已实测',note:'Mac 桌面已通过账号识别、自动填稿、保存及原稿全文回读；公开提交试用已接入；10月28日账号复核遇登录失效，未新建或提交正常稿，待本人登录后验收；声明和安全验证由本人完成，图片尚未开放。'};
+ if(id==='51cto')return {stage:'草稿与提交已实测',note:'Mac 桌面已通过全新两图草稿自动保存与回读；纯文本稿审核后已自动核对匿名全文并显示发布成功。图片稿公开提交仍待实测。'};
+ if(id==='tencentcloud')return {stage:'草稿与公开发布已实测',note:'Mac 桌面已自动新建草稿并提交同一篇正式稿；后台已发布，匿名完整正文已核对；r39 已自动核对匿名完整正文并显示发布成功'};
+ if(id==='cnblogs')return {stage:'草稿与公开发布已实测',note:'真实账号草稿、公开发布及匿名正文自动核验已通过；每次发送仍须取得自己的回执'};
+ if(id==='yuque')return {stage:'官方 API 已接入 · 待实机验收',note:'客户使用自己的语雀 API Token 和知识库地址连接。连接会核对令牌、当前账号与目标知识库；草稿、公开提交、原任务恢复与匿名公开页全文核对已实现并有自动测试。真实语雀 Token、知识库权限和公开回执尚未验收，不能以代码测试代替。'};
+ if(id==='zhihu')return {stage:'草稿与公开发布已实测',note:'已提交真实文章并人工核对公开正文；10月28日修复正文作者提取，原文匹配通过，匿名自动核验仍待通过，产品保持已提交'};
+ if(id==='csdn')return {stage:'平台草稿已实测',note:'账号、填稿和平台草稿已验收；10月28日产品只读找回168768477并核对全文，保留禁止重发；当日额度已用完，公开提交仍待验收'};
+ if(id==='toutiao')return {stage:'账号权益待处理',note:'已实测账号与填稿；当前官方后台要求完善账号信息开通发布权益，草稿和公开提交尚未验收通过'};
+ if(id==='segmentfault')return {stage:'自动保存观察已接入 · 待实机验收',note:'思否在填入编辑器后会等待并只读取一个可见的自动保存提示；该提示仅表示本次页面观察，未取得草稿编号、草稿箱记录或重新打开的完整正文。产品不会因此标为“草稿已保存”，也不会开放公开提交。'};
+ if(id==='oschina')return {stage:'两步公开流程代码已接入 · 待实机验收',note:'开源中国已迁到当前 ai-write 编辑页。观引会在唯一空白编辑器中填入已审核稿；AI 辅助稿会把“本文包含 AI 辅助生成或整理的内容。”作为正文披露一并写入。公开流程只接受唯一的“发布文章”，再接受确认层里唯一的“确定并发布”，每个任务最多各点击一次。验证码、账号资格、重复按钮、已有正文或异常跳转都会停止；只有官方 `/u/作者ID/blog/文章ID` 地址才会作为候选提交回执。静态自动保存说明、保存成功提示、草稿箱或普通成功文案都不算草稿或公开回执。当前桌面版仍不开放开源中国直接发布：真实账号的必填设置、提交、公开文章链接及匿名全文回读尚未验收。'};
+ if(id==='jianshu')return {stage:'公开流程代码已接入 · 待实机验收',note:'简书会在唯一空白编辑器中填入已审核稿；AI 辅助稿会自动保留“本文包含 AI 辅助生成或整理的内容。”的正文披露。填入后产品只接受唯一的“发布文章”动作，最多点击一次；绑定手机/微信、验证码、重复按钮、账号变化或异常跳转都会停止。提交后仅接收官方 `/p/文章标识` 链接作为候选回执，自动保存提示不能冒充草稿或公开回执。当前桌面版仍未开放简书直接发布：账号绑定要求、编辑字段、封面/付费或定时设置、公开页全文回读尚未在真实账号验收。'};
+ if(id==='bilibili')return {stage:'公开流程代码已接入 · 待实机验收',note:'哔哩哔哩已迁到当前专栏编辑器。观引会在唯一空白编辑器中填入已审核稿；AI 辅助稿会核对官方“AI辅助创作声明”，再只接受唯一的“发布”操作，最多点击一次。实名认证、手机号、账号资格、验证码、重复按钮、已有正文或异常跳转都会停止。编辑器自动保存、成功弹窗和创作中心页面都不算草稿或公开回执；当前官方成功窗只能到创作管理页，尚未在真实账号验证出官方公开文章链接，因此桌面版不开放直接发布。'};
+ if(id==='netease')return {stage:'公开流程代码已接入 · 待实机验收',note:'网易号会先在唯一空白编辑器中填入原稿，再只接受唯一的“发布”操作；仅当官方无图提示实际显示唯一的“确认发布”时才会再点一次。编辑器已有内容、多个同名操作、账号变化、验证码或异常跳转都会停止。当前桌面版仍未开放网易号直接发布：封面、分类/话题、实名认证或账号资格、审核状态、内容管理原稿回读及公开文章链接尚未在真实账号验收，发布成功提示或管理页跳转不会被当作回执。'};
+ if(id==='weibo')return {stage:'两步公开流程代码已接入 · 待实机验收',note:'微博头条文章会先在唯一空白编辑器中填入原稿，再只接受唯一的“下一步”和唯一的“发布”两次可见操作；提交后仅接收官方头条文章公开链接作为候选回执。编辑器已有内容、多个同名操作、账号变化、验证码或异常跳转都会停止。当前桌面版仍未开放微博直接发布：真实账号的编辑字段、封面/必填项、最终提交与公开链接回读尚未验收。'};
+ if(id==='sohu')return {stage:'两步公开流程代码已接入 · 待实机验收',note:'搜狐号会先在唯一空白编辑器中填入原稿，再只接受唯一的“下一步”和唯一的“发布”两次可见操作；提交后仅接收官方 `/a/文章ID_账号ID` 文章链接作为候选回执。编辑器已有内容、多个同名操作、账号变化、验证码或异常跳转都会停止。当前桌面版仍未开放搜狐号直接发布：封面、摘要、文章属性等必填项及审核后的公开链接回读尚未验收。'};
+ if(id==='douyin')return {stage:'暂存与公开发布已实测',note:'Mac 桌面两图稿自动填入、设备暂存与重开通过；经本人短信验证后公开提交成功，原任务自动回收编号并匿名核对完整正文。未取得云端草稿编号；遇平台验证仍需本人处理。'};
+ if(id==='wechat')return {stage:'官方窗口流程已接入 · 原任务可恢复 · 待实测',note:'个人主体在隔离的公众号官方窗口登录一次后，观引会自动打开图文编辑器、填入标题正文，并请求保存草稿或发表。保存或发表前会登记唯一原任务；中断、页面记录丢失、本人验证或重启后，只会恢复同一篇已审核稿，不会新建任务或重复点击发表。已有不同标题或正文的编辑器会停止，不会覆盖；正文里出现“发布成功”“验证码”等文字也不会被误当作平台回执。页面反馈会回写为“草稿已保存、已提交待确认或需要本人验证”。不读取 Cookie、不代做验证；真实账号草稿、发表及公开链接回执仍待验收。'};
+ if(id==='personal-site')return {stage:'官网草稿与发布已实测',note:'Mac 桌面已通过真实官网草稿、公开发布与匿名正文核验；需管理员先绑定受限发布端，其他网站与操作系统须单独验收。'};
+ if(id==='metaweblog')return {stage:'接口已接入 · 待实测',note:'兼容自建博客可配置同源 HTTPS XML-RPC、自动核对账号、保存草稿和发布原稿；协议与失败恢复自动测试通过，真实站点待验收；不是所有 MetaWeblog 实现都兼容。'};
+ if(id==='typecho')return {stage:'接口已接入 · 待实测',note:'网站连接、草稿、原稿发布与恢复已实现；真实 Typecho 网站尚待验收，不能以自动测试代替'};
+ if(id==='wordpress')return {stage:'可连接网站',note:'草稿与发布接口已实现；真实网站验收待完成，执行前须核对自己的账号权限'};
+ if(actions.draft.liveAcceptance==='passed')return {stage:'平台草稿已实测',note:'账号、填稿与平台草稿已验收；公开提交仍待验收'};
+ if(actions.prepare.liveAcceptance==='passed')return {stage:'已实测填稿',note:actions.draft.implemented?'账号与填稿已验收；平台草稿已实现待实机验收，公开提交待实机验收':'账号与填稿已验收；平台草稿待接入，公开提交待实机验收'};
+ if(id==='xiaohongshu')return {stage:'等待正确账号实机验收',note:'图文登录、图片上传与填稿保护已实现；需在预定账号完成登录、图片预览、填稿、草稿和回执逐项核对后，才会开放公开提交。'};
+ if(actions.prepare.implemented)return {stage:'接入验收中',note:'已有适配代码；账号、图片与填稿仍须实机验收'};
+ return {stage:'待开发',note:'已列入完整接入计划，尚不能自动填稿或发布'};
+}

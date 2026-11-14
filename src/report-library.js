@@ -1,3 +1,4 @@
+import {reportDisclosureView,reportDisclosureTitle} from './report-disclosure.js';
 import {reject,digest,requireAdmin} from './access.js';
 import {reportMarkdown} from './analytics-core.js';
 export const LIVE_REPORT="json_extract(body,'$.format') IS NOT 'guanyin-deleted-report-v1'";
@@ -40,7 +41,7 @@ export async function reportLibraryApi(req,env,ctx,h,w){
  }
  const chosen=await selection(env,ctx,b.brandId,selected);
  if(path==='/api/reports/export'){
-  const reports=chosen.rows.map(row=>({id:row.id,title:row.title,sourceRevision:row.source_revision,created:row.created,report:JSON.parse(row.body),markdown:reportMarkdown(JSON.parse(row.body))}));
+  const reports=chosen.rows.map(row=>{const report=reportDisclosureView(JSON.parse(row.body),w.state);return {id:row.id,title:reportDisclosureTitle(row.title,row.brand_id,w.state),sourceRevision:row.source_revision,created:row.created,report,markdown:reportMarkdown(report)}});
   const data={format:'guanyin-report-bundle-v1',brand:{id:brand.id,name:brand.name},exportedAt:new Date().toISOString(),selectionHash:chosen.hash,reports,notice:'固定报告、原始回答和附件索引；不包含附件原件。此文件不是可导入的完整业务备份。'};
   if(new TextEncoder().encode(JSON.stringify(data)).byteLength>8*MiB)reject(413,'导出内容超过 8 MiB，请减少选择后分批导出');return h.json(data);
  }
