@@ -1,7 +1,6 @@
 /* Task-first refinement of the existing light / obsidian visual language. */
 body[data-view="simple"] .view-switch{display:none}
 body[data-view="simple"] #runtime-status:not(.error){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-body[data-view="simple"] #main{max-width:1180px;padding:28px 36px 40px}
 body[data-view="simple"] .page-title{margin-bottom:24px}
 .focus-workspace{display:grid;gap:30px}
 .focus-goal{padding:28px 30px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:relative;overflow:hidden}
@@ -27,7 +26,7 @@ body[data-view="simple"] .page-title{margin-bottom:24px}
 .entity-choice,.platform-choice{border:0;padding:0;margin:0 0 20px;min-width:0}.entity-choice legend,.platform-choice legend{font-size:14px;font-weight:550;margin-bottom:10px}
 .entity-choice{display:flex;gap:8px}.entity-choice label{position:relative;flex:1;cursor:pointer}
 .entity-choice input{position:absolute;opacity:0;width:1px;height:1px}.entity-choice span{display:block;text-align:center;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font-size:14px}
-.entity-choice input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--primary-ink,#09202a)}
+.entity-choice input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--primary-ink)}
 .entity-choice input:focus-visible+span{outline:2px solid var(--ink);outline-offset:3px}
 .focus-setup .field{margin-bottom:18px}.focus-setup textarea{min-height:82px;resize:vertical}.focus-setup .setup-extras{border-top:1px solid var(--line);margin-top:22px;margin-bottom:20px}
 .focus-setup>.button.primary{min-height:44px;width:100%;margin:0}.focus-setup>.simple-help{margin-bottom:0}.focus-setup small{font-size:12px;color:var(--muted);line-height:1.7}
@@ -41,7 +40,7 @@ body[data-view="simple"] .button{min-height:38px}.focus-workspace .button.primar
 .focus-workspace :focus-visible,.focus-setup :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .focus-workspace .simple-error:empty{display:none}
 @media(max-width:1100px){.next-action{align-items:flex-start;flex-direction:column}.next-action .today-actions{flex-shrink:1}.goal-heading{align-items:flex-start}}
-@media(max-width:700px){body[data-view="simple"] #main{padding:22px 16px}.focus-workspace{gap:26px}.focus-goal,.focus-setup{padding:20px}.goal-heading{flex-wrap:wrap;gap:8px}.goal-heading h2{font-size:23px}.goal-path li+li::before{margin:0 9px}.evidence-strip{grid-template-columns:1fr 1fr}.evidence-strip>div{padding:16px 12px}.evidence-strip>div+div{padding-left:12px}.evidence-strip>div:nth-child(3){border-left:0}.evidence-strip>div:nth-child(n+3){border-top:1px solid var(--line)}.section-heading{align-items:flex-start;flex-wrap:wrap;gap:8px}.focus-questions li{gap:10px;align-items:flex-start}.focus-questions li>span{font-size:14px}.goal-result-row{grid-template-columns:1fr auto;gap:12px}.goal-result-row>div{grid-column:1/-1;grid-row:2}.focus-setup .simple-platforms{gap:7px}.simple-setup .page-title h1{font-size:25px}.topbar .breadcrumb{max-width:160px}.next-action .today-actions{width:100%}.today-actions>.button.primary{flex:1}}
+@media(max-width:700px){.focus-workspace{gap:26px}.focus-goal,.focus-setup{padding:20px}.goal-heading{flex-wrap:wrap;gap:8px}.goal-heading h2{font-size:23px}.goal-path li+li::before{margin:0 9px}.evidence-strip{grid-template-columns:1fr 1fr}.evidence-strip>div{padding:16px 12px}.evidence-strip>div+div{padding-left:12px}.evidence-strip>div:nth-child(3){border-left:0}.evidence-strip>div:nth-child(n+3){border-top:1px solid var(--line)}.section-heading{align-items:flex-start;flex-wrap:wrap;gap:8px}.focus-questions li{gap:10px;align-items:flex-start}.focus-questions li>span{font-size:14px}.goal-result-row{grid-template-columns:1fr auto;gap:12px}.goal-result-row>div{grid-column:1/-1;grid-row:2}.focus-setup .simple-platforms{gap:7px}.simple-setup .page-title h1{font-size:25px}.topbar .breadcrumb{max-width:160px}.next-action .today-actions{width:100%}.today-actions>.button.primary{flex:1}}
 @media(prefers-reduced-motion:no-preference){.focus-goal::before{animation:focus-line-in .6s cubic-bezier(.16,1,.3,1) both}@keyframes focus-line-in{from{clip-path:inset(0 85% 0 0)}to{clip-path:inset(0)}}}
 
 .model-steps{display:flex;flex-wrap:wrap;gap:12px 30px;margin:24px 0;padding-left:22px;color:var(--muted);font-size:14px}

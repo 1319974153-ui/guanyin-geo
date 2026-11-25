@@ -1,3 +1,4 @@
+import {articleApprovalGrounding,articleGroundingMessage} from './article-grounding.js';
 import {assertScheduledAuthorization} from './publish-schedule-core.js';
 import {articleMediaSnapshot,assertArticleMediaDelivery} from './article-media-core.js';
 import {digest,reject} from './access.js';
@@ -25,6 +26,7 @@ export function publishingContentSnapshot(state,brandId,contentId){
   const fact=state.facts.find(item=>item.id===snapshot.id&&item.brandId===brandId);
   if(!fact||!factUsable(fact)||fact.value!==snapshot.value||fact.source!==snapshot.source||(fact.version||1)!==(snapshot.version||1))reject(409,'稿件事实依据已变化，请重新审核后发布');
  }
+ const findings=articleApprovalGrounding(content,content);if(findings.length)reject(409,articleGroundingMessage(findings));
  return {contentId:content.id,title:content.title,text:content.text,ai:!!content.ai,facts:content.factSnapshots||[],...articleMediaSnapshot(content)};
 }
 

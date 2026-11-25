@@ -1,3 +1,4 @@
+import {canPublishOriginalDraft} from '../browser-extension/platforms.js';
 // UI-independent, sequential dispatch. Platform APIs own authoritative receipts.
 // Journal before writes; uncertain work is reconciled, never silently replayed.
 export {dispatchNeedsRefresh,dispatchRefreshInterval,createDispatchWatcher} from './dispatch-watch.js';
@@ -30,7 +31,7 @@ export function dispatchNeedsAccountCheck(target,row,mode){
  if(!row)return true;
  if(row.resultUnknown||['claim_pending','result_unknown','sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','published'].includes(row.state))return false;
  if(row.state==='prepared')return target.platform==='51cto'&&mode==='draft';
- if(row.state==='draft')return mode==='publish'&&['wordpress',...apiPublisherPlatforms,'csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform);
+ if(row.state==='draft')return mode==='publish'&&(['wordpress',...apiPublisherPlatforms].includes(target.platform)||canPublishOriginalDraft(target.platform));
  return true;
 }
 function dispatchIdentityChanged(target,row){return !!row&&((!!row.accountId&&row.accountId!==target.accountId)||(!!row.sessionId&&row.sessionId!==target.sessionId)||(!!row.platform&&row.platform!==target.platform));}
@@ -89,7 +90,7 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
   // a real adapter request; remove the stale notice before doing so.
   if(row?.state==='registered'){delete row.notice;delete row.batchId;}
   const recoverPrepared=target.platform==='51cto'&&mode==='draft'&&row?.state==='prepared';
-  if(!['wordpress',...apiPublisherPlatforms].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
+  if(!['wordpress',...apiPublisherPlatforms].includes(target.platform)&&!recoverPrepared&&!(mode==='publish'&&row?.state==='draft'&&canPublishOriginalDraft(target.platform))&&row&&((row.state==='prepared'&&mode!=='prepare')||(row.state==='draft'&&mode!=='draft'))){row.error='此稿已有平台记录，请核对原稿；不会切换发送方式重新创建';await persist(journal);changed();continue;}
   if(!recoverPrepared&&row&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(row.state))continue;
   if(row?.state==='draft'&&mode==='draft')continue;
   row ||= journal[target.key]={id:await dispatchId(article,target),key:target.key,platform:target.platform,accountId:target.accountId,sessionId:target.sessionId,expectedAccountId:target.accountId,name:target.name,state:'ready'};
@@ -136,7 +137,10 @@ export async function dispatchArticle({article,targets,mode,journal,request,pers
 }
 
 export async function reconcileDispatch({article,journal,request,persist,assertScope}){
- let browserStatus;const next=structuredClone(journal);
+ // Desktop WeChat has a separate read-only IPC journal. A platform event may
+ // arrive while the HTTP adapters are waiting; never write back an older copy.
+ const next=structuredClone(Object.fromEntries(Object.entries(journal).filter(([,row])=>!(row.platform==='wechat'&&row.transport==='desktop_personal'))));
+ let browserStatus;
  for(const row of Object.values(next)){
   assertScope();
   // A restored batch only records an explicit click that was interrupted before
@@ -153,9 +157,6 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
     const data=await request('/api/wordpress/detail?'+new URLSearchParams({brandId:article.brandId,id:row.id,accountId:row.accountId}));
     assertScope();row.state=data.record.state;row.remote=data.record.remote||null;row.error=data.record.error||'';
     // Unknown remote outcomes require the existing dedicated reconciliation flow.
-   }else if(row.platform==='wechat'&&row.transport==='desktop_personal'){
-    // Personal-account browser publishing has no server-side receipt API. Keep the
-    // observed state and never turn a window-open action into a publication claim.
    }else if(localPublisherPlatforms.includes(row.platform)){
     browserStatus ||= await request('/api/local-publisher/status?'+new URLSearchParams({brandId:article.brandId}));
     assertScope();
@@ -174,7 +175,7 @@ export async function reconcileDispatch({article,journal,request,persist,assertS
    delete row.refreshError;
   }catch(e){assertScope();row.refreshError=e.message;}
  }
- assertScope();await persist(next);assertScope();Object.assign(journal,next);return journal;
+ assertScope();await persist({...journal,...next});assertScope();Object.assign(journal,next);return journal;
 }
 
 // Recover durable server receipts when this browser has no local journal.

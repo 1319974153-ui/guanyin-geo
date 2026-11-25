@@ -185,3 +185,30 @@ test('AI text revision preserves saved image references and order without transm
  const model=provider(t),body=await approved(env,'revision-with-media-001'),result=await call(env,'/api/article-revision/generate','POST',body);assert.equal(result.status,200,JSON.stringify(result.data));const revised=result.data.state.contents[0];assert.deepEqual(revised.mediaRefs,refs);assert.equal(revised.mediaVersion,4);assert.equal(revised.status,'草稿');assert.equal(revised.reviewedAt,undefined);assert.ok(!JSON.stringify(model.payloads).includes(refs[0].id));
  const recovered=await receipt(env,body.runId);assert.deepEqual(recovered.data.state.contents[0].mediaRefs,refs);assert.equal(model.calls,1);
 });
+
+test('an unsupported rewrite stays available as a candidate without overwriting the original or replaying the model',async t=>{
+ const {env}=setup(t),original=await seed(env);
+ const candidate='# 家庭服务介绍\n\n客户必须注册企业账号，再按预约说明使用清洁服务。';
+ const model=provider(t,()=>Response.json({choices:[{message:{content:candidate}}],usage:{total_tokens:105}}));
+ const body=await approved(env,'revision-guarded-0001');
+ const result=await call(env,'/api/article-revision/generate','POST',body);
+ assert.equal(result.status,200);assert.equal(result.data.run.state,'needs_editing');
+ assert.equal(result.data.state.contents[0].text,original.text);
+ assert.equal(result.data.state.contents[0].status,'已审核');
+ assert.match(result.data.after.text,/必须注册企业账号/);
+ assert.equal(result.data.groundingFindings[0].id,'registration_required');
+ assert.equal((await receipt(env,body.runId)).data.run.state,'needs_editing');
+ assert.equal((await call(env,'/api/article-revision/apply','POST',{brandId:'b1',runId:body.runId})).status,409);
+ assert.equal((await call(env,'/api/article-revision/generate','POST',body)).data.run.state,'needs_editing');
+ assert.equal(model.calls,1);
+});
+
+test('previous approval does not permit new sends of a generated draft with a known evidence gap',async t=>{
+ const {env}=setup(t);await seed(env);
+ const w=await state(env),c=w.state.contents[0];
+ c.text='本服务必须注册账号，并可使用系统的上传功能。';
+ assert.throws(()=>publishingContentSnapshot(w.state,'b1',c.id),/必须注册账号/);
+ // Imported, manually sourced articles keep the original approval workflow.
+ delete c.writingBasis;delete c.provider;
+ assert.equal(publishingContentSnapshot(w.state,'b1',c.id).text,c.text);
+});

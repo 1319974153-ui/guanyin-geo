@@ -128,3 +128,79 @@ test('new content checks require cost consent, while existing durable receipts r
   const recovered=await call(e,'/api/checks/run','POST',{...request,confirmCost:false});assert.equal(recovered.status,200);assert.equal(count(),1);
  });
 });
+
+test('a correct quote from one claim cannot clear unsupported capabilities in the same draft',()=>{
+ const supported='松樾资料台可按项目整理资料，并为每条资料记录来源和确认状态。';
+ const extra='松樾资料台允许用户根据项目创建一个独立的资料库。系统会自动记录每条资料的来源。也可以直接从系统中导出所需的资料文件。';
+ const t={id:'draft',title:'选择资料工具',text:supported+'\n\n'+extra,question:'怎么整理资料？',style:'使用指南',factIds:['base'],productId:''};
+ const input={kind:'content',version:3,targets:[t],facts:[{id:'base',value:supported,source:'已确认的产品说明',usable:true,productId:''}]};
+ const dimensions=['answer_completeness','title_fulfillment','format_fit','promotional_repetition','evidence_grounding'].map(id=>({id,status:'satisfactory',location:'body',quote:supported,factId:'base',factQuote:supported,suggestion:'',issue:'已找到一句支持依据',priority:'low'}));
+ const raw=JSON.stringify({results:[{id:t.id,claims:[{quote:supported,relation:'支持',factId:'base',factQuote:supported,reason:'资料明确支持这句话'}],editorialReview:{dimensions}}]});
+ const result=parseChecks(raw,input).results[0];
+ assert.equal(result.claims[0].relation,'支持');
+ assert.deepEqual(result.groundingFindings.map(f=>f.id),['isolated_project_library','automatic_provenance','document_export']);
+ const grounding=result.editorialReview.dimensions.find(d=>d.id==='evidence_grounding');
+ assert.equal(grounding.status,'needs_revision');
+ assert.ok(extra.includes(grounding.quote));
+ assert.match(grounding.issue,/导出资料/);
+ assert.equal(result.editorialReview.suggestions[0].id,'evidence_grounding');
+ const corrected=structuredClone(input);corrected.targets[0].text=supported;
+ assert.equal(parseChecks(raw,corrected).results[0].editorialReview.dimensions.find(d=>d.id==='evidence_grounding').status,'satisfactory');
+ const incomplete=JSON.parse(raw);incomplete.results[0].claims=[];
+ assert.equal(parseChecks(JSON.stringify(incomplete),corrected).results[0].editorialReview.dimensions.find(d=>d.id==='evidence_grounding').status,'not_assessable');
+});
+
+test('state writes preserve unsupported generated drafts and refuse approval without matching confirmed facts',async()=>{
+ const e=env(),w=await seed(e);
+ const f={id:'auto-proof',brandId:'b1',key:'来源记录',value:'甲产品可记录资料来源。',source:'产品原始说明',status:'已确认'};
+ w.state.facts.push(f,{...f,id:'other-proof',brandId:'b2',value:'乙产品自动记录资料来源。'});
+ const c={id:'auto-draft',brandId:'b1',title:'来源记录说明',text:'甲产品自动记录资料来源。',status:'待审核',writingBasis:{policyVersion:6},factSnapshots:[f]};
+ w.state.contents.push(c);
+ assert.equal((await call(e,'/api/state','PUT',w)).status,200);
+ const saved=(await call(e,'/api/state')).data;
+ const draft=saved.state.contents.find(x=>x.id===c.id);
+ draft.status='已审核';
+ draft.factSnapshots.push(saved.state.facts.find(x=>x.id==='other-proof'));
+ const rejected=await call(e,'/api/state','PUT',saved);
+ assert.equal(rejected.status,409);
+ assert.match(rejected.data.error,/自动保存资料来源/);
+ const reread=(await call(e,'/api/state')).data;
+ const corrected=reread.state.contents.find(x=>x.id===c.id);
+ assert.equal(corrected.status,'待审核');
+ corrected.text='甲产品可记录资料来源。尚未确认自动保存资料来源的能力。';
+ corrected.status='已审核';
+ assert.equal((await call(e,'/api/state','PUT',reread)).status,200);
+});
+
+test('single local article review selects exact source passages without mixing batches or restricting hosted providers',async()=>{
+ const {checkModelRequest}=await import('../src/check-execution.js');
+ const article={id:'draft',title:'如何选工具',text:'先看来源。\n再对照报价！'};
+ const input={kind:'content',version:3,targets:[article],facts:[]};
+ const quotes=data=>checkModelRequest('ollama',data).localJsonFormat.properties.results.items.properties.editorialReview.properties.dimensions.items.properties.quote;
+ assert.deepEqual(quotes(input).enum,['','Q1','Q2','Q3']);
+ const data=JSON.parse(checkModelRequest('ollama',input).messages[1].content);
+ assert.deepEqual(data.targets[0].reviewPassages,{Q1:'如何选工具',Q2:'先看来源。',Q3:'再对照报价！'});
+ assert.equal(input.targets[0].reviewPassages,undefined);
+ assert.deepEqual(quotes({...input,targets:[article,{...article,id:'other'}]}),{type:'string'});
+ assert.equal(checkModelRequest('qwen',input).localJsonFormat,undefined);
+});
+
+test('an invented revision history entry is flagged when the brand only confirms source tracking',async()=>{
+ const {articleGroundingFindings}=await import('../src/article-grounding.js');
+ const line='在记录详情页寻找版本历史或修订记录的选项。';
+ const facts=[{value:'按项目整理资料，并保留来源与确认状态。',source:'产品规格'}];
+ assert.ok(articleGroundingFindings(line,facts).some(f=>f.id==='revision_history'));
+ assert.equal(articleGroundingFindings('先询问是否提供版本历史。',facts).length,0);
+ assert.equal(articleGroundingFindings(line,[{value:'在记录详情页可查看版本历史和修订记录。',source:'产品规格'}]).length,0);
+});
+
+test('reopening local quality evidence resolves the original passage while preserving the raw model receipt',async()=>{
+ const {checkRecord}=await import('../src/check-execution.js');
+ const input={version:3,kind:'content',targets:[{id:'c1',text:'先核对出处。',title:'核对资料',question:'怎样核对？',style:'问答'}],facts:[]};
+ const text=JSON.stringify({results:[{id:'c1',claims:[],editorialReview:{dimensions:[{id:'answer_completeness',status:'satisfactory',location:'title',quote:'Q2',issue:'解释核对步骤。',priority:'low',suggestion:'',factId:'',factQuote:''}]}}]});
+ const record=await checkRecord('run','brand','ollama',input,{text,model:'test'});
+ assert.equal(record.rawText,text);
+ const reopened=parseChecks(record.rawText,record.input,record.quoteEncoding);
+ assert.deepEqual(reopened.results,record.results);
+ assert.equal(reopened.results[0].editorialReview.dimensions[0].quote,'先核对出处。');
+});

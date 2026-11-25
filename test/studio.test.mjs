@@ -11,6 +11,28 @@ function ui(){const g={GEO_STUDIO:studio,GEO_METRICS:metrics,URLSearchParams,URL
 test('answer reader escapes untrusted text and rejects script references',()=>{const g=ui(),a=answer('a',{text:'<img src=x onerror=alert(1)>',questionText:'<script>evil</script>',citations:[{url:'javascript:alert(1)',title:'bad'},{url:'https://safe.example',title:'<img>'}]});const html=g.answerStudioDetail(a);assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img'));assert.ok(!html.includes('href="javascript:'));assert.match(html,/&lt;script&gt;/);assert.match(html,/引用状态尚未核对/);});
 test('line chart retains missing-label break and never emits invalid coordinates',()=>{const g=ui();const html=g.studioLine({trend:[{date:'2026-10-10',n:1,rec:1,recommendationN:1},{date:'2026-10-11',n:1,rec:0,recommendationN:0},{date:'2026-10-12',n:1,rec:0,recommendationN:1}]},'recommendation');assert.equal((html.match(/<polyline/g)||[]).length,2);assert.ok(!/NaN|Infinity/.test(html));assert.match(html,/0\.0%/);});
 test('unknown answer id never exposes an answer outside the active report',()=>{const r=report();assert.notEqual(studio.answerSelection(r,{answerId:'x'}).selected.id,'x');assert.match(fs.readFileSync(new URL('../public/analytics.js',import.meta.url),'utf8'),/analyticsRoutes=\[.*'answers'/);});
+test('query groups preserve versions and entrances and count unique saved links with reviewed ranks only',()=>{
+ const r=report(),first=answer('first',{rank:1,citationKnown:true,citations:[
+  {url:'https://example.com/article?utm_source=ai',title:'Original'},
+  {url:'https://example.com/article#repeat'},
+  {url:'javascript:alert(1)'},
+ ]});
+ r.answers=[first,answer('second',{entry:'app',citations:[{url:'https://example.com/article'}]}),
+  answer('historical',{questionVersion:'v0',questionText:'怎样找到技术顾问？'})];
+ r.competitorSemantics=[{id:'brand:b',evidence:[
+  {answerId:'first',stale:true,review:{recommendation:'yes',rank:2}},
+  {answerId:'second',review:{recommendation:'yes',rank:4}},
+ ]}];
+ const view=studio.queryResults(r,[],{answerId:'first'});
+ assert.equal(view.choices.length,2);
+ assert.deepEqual(view.platforms.map(p=>p.entry),['web','app']);
+ assert.deepEqual(view.selected.citations,[{url:'https://example.com/article?utm_source=ai',domain:'example.com',title:'Original'}]);
+ assert.equal(view.selected.rank,null);
+ assert.equal(view.summary.articleCount,1);
+ assert.equal(view.summary.averageRank,4);
+ assert.equal(view.summary.rankCount,1);
+ assert.equal(studio.queryResults(r,[],{answerId:'other-brand'}).selected,null);
+});
 test('integrated overview, answer reader and content list render with real report and application helpers',()=>{
  const state={brands:[brand],currentBrand:'b',scope:'import',questions:[{id:'q',brandId:'b',text:'怎样找工程师？',version:'v1'}],answers:[answer('a')],facts:[],contents:[{id:'c',brandId:'b',title:'温舒简介',question:'温舒是谁',status:'草稿',productId:''}],publications:[],competitors:[],sourceLabels:[]};
  const node={value:'',innerHTML:''},g={window:{GEO_CONFIG:{nav:[],platforms:['豆包']},GEO_BOOT_STATE:state},document:{addEventListener(){},querySelector:()=>node,querySelectorAll:()=>[],body:{dataset:{}}},crypto,URL,URLSearchParams,location:{hash:'#overview?period=all&to=2026-10-12'},history:{replaceState(){}},GEO_METRICS:metrics,GEO_STUDIO:studio,productScopeSelect:()=>'',savedProductLabel:()=> '品牌通用',pendingChecksButton:()=>'',render(){}};

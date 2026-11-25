@@ -3,6 +3,11 @@ const distributionStateLabels={not_queued:'未发送',ready:'未发送',register
 const distributionModeLabels={publish:'发布文章',draft:'保存平台草稿',prepare:'仅填入编辑器'};
 const distributionModeSelectLabels={publish:'全选可发布',draft:'全选可存草稿',prepare:'全选可填入'};
 const distributionActionLabels={publish:'可直接发布',draft:'可保存草稿',prepare:'可填入编辑器'};
+function distributionWechatReceipt(receipt){
+ if(!receipt?.notice)return {};
+ const notice='平台提示「'+receipt.notice+'」'+(Number.isSafeInteger(receipt.observedAt)?' · '+new Date(receipt.observedAt).toLocaleString('zh-CN'):'');
+ return {notice,...(/^https:\/\/mp\.weixin\.qq\.com\/s\/[\w-]{6,128}$/.test(receipt.url||'')?{remote:{url:receipt.url}}:{})};
+}
 function distributionWechatTaskState(state){return ({opening_editor:'preparing',waiting_editor:'preparing',ready_to_request:'preparing',requesting:'submitting',waiting_receipt:'submitting',draft_requested:'submitting',publish_requested:'submitting',verification_required:'needs_attention',blocked:'needs_attention',filled:'needs_attention',draft_saved:'draft',publish_submitted:'submitted'})[state]||null}
 function distributionPanel(){return `<section class="article-distribution" aria-label="发布账号与结果"><div class="distribution-heading"><div><h3>发布到哪些平台</h3><p>勾选已连接且支持当前操作的账号，统一发送并查看结果；需要本人验证时会提示。</p></div><button type="button" class="button small" data-distribution-refresh>刷新</button></div><div class="distribution-account-tools"><button type="button" class="button small" data-distribution-select-all>全选可发布</button><span data-distribution-count aria-live="polite">已选 0 个</span></div><details class="distribution-operation"><summary data-distribution-mode-summary>改为保存草稿或仅填入</summary><label class="distribution-mode">操作<select name="distributionMode" data-distribution-mode aria-label="发布操作"><option value="publish">发布文章</option><option value="draft">保存平台草稿</option><option value="prepare">仅填入编辑器</option></select></label></details><div class="distribution-submit-bar"><p data-distribution-hint class="helper" aria-live="polite">请选择平台。</p><p data-distribution-policy class="helper">本次仅执行一次；不创建定时任务、不自动重试，也不调用模型或付费同步服务。</p><input type="checkbox" name="distributionConfirmed" hidden><div data-distribution-readiness class="distribution-readiness" aria-live="polite"></div><div class="distribution-actions"><button type="button" class="button primary" data-distribution-send="publish" disabled>发布到已选平台</button></div></div><div data-distribution-accounts role="group" aria-label="全部发布平台"><p role="status">正在读取平台…</p></div><label class="field distribution-tags" hidden>文章标签<input name="distributionTags" placeholder="例如：软件测试，最多 5 个" maxlength="110"></label><details class="field distribution-media"><summary>配图（可选，随草稿保存）</summary><label>从电脑添加<input type="file" name="distributionMedia" accept="image/png,image/jpeg,image/webp" multiple></label><p class="helper">最多 9 张，单张 2 MB、合计 8 MB。本机保存后可重复使用；不会自动上传到平台。</p><button type="button" class="button small" data-distribution-media-library>从本品牌已存图片选择</button><div data-distribution-media-library-list></div><div data-distribution-media-list></div><label class="distribution-confirm"><input type="checkbox" name="distributionMediaRights">我有权将这些图片用于本稿发布</label><p data-distribution-media-status role="status"></p><button type="button" class="button small" data-distribution-media-clear>清空本稿配图</button></details><p class="form-error" data-distribution-error role="alert"></p><div data-distribution-results aria-live="polite"></div>${typeof publishSchedulePanel==='function'?publishSchedulePanel():''}<details class="distribution-more"><summary>账号设置与更多操作</summary><p>账号只需首次连接；登录失效时再处理。未接入的平台暂不能勾选。</p><button type="button" class="button small" data-distribution-manage>管理账号</button><button type="button" class="button small" data-distribution-manual>下载稿件</button></details></section>`}
 function distributionResultLabel(row){if(row?.preflightFailed)return row.state==='draft'?'草稿已保存，本次未发布':'本次未发送';if(row?.preparation?.temporaryVerified)return '已暂存，未发布';if(row?.preparation?.autosaveObserved)return '已观察到平台自动保存，待草稿箱核对';return distributionStateLabels[row.state]||row.state}
@@ -76,7 +81,7 @@ function distributionExecutionPolicy(){return {frequency:'once',autoRetry:false,
 function distributionServerExecution(){return {media:[],executionPolicy:distributionExecutionPolicy()}}
 function distributionPreflight(f,mode=f.elements.distributionMode.value){
  const stored=distributionArticle(f)||{},targets=distributionSelected(f).map(target=>{const catalog=(f.distributionCatalog||[]).find(platform=>platform.id===target.platform);return {...target,implementation:catalog?.implementation||target.implementation,actionEvidence:catalog?.actionEvidence||target.actionEvidence,platformName:catalog?.name||target.platformName}});
- return GEO_DISPATCH.publishReadiness({article:{title:f.elements.title?.value??stored.title,text:f.elements.text?.value??stored.text,...(f.distributionPersistentMedia?{mediaRefs:f.distributionMediaRefs||[]}: {})},targets,mode,tags:(f.elements.distributionTags?.value||'').split(/[,，]/).map(t=>t.trim()).filter(Boolean),media:f.distributionMediaFiles||[],mediaLoading:!!f.distributionMediaLoading,mediaError:f.distributionMediaError||''});
+ return GEO_DISPATCH.publishReadiness({article:{...stored,title:f.elements.title?.value??stored.title,text:f.elements.text?.value??stored.text,...(f.distributionPersistentMedia?{mediaRefs:f.distributionMediaRefs||[]}: {})},targets,mode,tags:(f.elements.distributionTags?.value||'').split(/[,，]/).map(t=>t.trim()).filter(Boolean),media:f.distributionMediaFiles||[],mediaLoading:!!f.distributionMediaLoading,mediaError:f.distributionMediaError||''});
 }
 function distributionPreflightHtml(check){
  if(!check.rows.length)return '';
@@ -162,7 +167,9 @@ async function distributionLoad(f){
  const selected=new Set(distributionSelected(f).map(t=>t.key));box.innerHTML='<p role="status">正在读取账号…</p>';
  await distributionLoadSavedMedia(f);if(!f.isConnected||scope!==distributionScope())return;
  const current=distributionArticle(f),batchRequest=current?.id?apiRequest('/api/publish-batches?'+new URLSearchParams({brandId:f.dataset.brand,contentId:current.id})):Promise.resolve({batches:[]});
- const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]}),window.guanyinDesktop?.wechatPersonalTask?window.guanyinDesktop.wechatPersonalTask():Promise.resolve(null),window.guanyinDesktop?.wechatPersonalLoginState?window.guanyinDesktop.wechatPersonalLoginState():Promise.resolve({state:'unknown'}),batchRequest];
+ const wechatTaskId=current&&distributionCanUseWechat()&&window.guanyinDesktop?.wechatPersonalTask?await GEO_DISPATCH.dispatchId(current,{platform:'wechat',accountId:'personal-browser'}):null;
+ if(!f.isConnected||scope!==distributionScope())return;
+ const requests=[apiRequest('/api/publishing-center?'+new URLSearchParams({brandId:f.dataset.brand})),browserPublisherAvailable()?apiRequest('/api/local-publisher/status?'+new URLSearchParams({brandId:f.dataset.brand})):Promise.resolve({accounts:[]}),window.guanyinDesktop?.wechatPersonalTask?window.guanyinDesktop.wechatPersonalTask(wechatTaskId||undefined):Promise.resolve(null),window.guanyinDesktop?.wechatPersonalLoginState?window.guanyinDesktop.wechatPersonalLoginState():Promise.resolve({state:'unknown'}),batchRequest];
  const results=await Promise.allSettled(requests);if(!f.isConnected||scope!==distributionScope())return;
  const targets=[],errors=[];
  results.slice(0,2).forEach((r,i)=>{if(r.status==='rejected'){errors.push((i?'浏览器连接':'网站账号')+'读取失败：'+r.reason.message);return}
@@ -334,24 +341,31 @@ function distributionRecoveryTarget(f,row){
 function distributionRecoveryButton(f,row){const target=distributionRecoveryTarget(f,row);return target?`<p><button type="button" class="button small" data-distribution-open-original="${esc(row.key)}">打开平台处理</button>${row.retryable&&row.jobId?`<button type="button" class="button small" data-distribution-unstarted="${esc(row.key)}">继续未开始的任务</button>`:''}${row.resumable&&row.jobId?`<button type="button" class="button small" data-distribution-resume="${esc(row.key)}">${row.stage==='prepare'?'补齐原稿文字（不发布）':'继续原稿发布'}</button>`:''}<span class="helper">${row.preflightFailed?'处理后回到这里再次点击发送；已提交的账号不会重复发送':'查看原任务，不会重新发送'}</span></p>`:'';}
 function distributionWechatRecoveryButton(row){
  if(row?.platform!=='wechat'||row.transport!=='desktop_personal'||!/^gy-[a-f0-9]{64}$/.test(row.id||'')||!window.guanyinDesktop?.wechatPersonalResume)return '';
- if(!['preparing','submitting','needs_attention'].includes(row.state))return '';
+ if(!['preparing','submitting','needs_attention','uncertain'].includes(row.state))return '';
  return `<p><button type="button" class="button small" data-distribution-wechat-open="${esc(row.id)}">打开公众号原任务</button><span class="helper">只恢复原任务，不会新建稿件或重复点击发表</span></p>`;
 }
-async function distributionRecoverWechatTask(f,task){
+function distributionWechatUpdate(row,task){
+ const state=distributionWechatTaskState(task.state);
+ if(!state||row.id!==task.taskId||row.stage&&row.stage!==task.mode)return null;
+ if(['draft','submitted','published'].includes(row.state)&&row.state!==state)return null;
+ if(row.wechatUpdatedAt&&task.updatedAt&&task.updatedAt<row.wechatUpdatedAt)return null;
+ return {...row,...distributionWechatReceipt(task.receipt),state,stage:task.mode,wechatState:task.state,wechatUpdatedAt:task.updatedAt||row.wechatUpdatedAt||0,error:task.message||'',refreshError:''};
+}
+async function distributionRecoverWechatTask(f,task,stillCurrent=()=>true){
  // The task file outlives renderer storage. Restore both an in-flight task and
  // a terminal draft/submission receipt, but only when this exact article
  // revision derives the same original task ID. A terminal record is a result
  // to display, never a reason to reopen or replay a platform action.
- if(!task||!/^gy-[a-f0-9]{64}$/.test(task.taskId||''))return false;
+ if(!stillCurrent()||!task||!/^gy-[a-f0-9]{64}$/.test(task.taskId||''))return false;
  const record=distributionArticle(f),scope=distributionScope();if(!record||articleEditorDirty())return false;
  const target=(f.distributionTargets||[]).find(t=>t.platform==='wechat'&&t.transport==='desktop_personal');if(!target)return false;
- const id=await GEO_DISPATCH.dispatchId(record,target);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
- const key=f.distributionKey||await distributionKey(record,scope);if(id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
+ const id=await GEO_DISPATCH.dispatchId(record,target);if(!stillCurrent()||id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
+ const key=f.distributionKey||await distributionKey(record,scope);if(!stillCurrent()||id!==task.taskId||!f.isConnected||scope!==distributionScope()||f.dataset.brand!==brand().id||articleEditorDirty())return false;
  const current=f.distributionJournal||{},existing=current[target.key];
  if(existing&&existing.id!==task.taskId)return false;
- if(existing?.id===task.taskId&&existing.state==='published')return false;
- const state=distributionWechatTaskState(task.state);if(!state)return false;
- current[target.key]={...(existing||{}),id:task.taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state,stage:task.mode,error:task.message||''};
+ const update=distributionWechatUpdate(existing||{id:task.taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport},task);
+ if(!update)return false;
+ current[target.key]=update;
  localStorage.setItem(key,JSON.stringify(current));f.distributionJournal=current;f.distributionKey=key;f.distributionWatchState=GEO_DISPATCH.dispatchNeedsRefresh(current)?'watching':'complete';distributionResults(f);distributionWatch(f);return true;
 }
 async function distributionOpenOriginal(f,key){
@@ -379,7 +393,7 @@ function distributionResults(f){
  const registered=rows.some(row=>row.state==='registered'),unknown=distributionUnknownResultRows(rows);
  const unknownHint=unknown.length?`<aside class="distribution-result-alert" role="status"><strong>${unknown.length} 个平台结果待确认</strong><p>平台没有返回最终结果，观引已经停止，绝不会自动重发。先点“刷新结果”；若仍没有回执，请到对应平台搜索这篇标题。确认未发后，再勾选并点击发布，会新建一次明确的发送。</p></aside>`:'';
  const batchRefreshError=f.distributionBatchRefreshError?`<p class="helper">发布记录暂时无法读取：${esc(f.distributionBatchRefreshError)}；已保留当前状态，不会重新发送。</p>`:'';
- const markup=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p>${unknownHint}${batchRefreshError}<details class="distribution-result-details" ${rows.some(r=>r.preflightFailed||['needs_attention','uncertain','registered','claim_pending'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionResultLabel(r))}</span></div>${r.notice?'<p class="helper">'+esc(r.notice)+'</p>':''}${r.error?'<p class="form-error">'+esc(r.error)+'</p>':''}${r.preflightError&&r.preflightError!==r.error?'<p class="form-error">'+esc(r.preflightError)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${distributionReceiptLink(r)}${distributionRecoveryButton(f,r)}${distributionWechatRecoveryButton(r)}</li>`).join('')}</ul></details><p class="helper" role="status" data-distribution-watch-status></p><p class="helper">${registered?'已登记的目标不会自动发送；请重新点击发布后才会开始。':'结果自动更新。需要处理时可直接打开对应平台；不会自动重复发布。'}</p>`:'';
+ const markup=rows.length?`<div class="distribution-heading"><h3>发布结果</h3><button class="button small" type="button" data-distribution-reconcile>刷新结果</button></div><p class="distribution-result-summary">${esc(distributionSummary(rows))}</p>${unknownHint}${batchRefreshError}<details class="distribution-result-details" ${rows.some(r=>r.preflightFailed||['needs_attention','uncertain','registered','claim_pending'].includes(r.state)||r.refreshError)?'open':''}><summary>查看各平台详情</summary><ul class="distribution-receipts">${rows.map(r=>`<li><div><strong>${esc(f.distributionCatalog?.find(p=>p.id===r.platform)?.name||r.platform)} · ${esc(r.name)}</strong><span>${esc(distributionResultLabel(r))}</span></div>${r.notice?'<p class="helper">'+esc(r.notice)+'</p>':''}${r.error?'<p class="'+(['preparing','submitting','draft','submitted','published'].includes(r.state)?'helper':'form-error')+'">'+esc(r.error)+'</p>':''}${r.preflightError&&r.preflightError!==r.error?'<p class="form-error">'+esc(r.preflightError)+'</p>':''}${r.refreshError?'<p class="helper">暂未取得新回执：'+esc(r.refreshError)+'；保留上次状态，不会重新发送。</p>':''}${distributionReceiptLink(r)}${distributionRecoveryButton(f,r)}${distributionWechatRecoveryButton(r)}</li>`).join('')}</ul></details><p class="helper" role="status" data-distribution-watch-status></p><p class="helper">${registered?'已登记的目标不会自动发送；请重新点击发布后才会开始。':'结果自动更新。需要处理时可直接打开对应平台；不会自动重复发布。'}</p>`:'';
  // Polling must not replace an unchanged action button or steal keyboard focus.
  if(box.distributionMarkup!==markup){box.innerHTML=markup;box.distributionMarkup=markup;}
  const watch=box.querySelector?.('[data-distribution-watch-status]');if(watch)watch.textContent=distributionWatchLabel(f);
@@ -405,6 +419,18 @@ async function distributionReconcile(f){
  try{
   assertScope();try{await distributionRefreshBatchStatuses(f,record,scope,assertScope)}catch(error){assertScope();f.distributionBatchRefreshError=error.message||'暂时无法读取'}assertScope();
   await GEO_DISPATCH.reconcileDispatch({article,journal,request:apiRequest,persist:async j=>{assertScope();localStorage.setItem(key,JSON.stringify(j))},assertScope});
+  assertScope();
+  const wechat=Object.values(journal).find(row=>row.platform==='wechat'&&row.transport==='desktop_personal');
+  if(wechat&&distributionCanUseWechat()&&window.guanyinDesktop?.wechatPersonalTask){
+   try{
+    const task=await window.guanyinDesktop.wechatPersonalTask(wechat.id);assertScope();
+    if(task)await distributionRecoverWechatTask(f,task,valid);
+    else if(!['draft','submitted','published'].includes(journal[wechat.key]?.state))throw Error('本机暂未找到这次公众号任务的回执');
+   }catch(error){
+    assertScope();const row=journal[wechat.key];
+    if(row&&!['draft','submitted','published'].includes(row.state)){row.refreshError=error.message;localStorage.setItem(key,JSON.stringify(journal))}
+   }
+  }
   assertScope();if(!GEO_DISPATCH.dispatchNeedsRefresh(journal))f.distributionWatchState='complete';distributionResults(f);return !Object.values(journal).some(r=>r.refreshError);
  }finally{f.distributionReconciling=false;}
 }
@@ -456,15 +482,25 @@ async function distributionSend(f,mode){
   await distributionStartNewConfirmedBatch(journal,serverBatch,regularTargets,persist);assertScope();
   if(regularTargets.length)await GEO_DISPATCH.reconcileDispatch({article:c,journal,request:apiRequest,persist,assertScope});assertScope();
   for(const target of wechatTargets){
-   if(!window.guanyinDesktop?.wechatPersonalPublish)throw new Error('请在观引桌面版打开此稿件');
-   const existing=journal[target.key];if(existing&&['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(existing.state))continue;
+   const existing=journal[target.key];
+   if(existing&&(['sending','uncertain','needs_attention','queued','preparing','publishing','submitting','submitted','prepared','published'].includes(existing.state)||existing.state==='draft'&&mode==='draft'))continue;
    const taskId=await GEO_DISPATCH.dispatchId(c,target);
-   const authorization=await distributionAuthorizeWechat(f,c,mode,taskId,scope);assertScope();
-   journal[target.key]={id:taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state:'preparing',stage:mode,error:'公众号窗口已打开，正在等待登录或编辑器就绪。'};
-   await persist(journal);distributionResults(f);
-   const result=await window.guanyinDesktop.wechatPersonalPublish(authorization);assertScope();
-   journal[target.key]={...journal[target.key],state:'preparing',error:result?.message||journal[target.key].error};
-   await persist(journal);distributionResults(f);
+   const row={id:taskId,key:target.key,platform:'wechat',accountId:target.accountId,name:target.name,transport:target.transport,state:'preparing',stage:mode,error:'正在准备公众号编辑器'};
+   let authorization;
+   try{
+    if(!window.guanyinDesktop?.wechatPersonalPublish)throw Error('请在观引桌面版打开此稿件');
+    authorization=await distributionAuthorizeWechat(f,c,mode,taskId,scope);
+   }catch(err){
+    assertScope();journal[target.key]={...row,state:'failed',error:err.message};await persist(journal);distributionResults(f);continue;
+   }
+   assertScope();journal[target.key]=row;await persist(journal);distributionResults(f);
+   try{
+    const result=await window.guanyinDesktop.wechatPersonalPublish(authorization);
+    if(row.state==='preparing'&&row.error==='正在准备公众号编辑器')row.error=result?.message||'正在等待公众号窗口回执';
+   }catch(err){
+    if(row.state==='preparing'){row.state='uncertain';row.error='请先核对公众号原任务，避免重复发送。'+(err.message||'尚未收到回执');}
+   }
+   assertScope();await persist(journal);distributionResults(f);
   }
   if(regularTargets.length)await GEO_DISPATCH.dispatchArticle({article:{...c,tags,executionPolicy:distributionExecutionPolicy()},targets:regularTargets,mode,journal,request:apiRequest,persist,assertScope,authorizationId:f.distributionAuthorization?.id||null,beforeTarget:(target,{stage})=>distributionClaimServerTarget(f,serverBatch,c,target,stage),changed:()=>distributionResults(f)});
   if(desktopTargets.length)void window.guanyinDesktop.wake();
@@ -479,7 +515,8 @@ function distributionWechatStatus(status){
  const state=distributionWechatTaskState(status.state);if(!state)return;
  for(const f of document.querySelectorAll?.('[data-article-editor]')||[]){
   const row=Object.values(f.distributionJournal||{}).find(v=>v.platform==='wechat'&&v.id===status.taskId);if(!row)continue;
-  row.state=state;row.error=status.message||'';localStorage.setItem(f.distributionKey,JSON.stringify(f.distributionJournal));distributionResults(f);distributionInlineResults(f);
+  const update=distributionWechatUpdate(row,status);if(!update)continue;
+  Object.assign(row,update);localStorage.setItem(f.distributionKey,JSON.stringify(f.distributionJournal));distributionResults(f);distributionInlineResults(f);
  }
 }
 if(window.guanyinDesktop?.onWechatPersonalStatus)window.guanyinDesktop.onWechatPersonalStatus(distributionWechatStatus);

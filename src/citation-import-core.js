@@ -40,6 +40,26 @@ export function extractCitationCandidates({text='',html=''}={}){
  }
  return {candidates,ignored};
 }
+// Some consumer answers print a sources section without emitting citation cards.
+export function answerReferenceLinks(value){
+ if(typeof value!=='string'||value.length>100000)return [];
+ const lines=value.split(/\r?\n/),rows=new Map();
+ const start=lines.findIndex(line=>/^\s*(?:#{1,6}\s*)?(?:参考来源|参考资料|参考链接|引用来源|Sources|References)\s*[：:]?\s*$/i.test(line));
+ if(start<0)return [];
+ for(const line of lines.slice(start+1)){
+  const label=line.trim();
+  if(!label||/^[∙•·*\-]$/.test(label))continue;
+  if(!/https?:\/\//i.test(line))break;
+  let candidates;
+  try{({candidates}=extractCitationCandidates({text:line.slice(0,4000)}))}catch{continue}
+  for(const item of candidates){
+   const title=item.title||line.slice(0,line.search(/https?:\/\//i)).replace(/^[\s∙•·*\d.)、\-]+|[\s：:]+$/g,'');
+   if(!rows.has(item.url))rows.set(item.url,{url:item.url,title:title||new URL(item.url).hostname});
+   if(rows.size===MAX_CITATION_CANDIDATES)return [...rows.values()];
+  }
+ }
+ return [...rows.values()];
+}
 export function mergeCitationCandidates(value,selected,titles={}){
  const rows=citationRows(value,titles),seen=new Set(rows.map(r=>r.url));
  for(const c of selected){const url=citationUrl(c.url);if(seen.has(url))continue;seen.add(url);rows.push({url,title:String(c.title||'').slice(0,300)});}

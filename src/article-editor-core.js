@@ -1,3 +1,4 @@
+import {articleApprovalGrounding,articleGroundingMessage,hasGeneratedWritingBasis} from './article-grounding.js';
 import {reviewWritingOutput} from './writing.js';
 import {articleMediaRefs,articleMediaSnapshot} from './article-media-core.js';
 export {articleMediaRefs,articleMediaSnapshot} from './article-media-core.js';
@@ -6,8 +7,11 @@ export {articleMediaRefs,articleMediaSnapshot} from './article-media-core.js';
 export function articleWritingReview(article = {}, input = {}) {
   const text = String(input.text ?? article.text ?? ''), title = String(input.title ?? article.title ?? '').trim();
   const facts = Array.isArray(article.factSnapshots) ? article.factSnapshots : [];
-  const review = reviewWritingOutput(text, {facts, articleContract:article.writingBasis?.articleContract});
+  const review = reviewWritingOutput(text, {question:article.question||article.writingBasis?.qualityPlan?.readerQuestion,facts, articleContract:article.writingBasis?.articleContract});
   const labels = {
+    reader_setting:'标题或开头引入了本题未包含的清洁场所，请围绕读者指定的场景修改。',
+    reader_decision:'原问题要比较是否适合，请把开头改回候选对象的判断标准。',
+    reader_deliverable:'请检查正文是否把资料整理写成客诉处理、法律审查或舆情应对。',
     body_present:'正文还没有可阅读的内容。',
     evidence_snapshot:'此生成稿没有保留事实依据，请核对正文来源。',
     known_fact_ids:'正文中的部分事实标记无法对应到本稿依据。',
@@ -21,7 +25,9 @@ export function articleWritingReview(article = {}, input = {}) {
     if (check.id === 'evidence_snapshot' && !article.writingBasis && !article.provider) continue;
     checks.push({...check, detail:labels[check.id]});
   }
-  return {...review, checks};
+  const groundingFindings=hasGeneratedWritingBasis(article)?articleApprovalGrounding(article,{title,text},facts):[];
+  if(groundingFindings.length)checks.push({id:'unsupported_capability',ok:false,detail:groundingFindings.map(f=>f.label+'：「'+f.quote+'」').join('；')+'。请核对对应出处或改正原句。'});
+  return {...review, checks, groundingFindings};
 }
 
 // Shared editor transitions: editing an approved text always requires another review.
@@ -42,6 +48,7 @@ export function articleRevision(previous, input, intent, role) {
   if (['save', 'submit'].includes(intent) && !writer) throw new Error('当前角色不能编辑或送审');
   if (['approve', 'reject'].includes(intent) && !reviewer) throw new Error('需要审核人或管理员确认');
   if (intent === 'approve' && (changed || previous?.status !== '待审核')) throw new Error('请先保存修改并提交审核，再审核通过');
+  if (intent === 'approve') {const findings=articleApprovalGrounding(previous,{title,text},previous?.factSnapshots);if(findings.length)throw new Error(articleGroundingMessage(findings));}
   if (intent === 'reject' && changed) throw new Error('请先保存修改');
   const status = intent === 'submit' ? '待审核' : intent === 'approve' ? '已审核' : intent === 'reject' || changed ? '草稿' : previous.status;
   // Review-only transitions must preserve legacy records that omit the flag.

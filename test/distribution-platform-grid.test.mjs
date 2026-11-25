@@ -193,6 +193,7 @@ test('a personal WeChat result can reopen only its recorded original task',()=>{
  const x=fixture();x.g.window.guanyinDesktop={wechatPersonalResume:async()=>{}};
  const active={id:'gy-'+'a'.repeat(64),platform:'wechat',transport:'desktop_personal',state:'needs_attention'};
  assert.match(x.g.distributionWechatRecoveryButton(active),/data-distribution-wechat-open/);
+ assert.match(x.g.distributionWechatRecoveryButton({...active,state:'uncertain'}),/打开公众号原任务/);
  assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'draft'}),'');
  assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'submitted'}),'');
  assert.equal(x.g.distributionWechatRecoveryButton({...active,state:'published'}),'');
@@ -220,4 +221,20 @@ test('a terminal personal WeChat task restores its exact draft receipt after ren
  const restored=await x.g.distributionRecoverWechatTask(x.f,{taskId,mode:'draft',state:'draft_saved',active:false,message:'公众号页面已确认草稿保存'});
  assert.equal(restored,true);assert.equal(x.f.distributionJournal[target.key].state,'draft');assert.equal(x.f.distributionJournal[target.key].id,taskId);
  assert.match(x.get('[data-distribution-results]').innerHTML,/草稿已保存/);assert.match([...saved.values()][0],/draft/);
+ const stale=await x.g.distributionRecoverWechatTask(x.f,{taskId,mode:'draft',state:'waiting_receipt',message:'先前的刷新'});
+ assert.equal(stale,false);assert.equal(x.f.distributionJournal[target.key].state,'draft');
+});
+
+test('refresh recovers a missed WeChat event by original ID without reopening a platform or sending',async()=>{
+ const x=fixture(),article={id:'article',brandId:'brand',title:'核对回执',text:'原稿正文',status:'已审核'},target={platform:'wechat',accountId:'personal-browser',key:'wechat:personal-browser',transport:'desktop_personal'};
+ const taskId=await dispatch.dispatchId(article,target),saved=new Map(),reads=[];
+ Object.assign(x.g,{localStorage:{setItem:(k,v)=>saved.set(k,JSON.parse(v))},distributionScope:()=> 'scope',own:()=>[article],brand:()=>({id:'brand'}),distributionRefreshBatchStatuses:async()=>{},apiRequest:()=>{throw Error('unexpected request')},distributionWatch:()=>{}});
+ x.g.accessInfo.current={role:'owner',owner:'local-owner',actor:'local-owner'};
+ const reply={taskId,mode:'draft',state:'draft_saved',updatedAt:200,receipt:{notice:'保存成功',observedAt:200}};
+ x.g.window.guanyinDesktop={wechatPersonalTask:async id=>{reads.push(id);return reply}};
+ Object.assign(x.f,{isConnected:true,distributionKey:'key',distributionScope:'scope'});x.f.dataset.brand='brand';x.f.distributionTargets=[target];x.f.distributionJournal={[target.key]:{...target,id:taskId,state:'submitting',stage:'draft'}};
+ assert.equal(await x.g.distributionReconcile(x.f),true);
+ assert.deepEqual(reads,[taskId]);assert.equal(saved.get('key')[target.key].state,'draft');assert.match(x.f.distributionJournal[target.key].notice,/保存成功/);
+ const old=x.g.distributionWechatUpdate(x.f.distributionJournal[target.key],{...reply,updatedAt:100,message:'旧通知'});
+ assert.equal(old,null);
 });

@@ -57,3 +57,13 @@ test('reconfirming an original task updates only its exact authorization and ret
  assert.equal(updated.requested,true);assert.equal(updated.authorization.authorizationId,'pa-'+'d'.repeat(64));
  assert.equal('authorization' in wechatPersonalTaskSummary(root),false);
 });
+
+test('opening a later article retains the earlier platform receipt and prevents replay of the same revision',t=>{
+ const root=temporaryRoot(t);beginWechatPersonalTask(root,command('a'));
+ updateWechatPersonalTask(root,taskId('a'),{requested:true,state:'draft_saved',message:'平台已保存',receipt:{notice:'已保存草稿'}},1001);
+ beginWechatPersonalTask(root,command('b'));
+ const old=wechatPersonalTaskSummary(root,taskId('a'));assert.equal(old.receipt.notice,'已保存草稿');assert.equal(old.receipt.observedAt,1001);
+ assert.equal(old.html,undefined);assert.equal(old.authorization,undefined);
+ assert.throws(()=>beginWechatPersonalTask(root,command('a')),/已有平台回执/);
+ assert.equal(wechatPersonalTaskSummary(root,taskId('c')),null);
+});

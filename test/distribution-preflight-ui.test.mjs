@@ -250,3 +250,12 @@ test('changing roles during a failed account check prevents every later account 
  await x.g.distributionSend(x.form,'publish');
  assert.equal(x.calls.length,0);assert.match(x.node('[data-distribution-error]').textContent,/权限.*变化/);assert.equal(Object.keys(x.form.distributionJournal).length,0);assert.equal(x.node('[data-distribution-send]').disabled,true);
 });
+
+test('a missing WeChat IPC receipt does not cancel approved WordPress work or send WeChat twice',async()=>{
+ const x=batchFixture(),wx=x.select('wechat',{transport:'desktop_personal',accountId:'personal-browser'}),wp=x.select('wordpress');
+ const tags=[];x.g.distributionAuthorizeWechat=async()=>({});x.g.window.guanyinDesktop.wechatPersonalPublish=async()=>{tags.push('wechat');throw Error('回执连接中断')};
+ await x.g.distributionSend(x.form,'publish');
+ assert.equal(x.form.distributionJournal[wx.key]?.state,'uncertain',x.node('[data-distribution-error]').textContent);
+ assert.equal(x.form.distributionJournal[wp.key]?.state,'published');
+ await x.g.distributionSend(x.form,'publish');assert.deepEqual(tags,['wechat']);
+});

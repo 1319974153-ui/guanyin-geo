@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/images/guanyin-banner.svg" alt="观引 GEO：品牌资料、AI 写作、内容发布、结果追踪" width="100%"></p>
 
 <p align="center"><strong>把品牌资料、内容创作与发布结果，放进一个工作台。</strong></p>
-<p align="center"><a href="https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.6">下载桌面预览</a> · <a href="docs/DOWNLOAD.md">安装与使用</a> · <a href="https://wenshu.tnyma.com/cases/guanyin-geo.html">了解观引</a> · <a href="https://github.com/1319974153-ui/guanyin-geo/issues/new/choose">问题反馈</a></p>
+<p align="center"><a href="https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.7">下载桌面预览</a> · <a href="docs/DOWNLOAD.md">安装与使用</a> · <a href="https://wenshu.tnyma.com/cases/guanyin-geo.html">了解观引</a> · <a href="https://github.com/1319974153-ui/guanyin-geo/issues/new/choose">问题反馈</a></p>
 
 ## 观引 GEO · About
 
@@ -24,10 +24,10 @@ Guanyin GEO is an open-source workspace for tracking brand visibility in AI answ
 
 ## 下载与开始
 
-**0.49.0-beta.6 桌面预览**加入了本机 Ollama 写作模型。可选择已安装的文本模型，使用本机算力生成选题和稿件。模型生成的内容需审核后发布。
+**0.49.0-beta.7 桌面预览**支持按自定义品牌和问题查看 AI 回答、对照引用来源，并从查询结果进入文章优化。各平台实时查询能力及登录要求见本次发行说明。
 
-- **Apple Silicon Mac：**[下载 Mac ZIP](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.6/GuanyinGEO-0.49.0-beta.6-mac-arm64.zip)，完整解压后打开“观引桌面预览.app”。
-- **Windows x64：**[下载 Windows ZIP](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.6/GuanyinGEO-0.49.0-beta.6-win32-x64.zip)，完整解压后双击“启动观引.cmd”。本包已通过静态校验，Windows 真机验收待完成。Intel Mac / Linux 可查看[源码运行说明](docs/LOCAL-RUNNING.md)。
+- **Apple Silicon Mac：**[下载 Mac ZIP](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.7/GuanyinGEO-0.49.0-beta.7-mac-arm64.zip)，完整解压后打开“观引桌面预览.app”。
+- **Windows x64：**[下载 Windows ZIP](https://github.com/1319974153-ui/guanyin-geo/releases/download/v0.49.0-beta.7/GuanyinGEO-0.49.0-beta.7-win32-x64.zip)，完整解压后双击“启动观引.cmd”。本包已通过静态校验，Windows 真机验收待完成。Intel Mac / Linux 可查看[源码运行说明](docs/LOCAL-RUNNING.md)。
 - **先看看工作方式：**[离线演练](docs/FIRST-RUN.md)不需要模型密钥，不消耗付费调用。
 
 这是尚未公证的开发测试版，没有稳定版。下载校验、升级步骤与当前验证范围集中在[下载指南](docs/DOWNLOAD.md)。
@@ -42,7 +42,7 @@ Guanyin GEO is an open-source workspace for tracking brand visibility in AI answ
 <summary><strong>开发者入口与详细文档</strong></summary>
 
 - [本地源码运行](docs/LOCAL-RUNNING.md) · [离线演练](docs/FIRST-RUN.md)
-- [桌面测试版对应源码](https://github.com/1319974153-ui/guanyin-geo/tree/v0.49.0-beta.6) · [桌面版使用说明](https://github.com/1319974153-ui/guanyin-geo/blob/v0.49.0-beta.6/docs/免插件桌面版使用说明.md)
+- [桌面测试版对应源码](https://github.com/1319974153-ui/guanyin-geo/tree/v0.49.0-beta.7) · [桌面版使用说明](https://github.com/1319974153-ui/guanyin-geo/blob/v0.49.0-beta.7/docs/免插件桌面版使用说明.md)
 - [主分支使用说明](public/docs/当前版本与使用说明.md) · [主分支验收矩阵](public/docs/功能验收矩阵.md)
 - [费用说明](docs/FREE-AND-COSTS.md) · [参与贡献](CONTRIBUTING.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
 

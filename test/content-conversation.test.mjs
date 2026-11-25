@@ -110,21 +110,24 @@ test('direction preview is free and a changed model invalidates its cost confirm
 
 test('selected direction gets a second free plan and only creates one reviewed draft after a fresh cost confirmation',async()=>{
  const environment=env();await seeded(environment);const previousFetch=globalThis.fetch;let calls=0;const payloads=[];
- globalThis.fetch=async(url,options)=>{calls++;payloads.push(JSON.parse(options.body));if(calls===1)return Response.json({id:'direction-fixture-draft',choices:[{message:{content:JSON.stringify(modelDirections())}}],usage:{prompt_tokens:11,completion_tokens:22}});return Response.json({id:'draft-fixture-1',choices:[{message:{content:'# 客户资料方案判断方法 1\n\n只使用已确认的资料。'}}],usage:{prompt_tokens:33,completion_tokens:44}})};
+ globalThis.fetch=async(url,options)=>{calls++;payloads.push(JSON.parse(options.body));if(calls===1)return Response.json({id:'direction-fixture-draft',choices:[{message:{content:JSON.stringify(modelDirections())}}],usage:{prompt_tokens:11,completion_tokens:22}});return Response.json({id:'draft-fixture-1',choices:[{message:{content:JSON.stringify({title:'客户资料方案判断方法 1',answer:'先列出团队常用资料和来源，再用少量真实文档试走一次。',steps:[{title:'选择样本文档',text:'选三类常用资料，记录出处和最近核对日期。'},{title:'测试交接',text:'让同事独立查找一份文件并还原资料出处。'}]})}}],usage:{prompt_tokens:33,completion_tokens:44}})};
  try{
   const input={runId:'conversation-plan-0005',brandId:'brand-1',questionId:'question-1',provider:'deepseek',goal:'解释一个真实交付方法',format:'方法清单',tone:'克制专业'};
   const proposal=(await request(environment,'/api/content-conversation/suggest','POST',await authorized(environment,input))).data.proposal;assert.equal(calls,1);
-  const preview=await request(environment,'/api/content-conversation/draft-preview','POST',{brandId:'brand-1',questionId:'question-1',proposalId:proposal.id,directionId:'direction-1'});assert.equal(preview.status,200,JSON.stringify(preview.data));assert.equal(preview.data.plan.maxModelCalls,1);assert.equal(preview.data.plan.recurring,false);assert.equal(calls,1);
+  const preview=await request(environment,'/api/content-conversation/draft-preview','POST',{brandId:'brand-1',questionId:'question-1',proposalId:proposal.id,directionId:'direction-1'});assert.equal(preview.status,200,JSON.stringify(preview.data));assert.equal(preview.data.plan.maxModelCalls,1);assert.equal(preview.data.plan.draftMode,'separate');assert.equal(preview.data.plan.recurring,false);assert.equal(calls,1);
   const base={runId:'conversation-draft-0005',brandId:'brand-1',questionId:'question-1',proposalId:proposal.id,directionId:'direction-1',previewHash:preview.data.plan.previewHash};
   const unconfirmed=await request(environment,'/api/content-conversation/generate','POST',base);assert.equal(unconfirmed.status,400);assert.match(unconfirmed.data.error,/确认本次模型费用/);assert.equal(calls,1);
   const generated=await request(environment,'/api/content-conversation/generate','POST',{...base,confirmCost:true});assert.equal(generated.status,200,JSON.stringify(generated.data));assert.equal(calls,2);assert.equal(generated.data.state.contents.length,1);assert.equal(generated.data.state.contents[0].title,'客户资料方案判断方法 1');assert.deepEqual(generated.data.state.contents[0].conversation,{proposalId:proposal.id,directionId:'direction-1',previewHash:preview.data.plan.previewHash});
   const draft=generated.data.state.contents[0],writingInput=JSON.parse(payloads[1].messages[1].content);
-  assert.deepEqual(writingInput.articleContract.selection,{goal:input.goal,format:input.format,tone:input.tone});
-  assert.deepEqual(draft.writingBasis.articleContract,writingInput.articleContract);
+  assert.deepEqual(writingInput.selection,{goal:input.goal,format:input.format,tone:input.tone});
+  assert.equal(writingInput.facts,undefined);assert.equal(writingInput.brand,undefined);
+  assert.deepEqual(draft.writingBasis.articleContract.selection,writingInput.selection);
   assert.deepEqual(draft.writingBasis.articleContract.direction.outline,proposal.directions[0].outline);
   assert.equal(draft.writingBasis.articleContract.direction.reader,proposal.directions[0].reader);
-  assert.equal(writingInput.writingStrategy.mode,'selected_article');
-  assert.deepEqual(draft.writingReview.editorialContract.selection,writingInput.articleContract.selection);
+  assert.equal(draft.writingBasis.writingStrategy.mode,'selected_article');
+  assert.equal(draft.writingReview.evidenceDraft.outcome,'combined');
+  assert.match(draft.text,/通用核对建议/);
+  assert.deepEqual(draft.writingReview.editorialContract.selection,writingInput.selection);
   assert.deepEqual(draft.writingReview.editorialContract.evidenceNeed,proposal.directions[0].evidenceNeed);
   assert.equal(draft.writingReview.status,'needs_editor_review');assert.equal(draft.writingReview.automatedFactVerification,false);
   const replay=await request(environment,'/api/content-conversation/generate','POST',base);assert.equal(replay.status,200);assert.equal(replay.data.id,generated.data.id);assert.equal(calls,2);
@@ -153,7 +156,7 @@ test('draft confirmation binds the registered website without depending on snaps
   const updated=await request(environment,'/api/content-conversation/draft-preview','POST',input);assert.equal(updated.status,200,JSON.stringify(updated.data));assert.notEqual(updated.data.plan.previewHash,first.data.plan.previewHash);
   t.mock.timers.tick(1000);
   const confirmed={...input,previewHash:updated.data.plan.previewHash,confirmCost:true},generated=await request(environment,'/api/content-conversation/generate','POST',confirmed);assert.equal(generated.status,200,JSON.stringify(generated.data));assert.equal(payloads.length,2);
-  assert.equal(JSON.parse(payloads[1].messages[1].content).officialSite,'https://updated.example.com/');assert.equal(generated.data.state.contents.length,1);
+  assert.equal(JSON.parse(payloads[1].messages[1].content).officialSite,undefined);assert.equal(generated.data.state.contents.length,1);assert.equal(generated.data.state.contents[0].writingBasis.officialSite,'https://updated.example.com/');assert.equal(generated.data.state.contents[0].writingReview.evidenceDraft.outcome,'evidence_only');
   t.mock.timers.tick(1000);
   const replay=await request(environment,'/api/content-conversation/generate','POST',confirmed);assert.equal(replay.status,200,JSON.stringify(replay.data));assert.equal(replay.data.id,generated.data.id);assert.equal(payloads.length,2);
  }finally{globalThis.fetch=previousFetch}

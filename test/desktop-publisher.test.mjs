@@ -323,3 +323,20 @@ test('Douyin success requires committed original task, account, source and full-
  const r=await call('report',receipt);assert.equal(r.job.state,'submitted');assert.equal(r.job.receipt.publicVerified,false);assert.equal(r.job.receipt.verification,'creator_list_and_full_content');
  await assert.rejects(call('commit',{id:j.id,lease:j.lease,accountId:'author',sourceHash:j.sourceHash}));
 });
+
+test('SegmentFault acceptance queue commits once and requires the original article, owner and receipt',async t=>{
+ const e=setup(t,['segmentfault']),session=e.bridge.connectDesktop({brandId:'a',platform:'segmentfault'});
+ const call=(action,data)=>e.bridge.desktopRequest({sessionId:session.sessionId,action,data});
+ await call('account',identity('segmentfault'));
+ const input={sessionId:session.sessionId,brandId:'a',contentId:'c',mode:'publish',expectedAccountId:'author'};
+ const first=await e.app('enqueue',input),next=await e.app('enqueue',input);
+ assert.equal(first.status,200);assert.equal(first.data.job.id,next.data.job.id);
+ const {job}=await call('claim'),base={id:job.id,lease:job.lease,sourceHash:job.sourceHash,accountId:'author'};
+ await call('commit',base);await assert.rejects(call('commit',base));
+ const report={...base,state:'submitted',contentVerified:true,publicVerified:false,url:'https://segmentfault.com/a/1190000020142376',articleId:'1190000020142376'};
+ for(const wrong of [{accountId:'other'},{sourceHash:'other'},{url:'https://segmentfault.com/write'},{articleId:'123'},{contentVerified:false}]){
+  await assert.rejects(call('report',{...report,...wrong}));
+ }
+ const saved=await call('report',report);assert.equal(saved.job.state,'submitted');assert.equal(saved.job.receipt.url,report.url);
+ e.restart();assert.equal((await e.app('enqueue',input)).data.job.id,job.id);assert.equal(e.db.prepare('SELECT count(*) n FROM publisher_jobs').get().n,1);
+});

@@ -15,11 +15,22 @@ export function juejinPage({action,article,accountId,profileEvidence}){
    if(p.origin!==u.origin||p.search||p.hash||!id||!name)fail('尚未取得本人掘金账号，请先登录');
    return {accountId:id,name,profileUrl:p.href};
   }
-  // The current public article address has not yet been verified from a real
-  // account. Never infer it from an editor, a toast, or a creator dashboard.
-  // Returning null makes the runtime retain the original task for read-only
-  // review instead of attempting another submission.
-  if(action==='receipt')return null;
+  if(action==='receipt'){
+   const articleId=!u.search&&u.pathname.match(/^\/post\/([1-9]\d{0,29})$/)?.[1];
+   if(!articleId||!article?.html||!article.title||!/^\d+$/.test(accountId||''))return null;
+   const root=one('article.article','公开文章');
+   const field=selector=>{const matches=[...root.querySelectorAll(selector)].filter(visible);return matches.length===1?matches[0]:null};
+   const title=field('h1.article-title'),author=field('.author-info-block .author-name a.username[href]'),body=field('.article-viewer.markdown-body');
+   if(!title||!author||!body||author.href!==u.origin+'/user/'+accountId+'/posts')return null;
+   const source=new DOMParser().parseFromString(article.html,'text/html').body;
+   const media='img,video,audio,iframe,object,embed,svg,canvas';
+   if(source.querySelector(media)||body.querySelector(media))return null;
+   const norm=value=>value.replace(/\s+/g,' ').trim();
+   for(const el of source.querySelectorAll('p,div,h1,h2,h3,h4,h5,h6,li,ul,ol,pre,blockquote,br,tr,td'))el.append(' ');
+   const expected=norm(source.textContent+(article.ai?' 本文包含 AI 辅助生成或整理的内容。':''));
+   if(!expected||norm(title.innerText)!==norm(article.title)||norm(body.innerText)!==expected)return null;
+   return {state:'submitted',articleId,url:u.href,accountId,contentVerified:true,publicVerified:false};
+  }
   const id=u.pathname.match(/^\/editor\/drafts\/([1-9]\d{0,29})$/)?.[1];
   if(!(id&&!u.search||u.pathname==='/editor/drafts/new'&&u.search==='?v=2'))fail('不是受支持的掘金编辑器');
   const me=profileEvidence;

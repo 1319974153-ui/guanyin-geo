@@ -11,7 +11,7 @@ export const PLATFORMS = {
  csdn:{name:'CSDN',draftProtocol:3,editor:'https://mp.csdn.net/mp_blog/creation/editor',hosts:['https://mp.csdn.net/*'],titleMax:100,textMax:100000,images:0,tagsRequired:true},
  toutiao:{name:'头条',draftProtocol:2,editor:'https://mp.toutiao.com/profile_v4/graphic/publish',hosts:['https://mp.toutiao.com/*'],titleMax:30,textMax:100000,images:0},
  zhihu:{name:'知乎',draftProtocol:1,editor:'https://zhuanlan.zhihu.com/write',hosts:['https://zhuanlan.zhihu.com/*','https://www.zhihu.com/*'],titleMax:100,textMax:100000,images:0},
- segmentfault:{name:'思否',editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:false},
+ segmentfault:{name:'思否',guardedPublishAdapter:true,editor:'https://segmentfault.com/write',hosts:['https://segmentfault.com/*'],titleMax:100,textMax:100000,images:0,desktopOnly:true,publishSupported:true},
  // The guarded visible-page adapter is present, but public dispatch stays
  // disabled until the first real account validates its submit and public-page
  // readback.  `guardedPublishAdapter` is implementation metadata, not a grant.
@@ -99,12 +99,14 @@ export function editorEvidence(platform,url){
 // Accept only observed platform-owned article URLs, never a generic dashboard/success toast.
 export function receiptEvidence(platform,url,articleId){
  try{const u=new URL(url);if(u.username||u.password||u.hash)return false;let m;
+ if(platform==='juejin')return !!(u.origin==='https://juejin.cn'&&!u.search&&(m=u.pathname.match(/^\/post\/([1-9]\d{0,29})$/))&&m[1]===String(articleId));
  if(platform==='aliyun')return u.origin==='https://developer.aliyun.com'&&!u.search&&(m=u.pathname.match(/^\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='51cto')return u.origin==='https://blog.51cto.com'&&!u.search&&(m=u.pathname.match(/^\/blogger\/success\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='tencentcloud')return u.origin==='https://cloud.tencent.com'&&!u.search&&(m=u.pathname.match(/^\/developer\/article\/([1-9]\d{0,19})$/))&&m[1]===String(articleId);
  if(platform==='csdn')return u.origin==='https://mp.csdn.net'&&!u.search&&(m=u.pathname.match(/^\/mp_blog\/creation\/success\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='toutiao')return ['https://www.toutiao.com','https://toutiao.com'].includes(u.origin)&&(m=u.pathname.match(/^\/article\/(\d+)\/?$/))&&m[1]===String(articleId);
  if(platform==='zhihu')return u.origin==='https://zhuanlan.zhihu.com'&&(m=u.pathname.match(/^\/p\/(\d+)\/?$/))&&m[1]===String(articleId);
+ if(platform==='segmentfault')return u.href==='https://segmentfault.com/a/'+articleId&&/^[1-9]\d{0,29}$/.test(String(articleId));
  if(platform==='weibo'){
   if(!['https://weibo.com','https://www.weibo.com'].includes(u.origin)||u.pathname!=='/ttarticle/p/show')return false;
   const ids=u.searchParams.getAll('id'),modes=u.searchParams.getAll('mod');
@@ -146,6 +148,10 @@ export function preparationEvidence(platform,value){
 export function supportsDraftProtocol(platform,version){return Number.isInteger(version)&&version>0&&PLATFORMS[platform]?.draftProtocol===version;}
 
 // Draft destinations are editor URLs, never public article receipts.
+// Activation is separately gated by the account's accepted publish capability.
+export function canPublishOriginalDraft(platform){
+ return ['csdn','zhihu','tencentcloud','51cto','aliyun','juejin'].includes(platform);
+}
 export function draftEvidence(platform,value){
  try{
   if(!value||value.savedVerified!==true||value.contentVerified!==true)return null;

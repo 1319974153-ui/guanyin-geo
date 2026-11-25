@@ -26,13 +26,13 @@ function context() { return new URLSearchParams(location.hash.split('?')[1] || '
 function routeLink(target,values={},inherit=true) { values=inherit?analyticsNavigationValues(target,values):values;const p=new URLSearchParams();for(const [k,v] of Object.entries(values))if(v)p.set(k,v);return '#'+target+(p.size?'?'+p:''); }
 function go(target,values={},inherit=true) { const next=routeLink(target,values,inherit); if(location.hash===next)render();else location.hash=next; }
 function replaceContext(values) { const p=context();for(const [k,v] of Object.entries(values)){if(v)p.set(k,v);else p.delete(k)}history.replaceState(null,'',routeLink(route,Object.fromEntries(p),false)); }
-function pageName(id) {return ({today:'工作台',inbox:'文章与发布',results:'GEO 诊断','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录',monitor:'监测问题',content:'内容优化',publish:'发布与复测',reports:'效果报告',attribution:'转化归因',brands:'品牌管理',setup:'建立公开资料',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
+function pageName(id) {return ({today:'工作台',inbox:'文章创作',results:'品牌诊断','delivery-hub':'交付与连接',demand:'需求热度数据',dso:'DSO 内容实验室',overview:'品牌概览',answers:'回答记录','quick-search':'快速搜索','query-results':'查询结果','article-tracking':'文章引用追踪',monitor:'品牌监测',content:'内容优化',publish:'发布中心',reports:'诊断报告',attribution:'转化归因',brands:'品牌管理',setup:'建立公开资料',settings:'设置与完整功能',guide:'GEO 执行指南',tasks:'任务与批量执行',operations:'告警与待办'})[id]||C.nav.flatMap(x=>x[1]).find(x=>x[0]===id)?.[1]||'工作台';}
 function renderNavigation() {
   if(state.viewMode==='simple'){renderSimpleNavigation();return;}
   const client=state.viewMode==='client';
-  const groups=client?[['客户交付',[['overview','品牌概览','dashboard'],['answers','回答记录','file'],['knowledge','资料确认','book'],['content','内容确认','edit'],['reports','效果报告','file']]]]:[
-    ['监测与分析',[['overview','品牌概览','dashboard'],['monitor','监测问题','radar'],['answers','回答记录','file'],['insights','品牌洞察','chart'],['sources','引用来源','link']]],
-    ['内容与交付',[['knowledge','品牌资料','book'],['content','内容管理','edit'],['publish','发布与复测','send'],['audit','网站诊断','globe'],['reports','效果报告','file']]],
+  const groups=client?[['客户交付',[['overview','品牌概览','dashboard'],['quick-search','快速搜索','radar'],['query-results','查询结果','radar'],['answers','回答记录','file'],['knowledge','资料确认','book'],['content','内容确认','edit'],['reports','效果报告','file']]]]:[
+    ['监测与分析',[['quick-search','快速搜索','radar'],['overview','品牌概览','dashboard'],['results','品牌诊断','chart'],['monitor','品牌监测','layers'],['query-results','查询结果','radar'],['answers','回答记录','file'],['insights','品牌洞察','chart'],['sources','引用来源','link'],['article-tracking','文章引用追踪','link']]],
+    ['内容与交付',[['knowledge','品牌资料','book'],['content','内容管理','edit'],['publish','发布中心','send'],['audit','网站诊断','globe'],['reports','效果报告','file']]],
     ['运营',[['delivery-hub','交付与连接','link'],['tasks','任务中心','layers'],['operations','告警与待办','radar']]]
   ];
   const section=route==='demand'?'monitor':route==='dso'?'content':route==='attribution'?'reports':route;
@@ -41,12 +41,21 @@ function renderNavigation() {
   document.body.dataset.view=state.viewMode;
 }
 function sectionNavigation() {
-  if(state.viewMode==='simple')return ['today','inbox','results','setup'].includes(route)?'':'<p><a href="#today">← 返回工作台</a></p>';
+  const contentLinks=[['inbox','文章创作'],['publish','发布中心'],['article-tracking','文章引用追踪']];
   let links=[];
+  if(['monitor','sources','article-tracking'].includes(route))return '';
+  if(contentLinks.some(([id])=>route===id))links=contentLinks;
+  if(state.viewMode==='simple'){
+    if(!links.length)return ['today','setup','quick-search','query-results','results','reports'].includes(route)?'':'<p><a href="#today">← 返回工作台</a></p>';
+    return moduleNavigation(links);
+  }
   if(['monitor','demand','tasks','operations'].includes(route)) links=[['monitor','监测问题'],['answers','回答记录'],['demand','需求数据'],['tasks','任务与批量执行'],['operations','告警与待办'],['insights','品牌与竞品'],['sources','引用来源'],['audit','网站诊断']];
   if(['knowledge','content','dso'].includes(route)&&state.viewMode!=='client')links=[['content','内容工作台'],['knowledge','品牌资料'],['dso','DSO 内容实验室']];
   if(['reports','attribution'].includes(route))links=[['reports','效果报告'],['attribution','转化归因']];
   if(['settings','team','integrations','roadmap'].includes(route))links=[['settings','设置'],['team','团队与权限'],['integrations','服务连接'],['roadmap','完整功能与实施']];
+  return moduleNavigation(links);
+}
+function moduleNavigation(links) {
   return links.length?`<nav class="section-nav" aria-label="模块导航">${links.map(([id,label])=>`<a href="#${id}" ${route===id?'aria-current="page"':''}>${label}</a>`).join('')}</nav>`:'';
 }
 function decorateExperience() {

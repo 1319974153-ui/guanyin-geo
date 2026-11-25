@@ -201,7 +201,50 @@ export function makeReport(state,brandId,input={},clock=new Date()){
  return reportDisclosureView({schema:1,decision:reportDecision(answers,brand,options,diagnosis,credibility),opportunities:questionOpportunities(state,brand,questions,answers,aggregate,hasName,clock),credibilityPlan:credibility,productScope:{id:options.productId,label:productLabel(brand,options.productId),product:productFor(brand,options.productId)?{id:options.productId,name:productLabel(brand,options.productId),version:productFor(brand,options.productId).version}:null},productCoverage,created:clock.toISOString(),brand:{id:brand.id,name:brand.name,site:brand.site||'',aliases:aliases(brand)},options,previousOptions:priorOptions,metrics:m,previousMetrics:aggregate(prior,brand),comparison:comparePeriods(answers,prior,brand),coverage:{questions:questions.length,sampled:questions.filter(q=>ids.has(q.id)).length,missing:missing.map(q=>({id:q.id,text:q.text,version:q.version}))},topics,intents,competitors,competitorSemantics:competitorSummary(state,brandId,answers),sources,sourceAnalysis:analyzeSources(sources,answers,brand,state.sourceLabels||[]),answerEvidence:(state.answerEvidence||[]).filter(e=>e.brandId===brandId&&[...answers,...prior].some(a=>a.id===e.answerId)).map(e=>Object.fromEntries(['id','answerId','answerHash','filename','bytes','fileHash','contextHash','created','capturedAt','sourceUrl','hasPublicProcess'].map(k=>[k,e[k]]))),trend,diagnosis,answers:answers.map(a=>({...a,questionText:questionText(a,questions)})),previousAnswers:prior.map(a=>({...a,questionText:questionText(a,questions)})),priorAnswerIds:prior.map(a=>a.id),method:'试用演练记录不参与统计。指标基于已取得的回答，不代表全平台曝光。提及为当前别名的文本匹配，需核对同名；首段排除独立 Markdown 标题。推荐与引用只统计明确已标注记录；官网按去 www 后的精确域名匹配。日期按 UTC，主题/意图按当前问题库分组。产品归属以回答采集快照为准，历史未记录不推定；产品线表的提及指标仍是品牌提及，不是产品名称提及。'},state);
 }
 const pct=(n,d)=>d?(n/d*100).toFixed(1)+'%':'—';
-export function reportMarkdown(r){r=reportDisclosureView(r);return (r.reportPrivacy?'>'+r.reportPrivacy.notice+'\n\n':'')+baseReportMarkdown(r)+credibilityMarkdown(r.credibilityPlan)+competitorMarkdown(r.competitorSemantics)+opportunityMarkdown(r.opportunities)+answerEvidenceMarkdown(r.answerEvidence)+sourceMarkdown(r.sourceAnalysis)+attributionMarkdown(r.attribution)}
+// Compare the registered names on exactly the saved, filtered answers in this report.
+// Each (brand, answer) pair counts once, even when several aliases match.
+export function competitorVisibility(report){
+ const entities=report.competitors||[];
+ if(entities.length<2)return null;
+ const answers=report.answers||[];
+ const hits=new Map(answers.map(answer=>[answer.id,new Set()]));
+ const rows=entities.map((entity,index)=>{
+  let mentions=0;
+  for(const evidence of entity.evidence||[]){
+   const brands=hits.get(evidence.answerId);
+   if(!brands||brands.has(index))continue;
+   brands.add(index);
+   mentions++;
+  }
+  return {name:entity.name,mentions};
+ });
+ const platforms=new Map(),gaps=[];
+ for(const answer of answers){
+  const platform=answer.platform||'平台未记录';
+  if(!platforms.has(platform))platforms.set(platform,{name:platform,answers:0,brandMentions:0,totalMentions:0});
+  const group=platforms.get(platform),brands=hits.get(answer.id);
+  group.answers++;
+  group.totalMentions+=brands.size;
+  if(brands.has(0))group.brandMentions++;
+  else if(brands.size)gaps.push({answerId:answer.id,platform,question:questionText(answer),competitors:[...brands].map(index=>entities[index].name)});
+ }
+ return {sampleSize:answers.length,totalMentions:rows.reduce((sum,row)=>sum+row.mentions,0),rows,platforms:[...platforms.values()],gaps};
+}
+
+function visibilityMarkdown(report){
+ const comparison=competitorVisibility(report);
+ if(!comparison)return '';
+ const cell=value=>String(value).replace(/[\r\n]+/g,' ').replace(/\|/g,'／');
+ const lines=['','## 品牌提及份额（SOV）','','按登记名称和别名匹配。同一品牌在一条回答里计一次。份额分母是本品牌和当前竞品的匹配次数之和。','','| 品牌 | 匹配回答数 | 提及份额 |','|---|---:|---:|'];
+ for(const row of comparison.rows)lines.push(`| ${cell(row.name)} | ${row.mentions} | ${pct(row.mentions,comparison.totalMentions)} |`);
+ lines.push('','| 平台 | 有效回答 | 本品牌匹配 / 所有品牌匹配 | 本品牌提及份额 |','|---|---:|---:|---:|');
+ for(const group of comparison.platforms)lines.push(`| ${cell(group.name)} | ${group.answers} | ${group.brandMentions}/${group.totalMentions} | ${pct(group.brandMentions,group.totalMentions)} |`);
+ lines.push('','### 匹配到竞品、未匹配到本品牌的回答','');
+ if(!comparison.gaps.length)lines.push('当前范围没有此类回答。');
+ for(const row of comparison.gaps)lines.push(`- ${cell(row.platform)} · ${cell(row.question)} · ${row.competitors.map(cell).join('、')} · 回答 ${cell(row.answerId)}`);
+ return lines.join('\n')+'\n';
+}
+export function reportMarkdown(r){r=reportDisclosureView(r);return (r.reportPrivacy?'>'+r.reportPrivacy.notice+'\n\n':'')+baseReportMarkdown(r)+credibilityMarkdown(r.credibilityPlan)+competitorMarkdown(r.competitorSemantics)+visibilityMarkdown(r)+opportunityMarkdown(r.opportunities)+answerEvidenceMarkdown(r.answerEvidence)+sourceMarkdown(r.sourceAnalysis)+attributionMarkdown(r.attribution)}
 function baseReportMarkdown(r){const m=r.metrics;return `# ${r.brand.name} · GEO 证据报告\n\n生成时间：${r.created}\n窗口：${r.options.from||'全部已保存时间'} 至 ${r.options.to}（UTC）\n产品范围：${r.productScope?.label||'全部产品线'}\n数据类型：${r.options.surface}；平台：${r.options.platform||'全部'}；入口：${r.options.entry||'全部'}；模式：${r.options.mode||'全部'}；问题版本：${r.options.version}\n\n${decisionMarkdown(r.decision)}\n## 本期指标\n|指标|结果|分子/分母|\n|---|---|---|\n|品牌提及|${pct(m.mention,m.n)}|${m.mention}/${m.n}|\n|首段提及|${pct(m.first,m.n)}|${m.first}/${m.n}|\n|适用推荐|${pct(m.rec,m.recommendationN)}|${m.rec}/${m.recommendationN}|\n|官网引用|${pct(m.official,m.citationN)}|${m.official}/${m.citationN}|\n\n${r.method}\n\n## 前期比较\n${r.previousOptions?r.previousOptions.from+' 至 '+r.previousOptions.to:'全量窗口不计算前期'}；匹配 ${r.comparison.groups} 组，本期 ${r.comparison.currentN} 条 / 前期 ${r.comparison.previousN} 条。\n提及变化：${r.comparison.mention.points===null?'不可比较':r.comparison.mention.points.toFixed(1)+' 个百分点'}\n${r.comparison.method}\n\n## 产品线覆盖\n${(r.productCoverage||[]).map(p=>'- '+p.name+'：'+p.questions+' 个当前问题；'+p.sampled+' 个有本期样本；'+p.metrics.n+' 条回答；品牌提及 '+p.metrics.mention+'/'+p.metrics.n+'；'+p.contents+' 篇已存稿件').join('\n')||'旧版报告未保存产品线口径。'}\n\n## 诊断与下一步\n${r.diagnosis.map(d=>'- '+d.title+'：'+d.detail+'（回答 ID：'+(d.answerIds.join('、')||'无')+'）').join('\n')||'当前没有规则触发项；不代表 GEO 效果已经达标。'}\n\n## 引用页面\n${r.sources.map(s=>'- '+s.url+'；'+s.answerIds.length+' 条回答，已核对 '+s.verifiedAnswerIds.length+' 条；首次 '+s.first+'，最近 '+s.last).join('\n')||'当前没有已记录的引用页面。'}\n\n## 原始回答\n${r.answers.map(a=>'### '+a.platform+' · '+a.date+'\n\n问题：'+a.questionText+'\n\n版本：'+(a.questionVersion||'未记录')+'；产品归属：'+(a.productSnapshot?.name||(productScope(a)===BRAND_SCOPE?'品牌通用':'归属未记录'))+'；入口：'+entryOf(a)+'；模式：'+(a.mode||'未记录')+'；地区：'+(a.region||'未记录')+'；语言：'+(a.language||'未记录')+'；模型：'+(a.model||'未记录')+'；记录 ID：'+a.id+'；回答来源：'+(a.sourceUrl||'未记录')+'\n\n'+a.text+'\n\n引用：'+(a.citations||[]).map(c=>c.url).join('；')).join('\n\n')}\n\n## 前期原始回答\n${(r.previousAnswers||[]).map(a=>'### '+a.platform+' · '+a.date+'\n\n问题：'+a.questionText+'；版本：'+(a.questionVersion||'未记录')+'；记录 ID：'+a.id+'\n\n'+a.text+'\n\n引用：'+(a.citations||[]).map(c=>c.url).join('；')).join('\n\n')||'本期没有可用前期样本。'}\n`;}
 
 function answerEvidenceMarkdown(records){return '\n## 回答附件与快照索引\n\n'+(records?.length?records.map(e=>'- 证据 '+e.id+'；回答 '+e.answerId+'；'+(e.filename||'公开搜索过程')+'；采集 '+e.capturedAt+'；保存 '+e.created+'；原件 SHA-256 '+(e.fileHash||'无附件')+'；快照 SHA-256 '+e.contextHash).join('\n'):'本报告没有保存附件索引。')+'\n\n索引固定在报告生成时；原件需在获授权工作区查看，或通过完整离线 ZIP 备份携带。附件存在不证明内容或效果已核实。\n';}

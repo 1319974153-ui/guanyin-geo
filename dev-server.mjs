@@ -1,3 +1,5 @@
+import {liveSearchStore} from './local/live-search.mjs';
+import {localConsumerBrowser} from './local/live-browser.mjs';
 import {articleMediaStore} from './local/article-media.mjs';
 import {verifyTencentPublic} from './local/tencentcloud-public.mjs';
 import {staticSiteBridge} from './local/static-site-bridge.mjs';
@@ -32,13 +34,14 @@ const runner=localBackgroundRunner(root,async()=>{
  if(!response.ok)throw new Error('Background tick failed');
 });
 env.LOCAL_RUNTIME=runner;
+env.LOCAL_CONSUMER_SEARCH=liveSearchStore(db,localConsumerBrowser(root));
 const publishScheduler=localPublishScheduler({root,env,tick:clock=>tickLocalPublishSchedules(env,clock)});
 env.LOCAL_PUBLISH_SCHEDULER=publishScheduler;
 env.STATIC_SITE=staticSiteBridge(root);
 const publisherDB=new DatabaseSync(path.join(root,'publisher.sqlite'));fs.chmodSync(path.join(root,'publisher.sqlite'),0o600);
 const wechatHandoffDB=new DatabaseSync(path.join(root,'wechat-handoff.sqlite'));fs.chmodSync(path.join(root,'wechat-handoff.sqlite'),0o600);
 const publicProofPending=new Map();let publicProofSequence=0;
-function desktopPublicProof(job){return new Promise(resolve=>{const id=++publicProofSequence;const timer=setTimeout(()=>{publicProofPending.delete(id);resolve(false)},20000);publicProofPending.set(id,{resolve,timer});process.parentPort.postMessage({publicProofId:id,job});});}
+function desktopPublicProof(job){return new Promise(resolve=>{const id=++publicProofSequence;const timer=setTimeout(()=>{publicProofPending.delete(id);resolve(false)},job.platform==='aliyun'?65000:20000);publicProofPending.set(id,{resolve,timer});process.parentPort.postMessage({publicProofId:id,job});});}
 const articleMedia=articleMediaStore({db,root:path.join(root,'files','article-media'),origin:'http://127.0.0.1:'+port,readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});
 env.LOCAL_ARTICLE_MEDIA=articleMedia;
 const publisher=publisherBridge({validateArticleMedia:(brandId,refs)=>articleMedia.validateRefs(brandId,refs),verifyPublic:process.parentPort?desktopPublicProof:verifyTencentPublic,db:publisherDB,origin:'http://127.0.0.1:'+port,experimentalPublish:process.env.GEO_SOCIAL_PUBLISH_EXPERIMENTAL==='1',publishPlatforms:(process.env.GEO_SOCIAL_PUBLISH_PLATFORMS||'').split(',').filter(Boolean),readState:()=>{const row=db.prepare('SELECT body FROM workspaces WHERE owner=?').get('local-owner');return row?JSON.parse(row.body):null}});
@@ -48,6 +51,7 @@ let reviewTimer=null,desktopActivated=false;
 async function activateDesktopRunner(){if(desktopActivated)return;await publishScheduler.start();desktopActivated=true;runner.start();reviewTimer=setInterval(()=>{try{publisher.reconcileSubmitted()}catch{}},60000);reviewTimer.unref();}
 // Only a desktop utility-process parent can reach this channel. HTTP cannot call it.
 if(process.parentPort)process.parentPort.on('message',async event=>{
+ if(event.data?.consumerReply)return;
  if(event.data?.publicProofId&&publicProofPending.has(event.data.publicProofId)){const p=publicProofPending.get(event.data.publicProofId);publicProofPending.delete(event.data.publicProofId);clearTimeout(p.timer);p.resolve(event.data.verified===true);return}
  const m=event.data;if(!m||!Number.isSafeInteger(m.id))return;
  try{let result;

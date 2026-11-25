@@ -1,5 +1,6 @@
+import {desktopPublicReceiptPlatforms} from '../src/dispatch-watch.js';
 import {articleMediaSnapshot,assertArticleMediaDelivery} from '../src/article-media-core.js';
-import {PLATFORMS,DESKTOP_PLATFORM_IDS,platformConfig,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
+import {PLATFORMS,DESKTOP_PLATFORM_IDS,platformConfig,canPublishOriginalDraft,editorEvidence,receiptEvidence,draftEvidence,preparationEditorUrl,supportsDraftProtocol,fiftyoneMediaProof,fiftyonePublicUrl} from '../browser-extension/platforms.js';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
 import {formatArticle} from '../src/article-format.js';
 import {factUsable,contentDisclosureConflict} from '../src/knowledge-core.js';
@@ -43,10 +44,10 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
  // receipt is never promoted by a renderer/extension assertion.
  const checking=new Set();
  function checkPublic(j){
-  if(!verifyPublic||!['tencentcloud','51cto','csdn','zhihu','douyin'].includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v3'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<Math.min(3600000,60000*2**Math.min(Math.max(0,(j.publicCheckAttempts||0)-1),6))))return;
+  if(!verifyPublic||!desktopPublicReceiptPlatforms.includes(j.platform)||j.state!=='submitted'||!j.receipt||checking.has(j.id)||(j.publicCheckVersion==='rendered-v3'&&j.publicCheckedAt&&clock()-j.publicCheckedAt<Math.min(3600000,60000*2**Math.min(Math.max(0,(j.publicCheckAttempts||0)-1),6))))return;
   checking.add(j.id);if(j.publicCheckVersion!=='rendered-v3')j.publicCheckAttempts=0;j.publicCheckVersion='rendered-v3';j.publicCheckAttempts=(j.publicCheckAttempts||0)+1;j.publicCheckedAt=clock();save('publisher_jobs',j);
   Promise.resolve().then(()=>verifyPublic(structuredClone(j))).then(ok=>{
-   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url&&latest.accountId===j.accountId){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:['csdn','zhihu'].includes(j.platform)?{publicUrl:articlePublicUrl(j)}:{})};save('publisher_jobs',latest)}
+   const latest=getJob(j.id);if(ok===true&&latest.state==='submitted'&&latest.sourceHash===j.sourceHash&&latest.receipt?.url===j.receipt.url&&latest.accountId===j.accountId){latest.state='published';latest.error='';latest.receipt={...latest.receipt,publicVerified:true,publicCheckedAt:clock(),verification:'anonymous_title_and_full_body',...(j.platform==='51cto'?{publicUrl:fiftyonePublicUrl(j)}:['csdn','zhihu','aliyun','juejin'].includes(j.platform)?{publicUrl:articlePublicUrl(j)}:{})};save('publisher_jobs',latest)}
   }).catch(()=>{}).finally(()=>checking.delete(j.id));
  }
  let pairing=null;
@@ -157,7 +158,7 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
       const prepared=related.filter(j=>j.mode==='prepare'&&j.state==='prepared'&&j.preparation&&!j.attempted);
       if(prepared.length===1){const j=prepared[0];j.mode='draft';j.recoverPreparation=true;j.state='queued';j.sessionId=s.id;j.accountRevision=s.account.revision;j.expires=clock()+600000;j.error='';delete j.lease;checkCurrent(j,s);save('publisher_jobs',j);return respond({job:publicJob(j),promoted:true});}
      }
-     if(b.mode==='publish'&&['csdn','zhihu','tencentcloud','51cto','aliyun'].includes(platform)){
+     if(b.mode==='publish'&&canPublishOriginalDraft(platform)){
       const published=related.find(j=>j.mode==='publish'&&j.originalDraft);
       if(published)return respond({job:publicJob(published),existing:true});
       const drafts=related.filter(j=>j.mode==='draft'&&j.state==='draft'&&j.receipt?.savedVerified===true&&!j.attempted);
@@ -291,8 +292,9 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
     else if(b.state==='submitted'&&j.attempted){
      let url;try{url=new URL(b.url)}catch{fail(400,'缺少实际回执网址')}
      if(!receiptEvidence(j.platform||'csdn',url.href,b.articleId))fail(400,'回执不是此平台的实际文章网址');
+     if(['juejin','segmentfault'].includes(j.platform)&&(b.contentVerified!==true||b.publicVerified!==false||b.accountId!==j.accountId||b.sourceHash!==j.sourceHash||session.account?.accountId!==j.accountId))fail(400,'平台回执与原稿或作者不匹配');
      if(j.platform==='douyin'&&(b.verification!=='creator_list_and_full_content'||b.contentVerified!==true||b.accountId!==j.accountId||b.sourceHash!==j.sourceHash||session.account?.accountId!==j.accountId))fail(400,'抖音原稿列表与完整正文证据不匹配');
-     j.state='submitted';j.error='';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:j.platform==='douyin'?'creator_list_and_full_content':'extension_success_page',publicVerified:false,...(j.platform==='aliyun'?{reviewState:['reviewing','public_unverified'].includes(b.reviewState)?b.reviewState:'public_unverified'}:{})};
+     j.state='submitted';j.error='';j.receipt={url:url.href,articleId:String(b.articleId),observedAt:clock(),verification:j.platform==='douyin'?'creator_list_and_full_content':['juejin','segmentfault'].includes(j.platform)?'original_page_account_and_full_content':'extension_success_page',publicVerified:false,...(j.platform==='aliyun'?{reviewState:['reviewing','public_unverified'].includes(b.reviewState)?b.reviewState:'public_unverified'}:{})};
     }else if(b.state==='needs_attention'||b.state==='uncertain'){j.state=j.attempted?'uncertain':'needs_attention';if(b.editorRetained===true)j.editorRetained=true;j.error=String(b.error||'请在平台检查当前页面').slice(0,300)}else fail(400,'不支持此回执状态');
     save('publisher_jobs',j);return respond({job:publicJob(j)});
    }
@@ -326,5 +328,5 @@ export function publisherBridge({db,readState,origin,clock=Date.now,experimental
   const response=await handleRequest(new Request(origin+'/bridge/publisher/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...data,instance})}),s);
   const result=await response.json();if(!response.ok)fail(response.status,result.error);return result;
  }
- return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(['tencentcloud','51cto','csdn','zhihu','douyin'].includes(j.platform)&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
+ return {handle:req=>handleRequest(req),invalidate,connectDesktop,desktopConnections,desktopRequest,reconcileSubmitted:()=>{for(const j of jobs())if(desktopPublicReceiptPlatforms.includes(j.platform)&&state().brands.some(b=>b.id===j.brandId&&!b.demo))checkPublic(j)}};
 }

@@ -55,8 +55,8 @@ export function wechatPersonalPage(command){
   const style=globalThis.getComputedStyle?.(node);
   return style?.display!=='none'&&style?.visibility!=='hidden';
  };
- const inEditor=node=>!!node?.closest?.('[contenteditable="true"],[contenteditable="plaintext-only"],iframe,.rich_media_content,.ProseMirror,.tiptap');
- const notices=()=>all('[role="alert"],[role="status"],[role="dialog"],[aria-live],.weui-toast,.weui-dialog,.weui-tips,.weui-msg,[class*="toast"],[class*="Toast"],[class*="dialog"],[class*="Dialog"],[class*="message"],[class*="Message"],[class*="status"],[class*="Status"]').filter(node=>visible(node)&&!inEditor(node));
+ const inEditor=node=>!!node?.closest?.('[contenteditable="true"],[contenteditable="plaintext-only"],.rich_media_content,.ProseMirror,.tiptap');
+ const notices=()=>all('[role="alert"],[role="status"],[role="dialog"],[aria-live],.weui-toast,.weui-dialog,.weui-tips,.weui-msg,.weui-msg__title,.weui-desktop-msg__title,[class*="toast"],[class*="Toast"],[class*="dialog"],[class*="Dialog"],[class*="message"],[class*="Message"],[class*="status"],[class*="Status"]').filter(node=>visible(node)&&!inEditor(node));
  const exactVisible=nodes=>{
   const visibleNodes=nodes.filter(visible);
   // Status and controls often expose both a wrapper and a child. Keep the
@@ -72,19 +72,45 @@ export function wechatPersonalPage(command){
  const plainHtml=value=>String(value||'').replace(/<(?:br\s*\/?>|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\s+/g,' ').trim();
  const state=()=>{
   if(verificationControl()||notices().some(node=>['拖动滑块','验证码','请使用微信扫码','扫码登录','安全验证'].some(word=>text(node).includes(word))))return {state:'verification_required',message:'公众号要求本人完成扫码、短信或安全验证'};
-  if(!location.hostname.endsWith('weixin.qq.com'))return {state:'blocked',message:'页面已离开公众号官方域名'};
+  if(location.hostname!=='mp.weixin.qq.com')return {state:'blocked',message:'页面已离开公众号官方域名'};
   return null;
  };
  const blocked=state();if(blocked)return blocked;
  // A stale toast on the dashboard must never close a newly created task. The
  // terminal state is only reachable after the durable no-repeat marker was
  // written by the desktop process, and from one exact visible success notice.
- const confirmed=command.requested===true&&(command.mode==='draft'
+ const titleInputs=()=>exactVisible(all('input,textarea').filter(node=>/标题|title/i.test([node.placeholder,node.getAttribute?.('aria-label'),node.name].filter(Boolean).join(' '))));
+ // A visible media preview can be an iframe too. Only edit a frame
+ // when its same-origin document explicitly exposes an editable body.
+ const editors=()=>exactVisible(all('[contenteditable="true"],[contenteditable="plaintext-only"],iframe')).flatMap(node=>{
+  if(node.tagName!=='IFRAME')return [node];
+  try{
+   const doc=node.contentDocument;
+   return doc?.body&&(doc.body.isContentEditable||doc.designMode?.toLowerCase()==='on')?[doc.body]:[];
+  }catch{return []}
+ });
+ const setValue=(node,value)=>{if(node instanceof HTMLTextAreaElement||node instanceof HTMLInputElement){const proto=node instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(node,value)}else node.innerHTML=value;node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:value}));node.dispatchEvent(new Event('change',{bubbles:true}));};
+ const titleCandidates=titleInputs(),bodyCandidates=editors(),input=titleCandidates.length===1?titleCandidates[0]:null,body=bodyCandidates.length===1?bodyCandidates[0]:null;
+ const confirmed=(command.mode==='draft'
   ?uniqueNotice(['草稿保存成功','已保存草稿','保存成功'])
   :uniqueNotice(['发表成功','发布成功','已群发']));
- if(confirmed)return command.mode==='draft'
-  ?{state:'draft_saved',message:'公众号页面已确认草稿保存；请以公众号草稿箱为准'}
-  :{state:'publish_submitted',message:'公众号页面已确认发表提交；公开结果仍以公众号后台为准'};
+ if(confirmed&&!command.requested)return {state:'waiting_editor',message:'平台仍显示上一次操作的提示，等待提示消失后继续原稿'};
+ if(confirmed&&command.requested){
+  const card=confirmed.closest?.('[role="dialog"],.weui-msg,.weui-dialog')||confirmed;
+  const editorBody=body;
+  const matchingEditor=input?.value===command.title&&editorBody&&plainHtml(editorBody.innerText||editorBody.textContent||'')===plainHtml(command.html);
+  const matchingLinks=Array.from(card.querySelectorAll?.('a[href]')||[]).filter(a=>visible(a)&&!inEditor(a)&&text(a)===command.title);
+  if(!matchingEditor&&matchingLinks.length!==1)return {state:'waiting_receipt',message:'已见平台提示，正在核对是否对应本篇稿件'};
+  const receipt={notice:text(confirmed)};
+  if(command.mode==='publish'){
+   // A result card must identify the reviewed title and contain one public
+   // permalink. Never carry private dashboard parameters into a receipt.
+   if(matchingLinks.length===1){
+    try{const u=new URL(matchingLinks[0].href);if(u.origin==='https://mp.weixin.qq.com'&&!u.username&&!u.password&&!u.search&&!u.hash&&/^\/s\/[\w-]{6,128}$/.test(u.pathname))receipt.url=u.href}catch{}
+   }
+  }
+  return {state:command.mode==='draft'?'draft_saved':'publish_submitted',message:command.mode==='draft'?'公众号页面已确认草稿保存；请以公众号草稿箱为准':'公众号页面已确认发表提交；公开结果仍以公众号后台为准',receipt};
+ }
  // Recovery is strictly observational: never reopen or refill an editor after
  // a durable request marker, even if the platform navigated to its dashboard.
  if(command.requested)return {state:'waiting_receipt',message:'已请求平台操作，仅核对原页面反馈；不会新建或重复发送'};
@@ -93,23 +119,19 @@ export function wechatPersonalPage(command){
   const candidates=exactVisible(all('button,a,[role="button"]').filter(node=>labels.includes(text(node))&&!node.closest?.('[aria-disabled="true"],:disabled')));
   if(candidates.length!==1)return null;candidates[0].click();return candidates[0];
  };
- const titleInputs=()=>exactVisible(all('input,textarea').filter(node=>/标题|title/i.test([node.placeholder,node.getAttribute?.('aria-label'),node.name].filter(Boolean).join(' '))));
- const editors=()=>exactVisible(all('[contenteditable="true"],iframe'));
- const setValue=(node,value)=>{const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')?.set||Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')?.set;if(node instanceof HTMLInputElement||node instanceof HTMLTextAreaElement)setter.call(node,value);else node.innerHTML=value;node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:value}));node.dispatchEvent(new Event('change',{bubbles:true}));};
- const titleCandidates=titleInputs(),bodyCandidates=editors(),input=titleCandidates.length===1?titleCandidates[0]:null,body=bodyCandidates.length===1?bodyCandidates[0]:null;
  if(!input||!body){
-  if(clickLabel(['新建图文','写文章','图文消息','发表内容']))return {state:'opening_editor',message:'正在打开公众号图文编辑器'};
+  if(!titleCandidates.length&&!bodyCandidates.length&&clickLabel(['新建图文','写文章','图文消息','发表内容']))return {state:'opening_editor',message:'正在打开公众号图文编辑器'};
   if(titleCandidates.length>1||bodyCandidates.length>1)return {state:'waiting_editor',message:'公众号编辑器字段不唯一，未填写原稿'};
   return {state:'waiting_editor',message:'请在公众号窗口完成登录；观引会在图文编辑器出现后自动填稿'};
  }
  // A retained or manually edited draft is never an empty template. Stop
  // rather than overwrite a different title/body on behalf of the user.
  if(input.value&&input.value!==command.title)return {state:'blocked',message:'公众号编辑器已有不同标题，未覆盖原稿'};
- if(!input.value)setValue(input,command.title);
- if(input.value!==command.title)return {state:'waiting_editor',message:'公众号标题仍在同步，请保留当前窗口'};
- const bodyNode=body.tagName==='IFRAME'?body.contentDocument?.body:body;if(!bodyNode)return {state:'waiting_editor',message:'正文编辑器仍在加载'};
+ const bodyNode=body;
  const expectedBody=plainHtml(command.html),actualBody=plainHtml(bodyNode.innerText||bodyNode.textContent||'');
  if(actualBody&&actualBody!==expectedBody)return {state:'blocked',message:'公众号编辑器已有不同正文，未覆盖原稿'};
+ if(!input.value)setValue(input,command.title);
+ if(input.value!==command.title)return {state:'waiting_editor',message:'公众号标题仍在同步，请保留当前窗口'};
  if(!actualBody)setValue(bodyNode,command.html);
  if(plainHtml(bodyNode.innerText||bodyNode.textContent||'')!==expectedBody)return {state:'waiting_editor',message:'公众号正文仍在同步，请保留当前窗口'};
  // The desktop process first records that this exact action may be attempted,

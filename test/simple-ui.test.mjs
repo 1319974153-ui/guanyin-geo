@@ -128,13 +128,13 @@ test('continue from model connection uses the selected saved provider, without a
  assert.equal(seen.request.body.provider,'runninghub');assert.equal(seen.request.path,'/api/simple/prepare-preview');
 });
 
-test('simple navigation groups related screens under three stable entries and counts only real article work',()=>{
+test('simple navigation exposes discovery, monitoring and delivery, with one active entry and only real article work counted',()=>{
  const {ctx}=ui(),nodes={'#nav':{},'#view-mode':{}};ctx.$=id=>nodes[id];ctx.document.body={dataset:{}};ctx.icon=()=>'';
  ctx.own=k=>k==='contents'?[{status:'草稿'},{status:'已审核'},{status:'草稿',demo:true}]:[{status:'待确认'}];
- for(const [route,group] of [['today','today'],['inbox','inbox'],['integrations','inbox'],['reports','results'],['operations','results']]){
+ for(const [route,group] of [['today','today'],['quick-search','quick-search'],['query-results','quick-search'],['inbox','inbox'],['integrations','publish'],['reports','reports'],['operations','results'],['article-tracking','article-tracking']]){
   ctx.route=route;vm.runInContext('renderSimpleNavigation()',ctx);const html=nodes['#nav'].innerHTML;
   assert.equal((html.match(/aria-current="page"/g)||[]).length,1);assert.match(html,new RegExp('href="#'+group+'" aria-current="page"'));
-  assert.match(html,/文章与发布/);assert.match(html,/GEO 诊断/);assert.match(html,/<span class="nav-num">1<\/span>/);
+  assert.match(html,/搜索与监测/);assert.match(html,/内容与交付/);assert.match(html,/文章引用追踪/);assert.match(html,/<span class="nav-num">1<\/span>/);
  }
 });
 
@@ -148,8 +148,8 @@ test('article home prioritizes AI writing, groups facts and retains every origin
 });
 
 test('simple diagnosis explicitly uses all imported evidence even after visiting API reports',()=>{
- const {ctx}=ui(),seen={};ctx.state={brands:[{}],scope:'api'};ctx.title=(t,s)=>t+s;ctx.GEO_METRICS={makeReport:(_state,_id,options)=>{seen.options=options;return {answers:[],decision:{}}},goalEvidence:()=>({rows:[],metrics:{citationN:0},reviewed:[],recommended:[]})};
+ const {ctx}=ui(),seen={};ctx.state={brands:[{id:'business',name:'测试品牌'}],scope:'api'};ctx.context=()=>new URLSearchParams();ctx.routeLink=(target,params)=>'#'+target+'?'+new URLSearchParams(params);vm.runInContext(fs.readFileSync(new URL('../public/query-results.js',import.meta.url),'utf8'),ctx);ctx.GEO_METRICS={makeReport:(_state,_id,options)=>{seen.options=options;return {answers:[],decision:{}}},goalEvidence:()=>({rows:[],metrics:{citationN:0},reviewed:[],recommended:[],unknown:1})};
  ctx.decisionReportPanel=(r,actionable,limit)=>{seen.actionable=actionable;seen.limit=limit;return '<section>诊断结论</section>'};ctx.isOwner=()=>false;
  const html=vm.runInContext('renderSimpleResults()',ctx);assert.equal(seen.options.surface,'import');assert.equal(seen.options.period,'all');assert.equal(seen.limit,3);assert.equal(seen.actionable,true);
- assert.match(html,/GEO 诊断/);assert.match(html,/完整报告与导出/);assert.match(html,/surface=import/);assert.match(html,/待核对/);assert.equal(ctx.state.scope,'api');
+ assert.match(html,/href="#results" aria-current="page">品牌诊断/);assert.match(html,/查看完整报告/);assert.match(html,/surface=import/);assert.match(html,/条件待核对/);assert.match(html,/各平台表现/);assert.equal(ctx.state.scope,'api');
 });

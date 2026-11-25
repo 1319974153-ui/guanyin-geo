@@ -8,6 +8,27 @@ async function seed(e){const w=await state(e);w.state.brands.push({id:'b1',name:
 const product={brandId:'b1',id:'p1',name:'资料管理工具',description:'按项目整理资料。',url:'https://example.com/product',image:'https://example.com/product.png',category:'企业服务',sku:'A-1',status:'active'};
 async function saveProduct(e,overrides={}){const w=await state(e);return call(e,'/api/brands/product','POST',{...product,revision:w.revision,...overrides});}
 async function schema(e,input={}){const w=await state(e);return call(e,'/api/schemas','POST',{id:'schema-fixture-request-001',brandId:'b1',type:'Organization',revision:w.revision,...input});}
+test('quick search can create a named brand without moving records or generating starter data',async()=>{
+ const e=env(),w=await seed(e);
+ const input={id:'quick-brand-example-01',name:'  新品牌  ',revision:w.revision};
+ const created=await call(e,'/api/brands/create','POST',input);
+ assert.equal(created.status,200);
+ const s=created.data.state;
+ assert.equal(s.currentBrand,input.id);
+ assert.equal(s.brands.find(b=>b.id===input.id).name,'新品牌');
+ assert.deepEqual(s.contents,w.state.contents);
+ assert.deepEqual(s.questions,w.state.questions);
+ assert.deepEqual(s.facts,w.state.facts);
+ const repeated=await call(e,'/api/brands/create','POST',input);
+ assert.equal(repeated.status,200);
+ assert.equal(repeated.data.revision,created.data.revision);
+ assert.equal(repeated.data.state.brands.length,3);
+ const duplicate=await call(e,'/api/brands/create','POST',{...input,id:'quick-brand-example-02',revision:created.data.revision});
+ assert.equal(duplicate.status,409);
+ const stale=await call(e,'/api/brands/create','POST',{...input,id:'quick-brand-example-03',name:'另一个品牌'});
+ assert.equal(stale.status,409);
+ e.db.close();
+});
 test('brand profiles preserve unrelated assets, record server history, reject unsafe URLs and stale changes',async()=>{
  const e=env();const w=await seed(e),b=w.state.brands[0];assert.equal(b.profileVersion,1);
  const input={...b,name:'甲品牌新名',description:'新的介绍',revision:w.revision,brandId:b.id};const r=await call(e,'/api/brands/profile','POST',input);assert.equal(r.status,200);assert.equal(r.data.state.brands[0].profileVersion,2);assert.equal(r.data.state.brands[0].profileHistory[0].values.name,'甲品牌');assert.equal(r.data.state.contents[0].brandId,'b1');assert.equal(r.data.state.brands[1].name,'乙品牌');

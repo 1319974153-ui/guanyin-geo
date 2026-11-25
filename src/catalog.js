@@ -20,10 +20,30 @@ export function recordBrandProfiles(before,after,actor){
   const data=clean(b,fields);Object.assign(b,data);b.profileVersion=(old?.profileVersion||0)+1;b.profileHistory=[...(old?.profileHistory||[]),{version:b.profileVersion,at,actor,values:data}].slice(-50);
  }
 }
+function brandNameKey(name){return name.trim().normalize('NFKC').toLowerCase();}
+async function createBrand(env,ctx,h,input,w){
+ const data=clean({name:input.name},fields);
+ if(!/^[a-zA-Z0-9_-]{16,80}$/.test(input.id||''))reject(400,'品牌编号无效');
+ const prior=w.state.brands.find(b=>b.id===input.id);
+ if(prior){
+  if(prior.name!==data.name)reject(409,'这个品牌编号已使用，请重新打开新建窗口');
+  return h.json({brandId:prior.id,...await h.workspace(env,ctx.owner)});
+ }
+ if(input.revision!==w.revision)reject(409,'工作区有其他更新，请刷新后再添加品牌');
+ if(w.state.brands.some(b=>brandNameKey(b.name)===brandNameKey(data.name)))reject(409,'已有同名品牌，请从品牌列表选择');
+ const before={brands:w.state.brands.slice()};
+ w.state.brands.push({id:input.id,...data,demo:false});
+ w.state.currentBrand=input.id;
+ recordBrandProfiles(before,w.state,ctx.actor);
+ await h.putState(env,ctx.owner,w.state,w.revision);
+ return h.json({brandId:input.id,...await h.workspace(env,ctx.owner)});
+}
 export async function catalogApi(req,env,ctx,h){
- const path=new URL(req.url).pathname;if(!['/api/brands/profile','/api/brands/product'].includes(path))return null;
+ const path=new URL(req.url).pathname;if(!['/api/brands/create','/api/brands/profile','/api/brands/product'].includes(path))return null;
  requireAdmin(ctx);if(req.method!=='POST')reject(405,'请使用 POST 保存品牌资料');
- const input=await h.body(req),w=await h.loadWorkspace(env,ctx.owner),b=w.state.brands.find(x=>x.id===input.brandId);if(!b)reject(404,'品牌不存在');if(input.revision!==w.revision)reject(409,'品牌资料已更新，请刷新后再保存');
+ const input=await h.body(req),w=await h.loadWorkspace(env,ctx.owner);
+ if(path==='/api/brands/create')return createBrand(env,ctx,h,input,w);
+ const b=w.state.brands.find(x=>x.id===input.brandId);if(!b)reject(404,'品牌不存在');if(input.revision!==w.revision)reject(409,'品牌资料已更新，请刷新后再保存');
  const before=structuredClone(w.state),at=new Date().toISOString();let item;
  if(path.endsWith('/profile')){Object.assign(b,clean({...input,entityType:input.entityType??b.entityType??'brand',goalQuery:input.goalQuery??b.goalQuery??''},fields));recordBrandProfiles(before,w.state,ctx.actor);
   if(b.goalQuery&&!w.state.questions.some(q=>q.brandId===b.id&&q.text.trim()===b.goalQuery)){const id=crypto.randomUUID();w.state.questions.push({id,brandId:b.id,text:b.goalQuery,created:at,version:'v1',topic:'目标需求',intent:'决策',demo:false,provenance:questionProvenance({questionId:id,brandId:b.id,text:b.goalQuery,actor:ctx.actor,recordedAt:at,kind:'manual',details:{method:'brand_goal'}})});}

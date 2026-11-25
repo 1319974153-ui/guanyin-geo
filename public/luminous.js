@@ -18,17 +18,17 @@
       const scale = Math.min(width / 460, height / 310);
       ctx.save();ctx.translate(cx,cy);ctx.rotate(-.36);
       const mist=ctx.createRadialGradient(0,0,0,0,0,180*scale);
-      mist.addColorStop(0,lightTheme?'rgba(32,143,163,.10)':'rgba(45,160,197,.16)');mist.addColorStop(1,'rgba(0,0,0,0)');
+      mist.addColorStop(0,lightTheme?'rgba(90,90,90,.10)':'rgba(210,210,210,.16)');mist.addColorStop(1,'rgba(0,0,0,0)');
       ctx.fillStyle=mist;ctx.fillRect(-220*scale,-220*scale,440*scale,440*scale);
       for(let ribbon=0;ribbon<44;ribbon++) {
         const offset=(ribbon-22)*1.6*scale;
         const gradient=ctx.createLinearGradient(-160*scale,-100*scale,160*scale,100*scale);
         const alpha=lightTheme?.19:.28;
-        gradient.addColorStop(0,`rgba(105,135,243,${alpha*.15})`);
-        gradient.addColorStop(.3,`rgba(122,160,228,${alpha})`);
-        gradient.addColorStop(.56,`rgba(171,237,244,${alpha*1.8})`);
-        gradient.addColorStop(.78,`rgba(74,173,189,${alpha})`);
-        gradient.addColorStop(1,`rgba(105,135,243,${alpha*.1})`);
+        gradient.addColorStop(0,`rgba(142,142,142,${alpha*.15})`);
+        gradient.addColorStop(.3,`rgba(173,173,173,${alpha})`);
+        gradient.addColorStop(.56,`rgba(214,214,214,${alpha*1.8})`);
+        gradient.addColorStop(.78,`rgba(158,158,158,${alpha})`);
+        gradient.addColorStop(1,`rgba(142,142,142,${alpha*.1})`);
         ctx.strokeStyle=gradient;ctx.lineWidth=.8*scale;
         ctx.beginPath();
         for(let step=0;step<=150;step++) {

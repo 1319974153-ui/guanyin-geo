@@ -80,10 +80,10 @@ test('paragraph and list boundaries match visible editor newlines',async()=>{
 test('Zhihu own-profile URLs tolerate the editor tracking parameter and bare host',async()=>{
  for(const host of ['www.zhihu.com','zhihu.com']){const f=fixture('zhihu',{profileUrl:'https://'+host+'/people/author?utm_source=article-pc-editor'});assert.equal((await f.run('identity')).accountId,'author')}
 });
-test('SegmentFault reads the signed-in identity from its rendered Next session state and never exposes a submit control',async()=>{
+test('SegmentFault reads the signed-in identity from its rendered Next session state and checks the reviewed article before a single submit',async()=>{
  const f=fixture('segmentfault',{sessionUsers:[{id:'author',name:'思否验收账号'}]});
  const me=await f.run('identity');assert.equal(me.accountId,'author');assert.equal(me.name,'思否验收账号');
- assert.match((await f.run('preflight')).connectorError,/发布按钮/);assert.equal(f.clicks,0);
+ assert.equal((await f.run('preflight')).ready,true);assert.equal(f.clicks,0);assert.equal((await f.run('submit')).attempted,true);assert.equal(f.clicks,1);assert.ok((await f.run('submit')).connectorError);assert.equal(f.clicks,1);
  const missing=fixture('segmentfault');assert.match((await missing.run('identity')).connectorError,/唯一账号 ID/);
 });
 test('SegmentFault observes exactly one outside-editor autosave notice without claiming a draft',async()=>{
@@ -409,4 +409,18 @@ test('Douyin finds unique visible declaration placeholder and verifies selection
  const el=(value,click=()=>{})=>({textContent:value,getClientRects:()=>[{}],closest:()=>null,contains:()=>false,click,getAttribute:()=>null});
  f.context.document.querySelectorAll=s=>s==='*'?[...query(s),el(declared?'自主声明 内容由AI生成':'请选择自主声明',()=>open=true)]:s==='label,[role="radio"]'&&open?[el('内容由AI生成',()=>chosen=true)]:s==='button,[role="button"]'&&open?[...query(s),el('确定',()=>{declared=chosen;open=false})]:query(s);
  assert.equal((await f.run('preflight',{article:{title:'测试文章',text:'测试正文',ai:true}})).ready,true);assert.equal(declared,true);assert.equal(f.clicks,0);
+});
+
+test('SegmentFault preserves the original when identity, content, location or consent is ambiguous',async()=>{
+ const signed={sessionUsers:[{id:'author',name:'原作者'}]};
+ for(const options of [{...signed,duplicateButtons:true},{sessionUsers:[{id:'other',name:'其他账号'}]},{...signed,editorUrl:'https://segmentfault.com/write?other=1'}]){
+  const f=fixture('segmentfault',options);assert.ok((await f.run('submit')).connectorError);assert.equal(f.clicks,0);
+ }
+ const changed=fixture('segmentfault',signed);changed.setBody('另一个正文');
+ assert.ok((await changed.run('submit')).connectorError);assert.equal(changed.clicks,0);
+ changed.setCaptcha(true);assert.equal((await changed.run('receipt')).blocked,true);
+ assert.equal(receiptEvidence('segmentfault','https://segmentfault.com/a/1001','1001'),true);
+ for(const url of ['https://segmentfault.com/a/1001?draft=1','https://segmentfault.com/write','https://segmentfault.com.evil.test/a/1001','https://segmentfault.com/a/1002']){
+  assert.equal(receiptEvidence('segmentfault',url,'1001'),false);
+ }
 });

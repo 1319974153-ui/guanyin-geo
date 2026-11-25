@@ -45,3 +45,22 @@ test('a concurrent model switch between queue checks and network call cannot spe
  e.DB.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith('INSERT OR IGNORE INTO runs'))return statement;return {bind(...args){const bound=statement.bind(...args);return {...bound,async run(){const result=await bound.run();e.db.prepare("UPDATE connections SET model='unapproved-model'").run();switched=true;return result;}}}}};
  const original=globalThis.fetch;let calls=0;globalThis.fetch=async()=>{calls++;throw Error('unapproved model must not be invoked')};try{const r=await call(e,'/api/simple/tick','POST',{brandId:input.brandId,flowId:input.id});assert.equal(switched,true);assert.equal(r.data.state,'failed');assert.equal(calls,0);assert.match(r.data.error,/模型已变化/);}finally{globalThis.fetch=original;e.db.close()}
 });
+
+test('query-results confirmation writes the chosen question and checks that article in a single recoverable batch',async()=>{
+ const {e,b,input}=await paidFixture(),original=globalThis.fetch;
+ const approved=await authorized(e,{...input,entry:'query-results'}),tick={brandId:b.id,flowId:input.id,completeBatch:true};
+ let calls=0;
+ try{
+  assert.equal((await call(e,'/api/simple/prepare','POST',approved)).status,200);
+  globalThis.fetch=async()=>{calls++;return Response.json({choices:[{message:{content:'{}'}}],usage:{prompt_tokens:8,completion_tokens:2}})};
+  assert.equal((await call(e,'/api/simple/tick','POST',tick)).status,200);
+  assert.equal((await call(e,'/api/simple/tick','POST',tick)).data.state,'idle');
+  const w=(await call(e,'/api/state')).data.state,flow=(await call(e,'/api/simple/flows?brandId='+b.id)).data.flows[0];
+  assert.equal(calls,2);
+  assert.equal(flow.entry,'query-results');assert.equal(flow.stage,'review');
+  assert.equal(w.contents.length,1);assert.equal(w.contents[0].questionId,input.questionId);
+  assert.equal(w.contents[0].writingReview.evidenceDraft.outcome,'evidence_only');
+  assert.equal(w.analysisChecks.length,1);assert.equal(w.analysisChecks[0].input.targets[0].id,w.contents[0].id);
+  assert.ok(w.analysisChecks[0].parseError);
+ }finally{globalThis.fetch=original;e.db.close()}
+});

@@ -23,7 +23,7 @@ export async function checksApi(req,env,ctx,h){
   const b=await h.body(req),w=await h.workspace(env,ctx.owner),record=w.state.analysisChecks.find(r=>r.id===b.runId&&r.brandId===b.brandId);
   if(!record||!canBrand(ctx,b.brandId))reject(404,'找不到授权检查记录');if(!['answer','content'].includes(record.kind))reject(400,'此类记录暂不支持重解析');
   if(record.parserVersion===CHECK_PARSE_VERSION)return h.json({record,stale:checkStale(record,w.state),existing:true,...w});
-  const parsed=parseChecks(record.rawText,record.input);
+  const parsed=parseChecks(record.rawText,record.input,record.quoteEncoding);
   await h.appendResult(env,ctx.owner,s=>{const r=s.analysisChecks.find(r=>r.id===record.id&&r.brandId===b.brandId);if(!r||r.rawText!==record.rawText||r.inputHash!==record.inputHash)reject(409,'原始回执已变化，请刷新后再试');if(r.parserVersion===CHECK_PARSE_VERSION)return;
    r.parsingHistory=[...(r.parsingHistory||[]),{parserVersion:r.parserVersion||1,results:r.results,parseError:r.parseError,parseRepair:r.parseRepair,at:new Date().toISOString(),actor:ctx.actor}].slice(-10);delete r.parseRepair;Object.assign(r,parsed);
   });const latest=await h.workspace(env,ctx.owner),current=latest.state.analysisChecks.find(r=>r.id===record.id);return h.json({record:current,stale:checkStale(current,latest.state),...latest});

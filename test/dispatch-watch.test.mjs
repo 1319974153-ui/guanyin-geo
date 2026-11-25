@@ -43,11 +43,11 @@ test('an existing attention job can recover automatically without sending again'
 
 test('submitted API publication remains monitored until public verification while other submitted platforms stop',async()=>{
  const journal={one:{platform:'cnblogs',state:'submitted'}};const f=fixture({pending:()=>dispatchNeedsRefresh(journal),refresh:async()=>{journal.one.state='published';return true}});
- assert.equal(dispatchNeedsRefresh(journal),true);assert.equal(dispatchNeedsRefresh({one:{platform:'aliyun',state:'submitted'}}),false);
+ assert.equal(dispatchNeedsRefresh(journal),true);assert.equal(dispatchNeedsRefresh({one:{platform:'toutiao',state:'submitted'}}),false);
  f.watcher.start();await f.next();assert.equal(f.watcher.active,false);assert.equal(f.events.at(-1).state,'complete');
 });
 
-for(const platform of ['tencentcloud','51cto','csdn','zhihu'])test(`${platform} submission remains watched through review and stops at verified publication`,async()=>{
+for(const platform of ['tencentcloud','51cto','csdn','zhihu','aliyun','juejin','douyin','segmentfault'])test(`${platform} submission remains watched through review and stops at verified publication`,async()=>{
  const journal={one:{platform,state:'queued',jobId:'original'}};let reads=0;
  const f=fixture({interval:()=>dispatchRefreshInterval(journal),maxDelay:60000,pending:()=>dispatchNeedsRefresh(journal),refresh:async()=>{journal.one.state=++reads<3?'submitted':'published';return true}});
  f.watcher.start();await f.next();assert.equal(f.watcher.active,true);assert.equal([...f.timers.values()][0].delay,30000);
@@ -56,6 +56,6 @@ for(const platform of ['tencentcloud','51cto','csdn','zhihu'])test(`${platform} 
 });
 test('mixed active queue refreshes promptly and only supported submitted platforms keep polling',()=>{
  assert.equal(dispatchRefreshInterval([{platform:'51cto',state:'submitted'},{state:'queued'}]),4000);
- for(const platform of ['aliyun','toutiao'])assert.equal(dispatchNeedsRefresh([{platform,state:'submitted'}]),false);
+ for(const platform of ['wechat','toutiao'])assert.equal(dispatchNeedsRefresh([{platform,state:'submitted'}]),false);
  for(const state of ['draft','published','cancelled'])assert.equal(dispatchNeedsRefresh([{platform:'51cto',state}]),false);
 });

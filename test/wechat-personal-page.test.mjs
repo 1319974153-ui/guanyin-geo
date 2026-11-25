@@ -28,7 +28,7 @@ class Editor {
 function notice(value){return {innerText:value,textContent:value,offsetParent:{},getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>null};}
 function control(value){let clicks=0;return {innerText:value,textContent:value,offsetParent:{},getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>null,click:()=>clicks++,get clicks(){return clicks}};}
 
-function fixture({title='',body='',notices=[],verification=[],controls=[],extraInputs=0,extraEditors=0}={}){
+function fixture({title='',body='',notices=[],verification=[],controls=[],extraInputs=0,extraEditors=0,frames=[],includeEditor=true}={}){
  const input=new Input(title),editor=new Editor(body);
  const document={
   querySelectorAll(selector){
@@ -36,7 +36,7 @@ function fixture({title='',body='',notices=[],verification=[],controls=[],extraI
    if(selector.startsWith('input[placeholder*="验证码"]'))return verification;
    if(selector==='button,a,[role="button"]')return controls;
    if(selector==='input,textarea')return [input,...Array.from({length:extraInputs},()=>new Input())];
-   if(selector==='[contenteditable="true"],iframe')return [editor,...Array.from({length:extraEditors},()=>new Editor())];
+   if(selector==='[contenteditable="true"],[contenteditable="plaintext-only"],iframe')return [...(includeEditor?[editor]:[]),...frames,...Array.from({length:extraEditors},()=>new Editor())];
    return [];
   }
  };
@@ -68,9 +68,9 @@ test('WeChat article text that mentions a successful publication is not mistaken
 });
 
 test('WeChat accepts a visible official status notice only after its original action was recorded',async()=>{
- const f=fixture({notices:[notice('发布成功')]});
+ const f=fixture({title:'测试稿',body:'正文',notices:[notice('发布成功')]});
  const initial=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false,requested:false});
- assert.equal(initial.state,'ready_to_request');
+ assert.equal(initial.state,'waiting_editor');
  const result=await f.run({title:'测试稿',html:'<p>正文</p>',mode:'publish',dispatch:false,requested:true});
  assert.equal(result.state,'publish_submitted');
 });
@@ -126,3 +126,30 @@ test('WeChat login becomes available only after a visible official dashboard con
 });
 
 function factory(options){return fixture(options);}
+
+test('a different retained body blocks before an empty title changes; the exact visible receipt is retained',()=>{
+ const f=fixture({body:'原有内容'});assert.equal(f.run({title:'稿件',html:'<p>新稿</p>',mode:'draft'}).state,'blocked');assert.equal(f.input.value,'');
+ const received=fixture({title:'稿件',body:'新稿',notices:[notice('已群发')]}).run({title:'稿件',html:'<p>新稿</p>',mode:'publish',requested:true});
+ assert.equal(received.receipt.notice,'已群发');assert.equal(received.receipt.url,undefined);
+});
+
+test('a saved marker and an unrelated dashboard toast do not prove this article was published',()=>{assert.equal(fixture({notices:[notice('发布成功')]}).run({title:'指定稿',html:'<p>本篇正文</p>',mode:'publish',requested:true}).state,'waiting_receipt')});
+
+test('media and inaccessible frames are ignored and an explicitly editable iframe can save the draft',()=>{
+ const frame=doc=>Object.assign(new Editor(),{tagName:'IFRAME',contentDocument:doc});
+ const media=frame({body:new Editor('媒体预览')});
+ const foreign=frame(null);Object.defineProperty(foreign,'contentDocument',{get(){throw Error('cross-origin')}});
+ const editable=frame({body:new Editor(),designMode:'on'});
+ const f=fixture({frames:[media,foreign,editable],includeEditor:false});
+ const result=f.run({title:'草稿',html:'<p>需要保存的正文</p>',mode:'draft'});
+ assert.equal(result.state,'ready_to_request');
+ assert.equal(media.contentDocument.body.innerText,'媒体预览');
+ assert.equal(editable.contentDocument.body.innerText,'需要保存的正文');
+});
+
+test('a visible verification iframe pauses the original operation before any editing or click',()=>{
+ const verify={...notice(''),tagName:'IFRAME',closest:selector=>selector.split(',').includes('iframe')?verify:null};
+ const save=control('保存草稿'),f=fixture({verification:[verify],controls:[save]});
+ assert.equal(f.run({title:'草稿',html:'<p>正文</p>',mode:'draft',dispatch:true}).state,'verification_required');
+ assert.equal(save.clicks,0);assert.equal(f.input.value,'');
+});

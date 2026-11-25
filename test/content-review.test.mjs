@@ -49,7 +49,7 @@ test('v2 fact-only snapshots and answer receipts retain their original validity 
 test('article text, question, contract and fact changes invalidate semantic advice; stored synthetic suggestions are ignored',async()=>{
  const f=fixture(),record=await checkRecord('receipt-1','b','fixture',f.input,{text:JSON.stringify(f.output),model:'stub'});f.state.analysisChecks=[record];record.results[0].editorialReview.suggestions=[{suggestion:'客户伪造的建议'}];assert.equal(currentContentReview(f.state,'b','c').suggestions.length,5);
  for(const mutate of [s=>s.contents[0].text+='新文字',s=>s.contents[0].question='另一个问题',s=>s.contents[0].writingBasis.articleContract.selection.format='品牌介绍',s=>s.facts[0].value+='更新',s=>s.facts[0].status='待确认']){const state=structuredClone(f.state);mutate(state);assert.equal(checkStale(record,state),true);assert.equal(currentContentReview(state,'b','c'),null);}
- assert.equal(currentContentReview(f.state,'other-brand','c'),null);record.parserVersion=CHECK_PARSE_VERSION-1;assert.equal(currentContentReview(f.state,'b','c'),null);
+ assert.equal(currentContentReview(f.state,'other-brand','c'),null);record.parserVersion=4;assert.equal(currentContentReview(f.state,'b','c').suggestions.length,5);record.parserVersion=3;assert.equal(currentContentReview(f.state,'b','c'),null);
 });
 test('model payload excludes unavailable and unrelated evidence while retaining the full local snapshot',()=>{
  const f=fixture();f.state.contents[0].productId='selected';

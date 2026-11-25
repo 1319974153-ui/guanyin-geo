@@ -1,6 +1,6 @@
 let activeChecksBatch=null,checksStop=false;
 function checksScope(){return [accessInfo.current.owner,sessionStorage.getItem('geo.workspace')||'',brand().id].join('|')}
-function latestCheck(kind,id){const record=own('analysisChecks').filter(r=>r.kind===kind&&r.input.targets.some(t=>t.id===id)).at(-1);return record?{record,result:record.results.find(x=>x.id===id),stale:GEO_CHECKS.checkStale(record,state)}:null;}
+function latestCheck(kind,id){const record=own('analysisChecks').filter(r=>r.kind===kind&&r.input.targets.some(t=>t.id===id)).at(-1);if(!record)return null;const stale=GEO_CHECKS.checkStale(record,state);const rows=kind==='content'&&!stale&&record.parserVersion===4&&!record.parseError?GEO_CHECKS.parseChecks(record.rawText||'',record.input).results:record.results;return {record,result:rows.find(x=>x.id===id),stale};}
 function checkLabel(kind,id){const x=latestCheck(kind,id);if(!x)return '尚未检查';if(x.stale)return '资料变化，需重检';if(kind==='content'&&x.record.input.version<3)return '事实检查已保存；语义尚未检查';if(x.record.parseError||!x.result||x.result.problems.length)return '检查结果需核对';const n=x.result.claims.filter(c=>c.relation!=='支持').length+x.result.negations.length;return n?n+' 项待核对':'已检查，待复核';}
 function contentCheckSummary(c){return `<span class="sub">自动质检：${checkLabel('content',c.id)}</span>`;}
 function contentReviewDetailsHtml(review){

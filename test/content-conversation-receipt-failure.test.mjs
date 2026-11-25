@@ -25,7 +25,7 @@ async function seed(env){
 }
 
 test('a failed completion receipt recovers the saved draft without another model call or duplicate draft',async t=>{
- const {db,env}=environment(t),draftText='# 资料核对\n\n团队按项目整理原始资料，核对范围以产品说明为准。';
+ const {db,env}=environment(t),draftText=JSON.stringify({title:'项目资料核对方法',answer:'先列出常用资料，再分别保留原出处和核对状态。',steps:[{title:'检查出处',text:'抽查三份常用资料，补上原文件的链接。'},{title:'检查交接',text:'让同事试着核对其中一份资料的出处。'}]});
  let providerCalls=0;
  const model=t.mock.method(globalThis,'fetch',async()=>{
   const n=++providerCalls;assert.ok(n<=2,'recovery and retry must not invoke a third model request');
@@ -56,7 +56,8 @@ test('a failed completion receipt recovers the saved draft without another model
     savedAtFailure=workspace.contents.find(content=>content.id===receipt.id&&content.brandId==='b1');
     assert.equal(model.mock.callCount(),2,'the draft model call has already completed');
     assert.equal(workspace.contents.length,1,'exactly one original draft was saved before the receipt failed');
-    assert.equal(savedAtFailure?.text,draftText);
+    assert.equal(savedAtFailure?.writingReview?.evidenceDraft?.outcome,'combined');
+    assert.match(savedAtFailure.text,/项目资料核对方法[\s\S]*通用核对建议/);
     const pending=db.prepare('SELECT state,result FROM runs WHERE owner=? AND id=?').get('owner',draftInput.runId);
     assert.equal(pending.state,'running');assert.equal(JSON.parse(pending.result).id,receipt.id);
     faultInjected=true;

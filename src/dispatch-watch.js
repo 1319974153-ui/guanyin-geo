@@ -1,5 +1,8 @@
 const activeStates=new Set(['sending','queued','preparing','publishing','submitting','uncertain']);
-export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(['cnblogs','typecho','personal-site','tencentcloud','51cto','csdn','zhihu'].includes(r.platform)&&r.state==='submitted')||(r.state==='needs_attention'&&typeof r.jobId==='string'&&!!r.jobId));}
+// These official-window channels can promote the original submission by reading its public page.
+export const desktopPublicReceiptPlatforms=Object.freeze(['tencentcloud','51cto','csdn','zhihu','douyin','aliyun','juejin','segmentfault']);
+const watchedSubmissions=new Set(['cnblogs','typecho','personal-site',...desktopPublicReceiptPlatforms]);
+export function dispatchNeedsRefresh(journal){return Object.values(journal||{}).some(r=>activeStates.has(r.state)||(watchedSubmissions.has(r.platform)&&r.state==='submitted')||(r.state==='needs_attention'&&(!!r.jobId||r.transport==='desktop_personal'&&r.wechatState==='verification_required')));}
 
 // The monitor owns only read scheduling. It never enqueues, retries or publishes.
 export function dispatchRefreshInterval(journal){

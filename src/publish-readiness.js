@@ -1,3 +1,4 @@
+import {articleApprovalGrounding,articleGroundingMessage} from './article-grounding.js';
 import {assertArticleMediaDelivery} from './article-media-core.js';
 import {PLATFORMS} from '../browser-extension/platforms.js';
 
@@ -11,6 +12,7 @@ export function publishReadiness({article={},targets=[],mode='publish',tags=[],m
  if(!Object.hasOwn(modeNames,mode))generalIssues.push('请选择有效的发布操作');
  if(!length(article.title))generalIssues.push('请填写文章标题');
  if(!length(article.text))generalIssues.push('请填写文章正文');
+ const findings=articleApprovalGrounding(article,article);if(findings.length)generalIssues.push(articleGroundingMessage(findings));
  if(mediaLoading)generalIssues.push('图片仍在读取，请稍后');
  if(mediaError)generalIssues.push('图片准备失败，请重新选择图片，或点击“清空图片”后再发送');
  try{assertArticleMediaDelivery(article,media);}catch(error){generalIssues.push(error.message);}

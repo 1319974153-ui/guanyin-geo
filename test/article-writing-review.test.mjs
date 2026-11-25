@@ -84,3 +84,19 @@ test('an image-only edit keeps the source immutable and invalidates the saved re
  await ui.run("articleEditorSave('save',{reopen:false})");
  assert.equal(article.status,'草稿');assert.equal(article.mediaVersion,2);assert.equal(article.mediaRefs[0].rightsConfirmed,false);assert.equal(article.reviewedAt,undefined);assert.equal(article.writingReview,undefined);assert.equal(ui.apiCalls,0);
 });
+
+test('a misgrounded generated draft can be saved but cannot be approved, and fixing the sentence restores approval',()=>{
+ const fact={id:'f',value:'支持按项目整理资料、记录来源。暂不支持自动保存资料来源。',source:'产品说明'};
+ const original={...savedArticle(),status:'待审核',factSnapshots:[fact],text:'这个产品可为项目创建独立资料库。点击「新建项目」按钮即可开始。系统会自动保存资料来源。'};
+ const checked=articleWritingReview(original);
+ assert.deepEqual(checked.groundingFindings.map(f=>f.id),['isolated_project_library','automatic_provenance','new_project_menu']);
+ assert.match(checked.checks.find(c=>c.id==='unsupported_capability').detail,/点击「新建项目」按钮/);
+ const input={title:original.title,text:original.text,ai:true};
+ assert.equal(articleRevision(original,input,'save','owner').text,original.text);
+ assert.throws(()=>articleRevision(original,input,'approve','owner'),/原稿仍在/);
+ const text='支持按项目整理资料。无法确认是否支持自动保存资料来源。';
+ const submitted=articleRevision(original,{...input,text},'submit','owner');
+ assert.equal(articleRevision(submitted,{...input,text},'approve','owner').status,'已审核');
+ const supported={...original,factSnapshots:[{...fact,value:'这个产品可为项目创建独立资料库。点击「新建项目」按钮即可开始。系统会自动保存资料来源。'}]};
+ assert.equal(articleRevision(supported,input,'approve','owner').status,'已审核');
+});

@@ -208,3 +208,21 @@ test('MetaWeblog one-click publishes the durable draft and recovers without dupl
  let writes=0;await dispatchArticle({...params,mode:'draft',journal:recovered,request:async()=>{writes++}});assert.equal(writes,0);
  assert.deepEqual(await recoverDispatchJournal({article,targets:[target],jobs:[{...job,accountId:'someone-else'}],journal:{}}),{});
 });
+
+test('a WeChat platform event arriving during another channel refresh survives in memory and storage',async()=>{
+ const journal={wechat:{id:'original',platform:'wechat',transport:'desktop_personal',state:'submitting'},csdn:{...csdn,jobId:'j',state:'queued'}};
+ let stored;
+ await reconcileDispatch({article,journal,assertScope:()=>{},request:async()=>{
+  journal.wechat={...journal.wechat,state:'submitted',notice:'发表成功'};
+  return {jobs:[{id:'j',state:'published'}]};
+ },persist:async value=>{stored=structuredClone(value)}});
+ assert.equal(journal.wechat.notice,'发表成功');assert.equal(stored.wechat.state,'submitted');
+ assert.equal(journal.csdn.state,'published');
+});
+
+test('a verified Juejin draft uses its original task when the account supports publish',async()=>{
+ const target={key:'juejin:s',platform:'juejin',accountId:'123',sessionId:'s',modes:['draft','publish']},journal={[target.key]:{state:'draft',stage:'draft',jobId:'old',...target}},calls=[];
+ const request=async(path,init)=>{calls.push(path);assert.equal(JSON.parse(init.body).mode,'publish');return {job:{id:'old',state:'queued'},promoted:true}};
+ await dispatchArticle({article,targets:[target],mode:'publish',journal,request,persist:async()=>{},assertScope(){}});
+ assert.deepEqual(calls,['/api/local-publisher/enqueue']);assert.equal(journal[target.key].jobId,'old');
+});

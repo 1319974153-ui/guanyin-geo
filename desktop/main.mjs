@@ -17,6 +17,8 @@ import {installQuitFlow} from './quit-flow.mjs';
 import {desktopDataRoot} from './data-root.mjs';
 import {desktopBuildIdentity,beginDesktopUpgrade,completeDesktopUpgrade,requestDesktopUpgradeRestore,restoreRequestedDesktopUpgrade} from './data-upgrade.mjs';
 import {wechatPersonalLoginPage,wechatPersonalPage,wechatPersonalUrlAllowed} from './wechat-personal-publisher.mjs';
+import {collectConsumer} from './consumer-search.mjs';
+import {consumerCheckpointSender} from './consumer-checkpoint.mjs';
 import {authorizedWechatCommand,authorizedWechatStep} from './wechat-authorized-command.mjs';
 import {WECHAT_PERSONAL_PARTITION,persistWechatPersonalSession} from './wechat-personal-session.mjs';
 import {beginWechatPersonalTask,loadWechatPersonalTask,updateWechatPersonalTask,wechatPersonalRequestMarker,wechatPersonalTaskActive,wechatPersonalTaskSummary} from './wechat-personal-task.mjs';
@@ -53,7 +55,18 @@ async function start(){
  const serverFile=fs.existsSync(path.join(here,'server.mjs'))?path.join(here,'server.mjs'):path.join(bundleRoot,'dev-server.mjs');
  service=utilityProcess.fork(serverFile,[],{cwd:fs.existsSync(path.join(here,'drizzle'))?here:bundleRoot,env:{...env,GEO_PORT:String(port),GEO_DATA_DIR:path.join(dataRoot,'business'),GEO_SOCIAL_PUBLISH_EXPERIMENTAL:'0',GEO_SOCIAL_PUBLISH_PLATFORMS:DESKTOP_PUBLIC_PLATFORMS.join(',')},stdio:'pipe',serviceName:'观引本机服务'});
  service.stdout?.on('data',b=>process.stdout.write(b));service.stderr?.on('data',b=>process.stderr.write(b));
- const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本机服务启动超时')),30000);service.on('message',m=>{if(m.publicProofId){void publicProof({BrowserWindow,session},m.job).then(verified=>{if(!stopping)service?.postMessage({publicProofId:m.publicProofId,verified})}).catch(()=>{});return}if(m.ready){clearTimeout(timer);resolve()}else if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error)):p.resolve(m.result)}});service.once('exit',()=>{clearTimeout(timer);reject(new Error('本机服务已退出'));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('服务已中断，任务未自动重发'))}pending.clear();if(!stopping&&main)dialog.showErrorBox('观引服务已停止','请退出并重新打开观引。未确认的发布不会自动重发。')})});
+ const checkpointSender=consumerCheckpointSender((checkpointId,{query,checkpoint})=>{
+  if(stopping||!service)throw Error('查询服务已中断');
+  service.postMessage({consumerReply:query,checkpointId,checkpoint});
+ });
+ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('本机服务启动超时')),30000);service.on('message',m=>{
+  if(m.consumerCheckpointAck){checkpointSender.acknowledge(m.consumerCheckpointAck,m.error);return}
+  if(m.consumerQuery){
+   const reply=data=>{if(!stopping)service?.postMessage({consumerReply:m.consumerQuery,...data})};
+   const checkpoint=event=>checkpointSender.request({query:m.consumerQuery,checkpoint:event});
+   void collectConsumer({BrowserWindow,session},m.job,progress=>reply({progress}),checkpoint).then(result=>reply({result}),e=>reply({error:e.message}));
+   return;
+  }if(m.publicProofId){void publicProof({BrowserWindow,session},m.job).then(verified=>{if(!stopping)service?.postMessage({publicProofId:m.publicProofId,verified})}).catch(()=>{});return}if(m.ready){clearTimeout(timer);resolve()}else if(pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(new Error(m.error)):p.resolve(m.result)}});service.once('exit',()=>{clearTimeout(timer);reject(new Error('本机服务已退出'));for(const p of pending.values()){clearTimeout(p.timer);p.reject(new Error('服务已中断，任务未自动重发'))}pending.clear();if(!stopping&&main)dialog.showErrorBox('观引服务已停止','请退出并重新打开观引。未确认的发布不会自动重发。')})});
  await ready;
  const menu=Menu.getApplicationMenu();if(menu){menu.append(new MenuItem({label:'平台接入验收',submenu:[{label:'思否登录与编辑器验收',click:()=>upcomingPlatform.open('segmentfault')},{label:'51CTO 登录与编辑器验收',click:()=>upcomingPlatform.open()},{label:'阿里云开发者社区登录验收',click:()=>upcomingPlatform.open('aliyun')}]}));Menu.setApplicationMenu(menu)}
  main=new BrowserWindow({width:1280,height:900,minWidth:800,minHeight:600,show:false,title:'观引 · 品牌工作台',webPreferences:{preload:path.join(here,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true}});
@@ -70,9 +83,9 @@ async function start(){
  bind('wechat-personal-resume',async input=>resumeWechatPersonalPublisher(input));
  bind('wechat-personal-login',async()=>openWechatPersonalLogin());
  bind('wechat-personal-login-state',async()=>wechatPersonalLoginState);
- bind('wechat-personal-task',async()=>wechatPersonalTaskSummary(dataRoot));
+ bind('wechat-personal-task',async id=>wechatPersonalTaskSummary(dataRoot,id));
  bind('wake',async()=>{void poll();return {ok:true}});
- bindMainQuit(main);await main.loadURL(origin+'/#today');
+ bindMainQuit(main);await main.loadURL(origin+'/');
  // A restart resumes only the one retained original WeChat task in its visible
  // official window. If the request marker was already recorded, the page
  // helper observes the original result instead of clicking save/publish again.
@@ -136,9 +149,12 @@ async function openWechatPersonalLogin(){
  }
  const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号登录',webPreferences:{session:wechatPersonalBrowserSession(),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
  wechatPersonalLoginWindow=win;const wc=secureWechatPersonalWindow(win);
- win.on('closed',()=>{wechatPersonalLoginWindow=null;void flushWechatPersonalSession().catch(()=>{})});
+ let observing=false;
+ const observe=async()=>{if(observing||win.isDestroyed())return;observing=true;try{await observeWechatPersonalLogin(wc)}finally{observing=false}};
+ const loginTimer=setInterval(()=>{if(wechatPersonalLoginState.state!=='connected')void observe()},2500);
+ win.on('closed',()=>{clearInterval(loginTimer);wechatPersonalLoginWindow=null;void flushWechatPersonalSession().catch(()=>{})});
  setWechatPersonalLoginState({state:'waiting_login'});
- wc.on('did-finish-load',()=>void observeWechatPersonalLogin(wc));wc.on('did-stop-loading',()=>void observeWechatPersonalLogin(wc));
+ wc.on('did-finish-load',()=>void observe());wc.on('did-stop-loading',()=>void observe());
  await wc.loadURL('https://mp.weixin.qq.com/');
  return wechatPersonalLoginState;
 }
@@ -149,27 +165,31 @@ async function openWechatPersonalTask(task,{observeOnly=false}={}){
  }
  const win=new BrowserWindow({width:1100,height:820,title:'观引 · 微信公众号',webPreferences:{session:wechatPersonalBrowserSession(),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,backgroundThrottling:false}});
  wechatPersonalWindow=win;wechatPersonalTaskId=task.taskId;const wc=secureWechatPersonalWindow(win);
- let attempts=0,busy=false,current=task,allowWrites=!observeOnly;
+ let busy=false,current=task,allowWrites=!observeOnly,waitingSince=Date.now();
  const notify=result=>{
   if(!result?.state)return;
   const requested=wechatPersonalRequestMarker(current.requested,result.state);
-  current=updateWechatPersonalTask(dataRoot,current.taskId,{state:result.state,message:result.message,requested});
-  if(!main.isDestroyed())main.webContents.send('guanyin:wechat-personal-status',{...result,taskId:current.taskId,mode:current.mode});
+  current=updateWechatPersonalTask(dataRoot,current.taskId,{state:result.state,message:result.message,requested,...(result.receipt?{receipt:result.receipt}:{})});
+  if(!main.isDestroyed())main.webContents.send('guanyin:wechat-personal-status',{state:current.state,message:current.message,taskId:current.taskId,mode:current.mode,updatedAt:current.updatedAt,receipt:current.receipt});
  };
  const run=async()=>{
   if(busy||win.isDestroyed()||!wechatPersonalUrlAllowed(wc.getURL())||wc.isLoadingMainFrame())return;
   busy=true;try{
    current=loadWechatPersonalTask(dataRoot);
    if(!current||current.taskId!==task.taskId)throw Error('公众号原任务已变化，未继续操作');
+   if(!wechatPersonalTaskActive(current))return;
    const result=await authorizedWechatStep(current,{request:rpc,observeOnly:!allowWrites,page:command=>wc.executeJavaScript('('+wechatPersonalPage.toString()+')('+JSON.stringify(command)+')',true),persist:patch=>{current=updateWechatPersonalTask(dataRoot,current.taskId,patch);}});
    notify(result);
    if(['ready_to_request','requesting','waiting_receipt','draft_requested','publish_requested','draft_saved','publish_submitted'].includes(result?.state))setWechatPersonalLoginState({state:'connected'});
    if(result?.state==='verification_required')setWechatPersonalLoginState({state:'waiting_login'});
-   if(['draft_saved','publish_submitted','verification_required','filled','blocked'].includes(result?.state)){if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;return;}
-   if(++attempts<20)wechatPersonalTimer=setTimeout(()=>void run(),1000);
+   if(['draft_saved','publish_submitted','filled','blocked'].includes(result?.state)){if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;return;}
+   clearTimeout(wechatPersonalTimer);
+   if(Date.now()-waitingSince<10*60000)wechatPersonalTimer=setTimeout(()=>void run(),result?.state==='verification_required'||result?.state==='waiting_receipt'?3000:1000);
+   else notify({state:'blocked',message:'等待平台反馈超时，可打开公众号原任务继续核对'});
+
   }catch(error){notify({state:'blocked',message:error.message||'公众号授权或页面核对失败，未自动重试'});if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;}finally{busy=false}
  };
- wechatPersonalRun=enableWrites=>{if(enableWrites)allowWrites=true;attempts=0;void run();};
+ wechatPersonalRun=enableWrites=>{if(enableWrites)allowWrites=true;waitingSince=Date.now();void run();};
  wc.on('did-finish-load',()=>void run());wc.on('did-stop-loading',()=>void run());win.on('closed',()=>{if(wechatPersonalTimer)clearTimeout(wechatPersonalTimer);wechatPersonalTimer=null;wechatPersonalWindow=null;wechatPersonalTaskId='';wechatPersonalRun=null;void flushWechatPersonalSession().catch(()=>{})});
  await wc.loadURL('https://mp.weixin.qq.com/');
  return {state:'waiting_login',message:observeOnly?'已打开公众号原任务，仅核对原页面；尚未发送的任务需重新确认。':task.mode==='publish'?'公众号窗口已打开；本次授权有效且稿件未变化时，完成验证后继续原稿':'公众号窗口已打开；本次授权有效且稿件未变化时，完成验证后继续保存草稿'};

@@ -8,8 +8,13 @@ function simpleReview(){return ['owner','admin','reviewer'].includes(accessInfo.
 function simpleBrandPicker(){return state.brands.length>1?`<label class="simple-toolbar">当前品牌<select id="brand-select">${state.brands.map(b=>`<option value="${esc(b.id)}" ${brand().id===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></label>`:''}
 function renderSimpleNavigation(){
  const count=own('contents').filter(c=>!c.demo&&c.status!=='已审核').length;
- const group=['inbox','content','publish','integrations'].includes(route)?'inbox':['results','reports','answers','insights','sources','operations'].includes(route)?'results':route;
- $('#nav').innerHTML=[['today','工作台','dashboard'],['inbox','文章与发布','edit'],['results','GEO 诊断','chart']].map(([id,t,i])=>`<a class="nav-item ${group===id?'active':''}" href="#${id}" ${group===id?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${id==='inbox'&&count?`<span class="nav-num">${count}</span>`:''}</a>`).join('')+`<details class="simple-detail"><summary>资料与更多工具</summary>${[['knowledge','品牌资料'],['monitor','用户问题'],['publish','发布记录'],['reports','完整报告与导出'],['integrations','模型与账号'],['operations','诊断改进待办'],['tasks','任务记录'],['brands','品牌管理']].map(([id,t])=>`<a class="nav-item" href="#${id}">${t}</a>`).join('')}<button type="button" class="nav-item" data-action="simple-full-view">完整工作台</button></details>`;
+ const group=({'query-results':'quick-search',answers:'quick-search',insights:'results',operations:'results',content:'inbox',integrations:'publish',demand:'monitor',tasks:'monitor',attribution:'reports'})[route]||route;
+ const groups=[
+  ['搜索与监测', [['quick-search','快速搜索','radar'],['results','品牌诊断','chart'],['monitor','品牌监测','layers'],['sources','引用来源','link'],['article-tracking','文章引用追踪','link']]],
+  ['运营', [['today','工作台','dashboard']]],
+  ['内容与交付', [['inbox','文章创作','edit'],['publish','发布中心','send'],['reports','诊断报告','file']]],
+ ];
+ $('#nav').innerHTML=groups.map(([label,items])=>(label?`<div class="nav-label">${label}</div>`:'')+items.map(([id,t,i])=>`<a class="nav-item${group===id?' active':''}" href="#${id}" ${group===id?'aria-current="page"':''}>${icon(i)}<span>${t}</span>${id==='inbox'&&count?`<span class="nav-num">${count}</span>`:''}</a>`).join('')).join('')+`<details class="simple-detail"><summary>资料与更多工具</summary>${[['knowledge','品牌资料'],['integrations','模型与账号'],['operations','诊断改进待办'],['tasks','任务记录'],['brands','品牌管理']].map(([id,t])=>`<a class="nav-item" href="#${id}">${t}</a>`).join('')}<button type="button" class="nav-item" data-action="simple-full-view">完整工作台</button></details>`;
  $('#view-mode').value='simple';document.body.dataset.view='simple';
 }
 function simpleCard(title,body,actions=''){return `<section class="simple-card"><h3>${title}</h3>${body}${actions}</section>`}
@@ -81,11 +86,11 @@ function renderSimpleToday(){
 function renderSimpleInbox(){
  const facts=own('facts').filter(f=>f.status==='待确认'),contents=own('contents').slice().reverse(),pubs=own('publications').filter(p=>!p.url&&!p.demo);
  const materialNotice=facts.length?`<aside class="focus-notice"><p>${facts.length} 项品牌资料待核对。一次确认后，选题、写稿与改稿都会复用。</p>${simpleReview()?btn('批量核对资料','knowledge-review-open','small'):'<a href="#knowledge">查看品牌资料</a>'}</aside>`:!own('facts').length?simpleCard('先补充一份品牌资料','<p>上传现有介绍，即可复用到后续文章。</p>',simpleWrite()?btn('上传资料','knowledge-upload','small')+btn('粘贴介绍','import-document','ghost small'):''):'';
- return title('文章与发布','AI 根据品牌资料写稿，核对内容后，在文章里勾选平台发送。',simpleWrite()?btn('AI 自动写文章','simple-write','primary'):'')+simpleBrandPicker()+`<div class="today-actions">${simpleWrite()?btn('导入或自己写','write-article','ghost small'):''}<a class="button ghost small" href="#integrations">账号与写作模型</a><a class="button ghost small" href="#publish">查看发布结果</a></div>${materialNotice}<div class="simple-stack">${contents.map(c=>simpleCard(esc(c.title),`<p>${c.demo?'演练稿 · ':''}${esc(c.status)} · ${esc(c.question||'已保存的稿件')}</p>${contentCheckSummary(c)}`,btn(c.status==='已审核'&&simpleWrite()?'查看文章与选择平台':'查看并核对文章','edit-content','primary',`data-id="${esc(c.id)}"`))).join('')}${pubs.length?`<details class="simple-detail"><summary>${pubs.length} 项历史发布等待平台结果</summary>${pubs.map(p=>simpleCard(esc(p.title),`<p>${esc(p.channel)} · 等待实际平台结果</p>`,btn('查看原任务','publication-journey','small',`data-id="${esc(p.id)}"`))).join('')}</details>`:''}${contents.length?'':'<div class="simple-empty"><h2>准备第一篇品牌文章</h2><p>点击“AI 自动写文章”，选择方向或直接说要求；已有资料和模型配置会自动复用。</p></div>'}</div>`;
+ return title('文章创作','AI 根据品牌资料写稿，核对内容后，在文章里勾选平台发送。',simpleWrite()?btn('AI 自动写文章','simple-write','primary'):'')+simpleBrandPicker()+`<div class="today-actions">${simpleWrite()?btn('导入或自己写','write-article','ghost small'):''}<a class="button ghost small" href="#integrations">账号与写作模型</a><a class="button ghost small" href="#publish">查看发布结果</a></div>${materialNotice}<div class="simple-stack">${contents.map(c=>simpleCard(esc(c.title),`<p>${c.demo?'演练稿 · ':''}${esc(c.status)} · ${esc(c.question||'已保存的稿件')}</p>${contentCheckSummary(c)}`,btn(c.status==='已审核'&&simpleWrite()?'查看文章与选择平台':'查看并核对文章','edit-content','primary',`data-id="${esc(c.id)}"`))).join('')}${pubs.length?`<details class="simple-detail"><summary>${pubs.length} 项历史发布等待平台结果</summary>${pubs.map(p=>simpleCard(esc(p.title),`<p>${esc(p.channel)} · 等待实际平台结果</p>`,btn('查看原任务','publication-journey','small',`data-id="${esc(p.id)}"`))).join('')}</details>`:''}${contents.length?'':'<div class="simple-empty"><h2>准备第一篇品牌文章</h2><p>点击“AI 自动写文章”，选择方向或直接说要求；已有资料和模型配置会自动复用。</p></div>'}</div>`;
 }
 function renderSimpleResults(){
- const b=brand(),report=GEO_METRICS.makeReport(state,b.id,{period:'all',surface:'import'}),all=report.answers,platforms=[...new Set([...simplePlatforms(),...all.map(a=>a.platform)])];
- return title('GEO 诊断','先看当前结论和优先改进项，再查看各平台的原始回答。',simpleWrite()?btn('记录 AI 回答','simple-capture','primary'):'')+simpleBrandPicker()+`<div class="today-actions"><a class="button" href="#reports?period=all&surface=import&platform=&mode=&entry=&version=all&productId=">完整报告与导出</a><a class="button ghost" href="#operations">查看改进待办</a></div>${decisionReportPanel(report,true,3)}<section class="goal-results-intro"><h2>${esc(b.goalQuery||'先设置希望被找到的目标问题')}</h2><p class="simple-help">${b.goalQuery?'下方仅统计原问题与目标相符的正式消费端回答。其他问题的记录保留在原始回答中。':'添加目标后再判断推荐效果；已有回答不会丢失。'}</p>${!b.goalQuery&&isOwner()?btn('设置目标问题','simple-goal'):''}</section><div class="goal-results">${platforms.map(p=>{const rows=all.filter(a=>a.platform===p),g=GEO_METRICS.goalEvidence(rows,b),m=g.metrics;return `<section class="goal-result-row"><h3>${esc(p)}</h3><div><p>${g.rows.length?`目标问题 ${g.rows.length} 条 · 提及名称 ${m.mention} 条`:'目标问题尚未记录回答'}</p><p class="result-detail">官网引用：${!b.site?'未填写官网':m.citationN?m.official+' / '+m.citationN+' 条已核对':'待核对'} · 无点名推荐：${g.prompted?'目标含名称，不能判断':g.reviewed.length?g.recommended.length+' / '+g.reviewed.length+' 条已核对':'待核对联网模式与推荐'}${g.unknown?' · '+g.unknown+' 条条件待核对':''}</p>${rows.length?`<p class="result-detail">这个平台另有 ${rows.length-g.rows.length} 条其他问题的回答。</p>`:''}</div>${simpleWrite()?btn('记录回答','simple-capture','small',`data-platform="${esc(p)}" data-id="${esc(own('questions').find(q=>q.text.trim()===b.goalQuery?.trim())?.id||'')}"`):''}${rows.length?btn('查看原文与引用','simple-evidence','ghost small',`data-platform="${esc(p)}"`):''}</section>`}).join('')}</div><details class="simple-detail"><summary>统计口径与后续跟踪</summary><p class="simple-help">“无点名推荐”要求原问题不包含当前名称或别名、记录为 Web / App 联网回答，并人工核对原文明确推荐。未知不当作未推荐；点名介绍不当作主动推荐。没有采样也不代表搜不到。不同平台的样本条件可能不同，比例不能直接作为排名。</p><div class="today-actions"><a class="button" href="#publish">文章发布与访问记录</a><a class="button" href="#reports">完整报告</a>${simpleWrite()?btn('设置每周证据报告','simple-weekly'):''}${isOwner()?btn('调整关注平台','simple-platforms'):''}</div></details>`;
+ const report=GEO_METRICS.makeReport(state,brand().id,{period:'all',surface:'import'});
+ return renderDiagnosisIntake()+renderDiagnosisResults(report)+`<div class="today-actions"><a class="button" href="#query-results?period=all&surface=import">查询结果</a><a class="button" href="#sources">查看引用来源</a><a class="button ghost" href="#operations">查看改进待办</a></div>${decisionReportPanel(report,true,3)}<details class="simple-detail"><summary>统计口径与后续跟踪</summary><p class="simple-help">“无点名推荐”要求原问题不包含当前名称或别名、记录为 Web / App 联网回答，并人工核对原文明确推荐。未知不当作未推荐；点名介绍不当作主动推荐。没有采样也不代表搜不到。不同平台的样本条件可能不同，比例不能直接作为排名。</p><div class="today-actions"><a class="button" href="#publish">文章发布与访问记录</a><a class="button" href="#reports">完整报告</a>${simpleWrite()?btn('设置每周证据报告','simple-weekly'):''}${isOwner()?btn('调整关注平台','simple-platforms'):''}</div></details>`;
 }
 async function refreshSimple(){
  if(simpleLoading||!brand().id)return;const scope=simpleScope(),id=brand().id;simpleLoading=true;
@@ -100,7 +105,7 @@ async function refreshSimple(){
  finally{
   simpleLoading=false;
   if(scope!==simpleScope()){if(route==='today')void refreshSimple();}
-  else if(route==='today')render();
+  else if(route==='today'||route==='query-results')render();
  }
 }
 function simpleDecorate(){
@@ -112,7 +117,7 @@ function simpleDecorate(){
 }
 let simpleAutoFlow='';
 async function runSimpleAuthorizedFlow(flowId){
- if(!flowId||simpleAutoFlow)return;const scope=simpleScope(),brandId=brand().id;simpleAutoFlow=flowId;if(route==='today')render();
+ if(!flowId||simpleAutoFlow)return;const scope=simpleScope(),brandId=brand().id;simpleAutoFlow=flowId;if(route==='today'||route==='query-results')render();
  try{await runtimeFlush();for(let step=0;step<2;step++){
   if(scope!==simpleScope())break;
   const result=await apiRequest('/api/simple/tick',{method:'POST',body:JSON.stringify({brandId,flowId})});

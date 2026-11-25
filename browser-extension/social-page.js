@@ -7,7 +7,7 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  const cfg={
   toutiao:{origin:'https://mp.toutiao.com',paths:[/^\/profile_v4\/graphic\/publish$/],title:'.publish-editor-title textarea, textarea[placeholder*="文章标题"]',body:'.ProseMirror[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?toutiao.com\/c\/user\/(\d+)\//,publish:['预览并发布','发布文章'],confirm:['确认发布'],images:false},
   zhihu:{origin:'https://zhuanlan.zhihu.com',paths:[/^\/write$/, /^\/p\/\d+\/edit$/],title:'textarea[placeholder*="标题"], .WriteIndex-titleInput textarea',body:'.public-DraftEditor-content[contenteditable="true"], .DraftEditor-root [contenteditable="true"], .ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"]',profile:/^https:\/\/(?:www\.)?zhihu.com\/people\/([\w-]+)\/?(?:\?.*)?$/,publish:['发布'],confirm:['发布文章','确认发布'],images:false},
-  segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,publish:[],confirm:[],images:false},
+  segmentfault:{origin:'https://segmentfault.com',paths:[/^\/write$/],title:'input[placeholder*="标题"], input[name="title"]',body:'.ProseMirror[contenteditable="true"], .tiptap[contenteditable="true"], [contenteditable="true"]',sessionUser:true,strictNoQuery:true,publish:['发布','发布文章'],confirm:[],images:false,inlineAiDisclosure:true},
   // OSC's current writer uses a visible two-step flow: “发布文章” first,
   // then “确定并发布” in its own publish-settings confirmation.  This stays
   // gated until a real account proves the full public-page roundtrip.
@@ -73,7 +73,22 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
  if(location.origin!==cfg.origin&&!publicReceiptHost)fail('页面已跳转，请先完成本人登录');
  // The official setup page is an account eligibility gate, not a saved draft.
  if(platform==='toutiao'&&(location.pathname==='/profile_v4/personal/landing-type'||many('div,span,p').some(e=>!e.closest('[contenteditable],article,aside')&&/^请完善账号信息[，,\s]*解锁发布文章、视频等权益功能$/.test(text(e)))))fail('头条要求完善账号信息以开通发布权益。请在官方账号页完成后继续原任务；未新建或提交文章');
- if(action==='receipt'){
+ const sfEditorReceipt=platform==='segmentfault'&&action==='receipt'&&location.pathname==='/write';
+ if(sfEditorReceipt){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
+ if(action==='receipt'&&!sfEditorReceipt){
+  if(platform==='segmentfault'){
+   try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}
+   const id=location.href.match(/^https:\/\/segmentfault\.com\/a\/([1-9]\d{0,29})$/)?.[1];
+   if(!id||!article?.html||!accountId)return null;
+   const titles=many('h1'),bodies=many('article .fmt,article[itemprop="articleBody"],[itemprop="articleBody"],.article-content .fmt');
+   const bylines=many('a[rel="author"],[itemprop="author"] a[href],.article-meta a[href^="/u/"]').filter(a=>!a.closest('[contenteditable],.fmt,aside'));
+   if(titles.length!==1||bodies.length!==1||bylines.length!==1||bylines[0].href!==cfg.origin+'/u/'+encodeURIComponent(accountId))return null;
+   const source=new DOMParser().parseFromString(article.html.replace(/<(?:br\s*\/?|\/(?:p|div|h[1-6]|li|blockquote|pre|tr))>/gi,'$& '),'text/html').body;
+   if(source.querySelector('img,video,iframe,svg')||bodies[0].querySelector('img,video,iframe,svg'))return null;
+   const expected=(source.textContent+(article.ai?' 本文包含 AI 辅助生成或整理的内容。':'')).replace(/\s+/g,' ').trim();
+   if(!expected||text(titles[0])!==article.title.trim()||text(bodies[0])!==expected)return null;
+   return {state:'submitted',articleId:id,url:location.href,accountId,contentVerified:true,publicVerified:false};
+  }
   if(['douyin','weibo','oschina'].includes(platform)){try{verifyChallenge()}catch(e){return {blocked:true,error:e.message}}}
   // 网易号当前公开文章 URL 和内容管理条目的可读回执尚未在真实账号
   // 验收。绝不把“发布成功”提示或管理页跳转伪造成文章回执。
@@ -112,6 +127,13 @@ export async function socialPage({platform,action,article,accountId,media=[],pro
   const visit=(value,found=[])=>{if(!value||typeof value!=='object')return found;if(Array.isArray(value)){for(const item of value)visit(item,found);return found}if(value.sessionUser&&typeof value.sessionUser==='object')found.push(value.sessionUser);for(const item of Object.values(value))visit(item,found);return found};
   const users=[];for(const node of many('script#__NEXT_DATA__')){try{users.push(...visit(JSON.parse(node.textContent||'')))}catch{}}
   for(const user of users){const id=String(user?.id||'').trim(),name=String(user?.name||user?.nickname||user?.username||'').trim();if(/^[\w-]{1,100}$/.test(id)&&name)identities.push({accountId:id,name:name.slice(0,100)})}
+  if(!identities.length){
+   for(const link of many('header a[href],nav a[href],[role="menu"] a[href]')){
+    if(link.closest('[contenteditable],article,aside')||!['我的主页','个人主页'].includes(text(link)))continue;
+    const slug=link.href.match(/^https:\/\/segmentfault\.com\/u\/([\w-]{1,100})\/?$/)?.[1];
+    if(slug)identities.push({accountId:slug,name:slug});
+   }
+  }
  }else if(cfg.profileQuery){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;try{const u=new URL(a.href,location.href),q=cfg.profileQuery,ids=u.origin===cfg.origin&&u.pathname===q.path&&!u.username&&!u.password&&!u.hash&&(!q.exact||u.searchParams.size===1)?u.searchParams.getAll(q.param):[];if(ids.length===1&&q.pattern.test(ids[0]))identities.push({accountId:ids[0],name:(text(a)||a.title||(cfg.origin==='https://baijiahao.baidu.com'?'百家号':'搜狐号')).slice(0,100)})}catch{}}}
  else if(cfg.hashQuery){try{const q=cfg.hashQuery,prefix='#'+q.path,hash=String(location.hash||'');if(hash.startsWith(prefix)){const tail=hash.slice(prefix.length);if(tail.startsWith('?')){const entries=[...new URL('https://params.invalid/'+tail).searchParams.entries()];if(entries.length===1&&entries[0][0]===q.param&&q.pattern.test(entries[0][1]))identities.push({accountId:entries[0][1],name:'网易号'})}}}catch{}}
  else if(cfg.profile){for(const a of many('a[href]')){if(a.closest('[contenteditable],article,aside'))continue;const m=a.href.match(cfg.profile);if(m)identities.push({accountId:m[1],name:(text(a)||a.title||m[1]).slice(0,100)})}}
@@ -187,6 +209,14 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
  const renderedHtml=inlineDisclosure?article.html+'<p>'+inlineDisclosure+'</p>':article.html;
  const expected=(cfg.images?article.text.replace(/\s+/g,' ').trim():plain(renderedHtml));
  const matches=()=>text(title)===article.title.trim()&&(platform==='douyin'?bodyContent(editor):text(editor))===expected;
+ if(sfEditorReceipt){
+  if(!accountId||!matches())return null;
+  const cards=many('[role="alert"],[role="dialog"],[role="status"]').filter(e=>!e.closest('[contenteditable],article,aside')&&/发布成功|提交成功|已提交审核/.test(text(e)));
+  if(cards.length!==1)return null;
+  const links=[...cards[0].querySelectorAll('a[href]')].filter(a=>visible(a)&&text(a)===article.title.trim());
+  const id=links.length===1&&links[0].href.match(/^https:\/\/segmentfault\.com\/a\/([1-9]\d{0,29})$/)?.[1];
+  return id?{state:'submitted',articleId:id,url:links[0].href,accountId,contentVerified:true,publicVerified:false}:null;
+ }
  // Some editors may save asynchronously after a short idle period. This is
  // deliberately a read-only observation: a visible notice is useful progress
  // feedback, but it is not a durable draft ID or a publish receipt.
@@ -303,7 +333,12 @@ if(action==='identity'){const hasFields=many(cfg.title).length===1&&many(cfg.bod
   }
   const exclusive=many('label').find(e=>/独家|独占|首发/.test(text(e))&&e.querySelector('input:checked'));if(exclusive)fail('请关闭独家/首发选项，再继续');
   if(article.ai&&!aiDeclared())fail('平台 AI 声明尚未核对，请先完成声明');
+  if(platform==='segmentfault'){
+   if(many('input:invalid,textarea:invalid,select:invalid,[aria-invalid="true"]').length)fail('思否有必填项待完善，请在原编辑页处理');
+   if(many('[role="dialog"],[aria-modal="true"]').length)fail('思否显示待处理弹窗，请在原稿中核对后继续');
+  }
   const widgets=platform==='xiaohongshu'?many('xhs-publish-btn').filter(e=>e.getAttribute('is-publish')!=='false'&&e.getAttribute('submit-disabled')!=='true'):[];const b=widgets.length?widgets:buttons(cfg.publish);if(b.length!==1)fail('未找到唯一可用的发布按钮');
+  if(platform==='segmentfault'&&b[0].closest('[contenteditable],article,aside'))fail('发布控件不在平台操作区，未提交');
   if(action==='preflight')return {...evidence,ready:true};
   if(globalThis.__guanyinSubmitAttempted)fail('本页已执行提交，不会再点击');globalThis.__guanyinSubmitAttempted=true;
   b[0].click();

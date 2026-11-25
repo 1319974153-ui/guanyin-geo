@@ -72,16 +72,16 @@ export async function simpleFlowApi(req,env,ctx,h){
   const w=await h.workspace(env,ctx.owner),brand=w.state.brands.find(x=>x.id===b.brandId);if(!brand)reject(404,'业务不存在');if(!/^[a-zA-Z0-9-]{16,60}$/.test(b.id||''))reject(400,'流程编号无效');
   if(!w.state.facts.some(f=>f.brandId===brand.id&&factUsable(f)))reject(400,'请先核对至少一项业务资料');
   const q=w.state.questions.find(q=>q.brandId===brand.id&&q.id===b.questionId);if(!q)reject(400,'请选择一个客户问题');
-  const planId=b.id,checkId=b.id+'-check',flow={planId,checkId,provider:b.provider,questionId:q.id,stage:'writing',paused:false,error:'',created:stamp()};
+  const planId=b.id,checkId=b.id+'-check',flow={planId,checkId,provider:b.provider,questionId:q.id,...(b.entry==='query-results'?{entry:'query-results',questionVersion:q.version||'v1'}:{}),stage:'writing',paused:false,error:'',created:stamp()};
   const old=await env.DB.prepare('SELECT * FROM operation_records WHERE owner=? AND id=?').bind(ctx.owner,b.id).first();
   if(old){const data=JSON.parse(old.body);if(old.kind!=='simple_flow'||old.brand_id!==brand.id||data.provider!==b.provider||data.questionId!==q.id)reject(409,'流程编号已使用');return h.json({id:b.id,existing:true});}
   if(b.confirmCost!==true)reject(400,'请先查看内容计划并确认本批模型费用');
   const preview=await previewPlan(env,ctx,h,b,w);
   if(b.previewHash!==preview.previewHash)reject(409,'资料、问题或模型已变化，请重新查看计划后确认费用');
-  flow.costPolicy={mode:'confirm_each_batch',model:preview.model,autoRetry:false,previewHash:preview.previewHash,questionId:q.id};
+  flow.costPolicy={mode:'confirm_each_batch',...(flow.entry?{entry:flow.entry}:{}),model:preview.model,autoRetry:false,previewHash:preview.previewHash,questionId:q.id};
   flow.authorization={confirmedAt:stamp(),actor:ctx.actor,previewHash:preview.previewHash,maxModelCalls:2,recurring:false};
   const prior=await env.DB.prepare('SELECT kind,brand_id,spec FROM task_plans WHERE owner=? AND id=?').bind(ctx.owner,planId).first();if(prior){const spec=JSON.parse(prior.spec);if(prior.kind!=='generate'||prior.brand_id!==brand.id||spec.providers.length!==1||spec.providers[0]!==b.provider||spec.questions.length!==1||spec.questions[0].id!==q.id||spec.costPolicy?.previewHash!==flow.costPolicy.previewHash||spec.costPolicy?.model!==flow.costPolicy.model||spec.costPolicy?.autoRetry!==false)reject(409,'已有任务与此次请求不同，请刷新进度');}
-  await callTasks(env,ctx,h,{id:planId,brandId:brand.id,name:'简单模式 · 准备一篇内容',kind:'generate',costPolicy:flow.costPolicy,questionIds:[q.id],providers:[b.provider],repeats:1,intervalMinutes:0,style:'专业解答',brief:'先回答用户的问题；使用已确认的业务资料，不编造排名、认证、价格或效果。'});
+  await callTasks(env,ctx,h,{id:planId,brandId:brand.id,name:'简单模式 · 准备一篇内容',kind:'generate',costPolicy:flow.costPolicy,questionIds:[q.id],providers:[b.provider],repeats:1,intervalMinutes:0,style:'专业解答',brief:flow.entry==='query-results'?'写一篇能独立阅读的问题解答。先用两三句话回答题目，再给出读者能自己执行的判断步骤和例子。用已确认资料说明品牌适用于其中哪一步，标出来源。避免泛泛介绍、重复宣传和排名承诺。':'先回答用户的问题；使用已确认的业务资料，不编造排名、认证、价格或效果。'});
   await env.DB.prepare("INSERT OR IGNORE INTO operation_records(id,owner,brand_id,kind,body,revision,created,updated) VALUES(?,?,?,'simple_flow',?,1,?,?)").bind(b.id,ctx.owner,brand.id,JSON.stringify(flow),stamp(),stamp()).run();return h.json({id:b.id});
  }
  if(path==='/api/simple/tick'){
@@ -89,7 +89,17 @@ export async function simpleFlowApi(req,env,ctx,h){
   await advanceSimpleFlows(env,scoped,h);
   let planId;
   if(b.flowId){const row=(await rows(env,scoped,b.brandId)).find(r=>r.id===b.flowId);if(!row)reject(404,'流程不存在');const flow=JSON.parse(row.body);if(flow.paused||!['writing','checking'].includes(flow.stage))return h.json({state:'idle'});planId=flow.stage==='writing'?flow.planId:flow.checkId;}
-  const result=await callTasks(env,scoped,h,{brandId:b.brandId,...(planId?{planId}:{})},'/api/tasks/tick');await advanceSimpleFlows(env,scoped,h);return result;
+  const tickPlan=id=>callTasks(env,scoped,h,{brandId:b.brandId,...(id?{planId:id}:{})},'/api/tasks/tick');
+  const result=await tickPlan(planId);await advanceSimpleFlows(env,scoped,h);
+  // Complete the already-authorized check even when the view is closed after writing.
+  if(b.completeBatch===true&&b.flowId&&planId===b.flowId){
+   const row=(await rows(env,scoped,b.brandId)).find(r=>r.id===b.flowId);
+   const flow=row&&JSON.parse(row.body);
+   if(flow?.entry==='query-results'&&flow.authorization?.maxModelCalls===2&&flow.stage==='checking'&&!flow.paused){
+    const checked=await tickPlan(flow.checkId);await advanceSimpleFlows(env,scoped,h);return checked;
+   }
+  }
+  return result;
  }
  if(path==='/api/simple/action'){
   const row=(await rows(env,ctx,b.brandId)).find(r=>r.id===b.id);if(!row)reject(404,'流程不存在');if(!['pause','resume'].includes(b.action))reject(400,'操作无效');const d=JSON.parse(row.body);if(d.stage==='review')return h.json({saved:true});

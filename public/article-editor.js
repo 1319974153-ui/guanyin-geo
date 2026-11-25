@@ -14,7 +14,8 @@ function articleWritingReviewRefresh(f,pending=false) {
  const guidance=f.querySelector('[data-article-semantic-guidance]');if(guidance&&typeof contentReviewPanelHtml==='function')guidance.innerHTML=current?contentReviewPanelHtml(current.id,dirty):'<p class="helper">保存稿件后可检查文章质量。</p>';
  if(pending){summary.textContent='基础检查：正在检查当前修改…';details.textContent='结果更新中。';return;}
  const review=GEO_ARTICLE_EDITOR.articleWritingReview(current||{},articleEditorValues(f)),issues=review.checks.filter(check=>!check.ok);
- summary.textContent=issues.length?`基础检查：${issues.length} 项待核对`:'基础检查：未发现基础格式问题，事实仍需核对。';
+ const evidenceOnly=!dirty&&current?.writingReview?.evidenceDraft?.outcome==='evidence_only';
+ summary.textContent=review.groundingFindings?.length?`发现 ${review.groundingFindings.length} 项具体能力缺少资料，处理后再确认发布`:evidenceOnly?'只保留了原始品牌资料，通用建议未生成，请补充后再审核。':issues.length?`基础检查：${issues.length} 项待核对`:'基础检查：未发现基础格式问题，事实仍需核对。';
  details.innerHTML=(issues.length?'<ul>'+issues.map(check=>'<li>'+esc(check.detail)+'</li>').join('')+'</ul>':'<p>当前标题、正文和重复段落等基础项目未发现问题。</p>')+'<p class="helper">只检查当前文本和已登记的依据，不判断事实真伪，也不自动审核。请核对是否回答客户问题、场景与边界是否清楚、能力和案例是否有来源。</p>';
 }
 function articleEditorRefresh(f) {

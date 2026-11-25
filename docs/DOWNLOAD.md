@@ -1,13 +1,13 @@
 # 下载与使用
 
-当前公开版本为 **0.49.0-beta.6 桌面预览**。在 GitHub 发行页选择对应系统的 ZIP，可同时下载 SHA-256 校验文件。
+当前公开版本为 **0.49.0-beta.7 桌面预览**。在 GitHub 发行页选择对应系统的 ZIP，可同时下载 SHA-256 校验文件。
 
 - Apple Silicon Mac。完整解压后打开“观引桌面预览.app”。预览包未做 Apple 公证。
 - Windows x64。完整解压后双击“启动观引.cmd”。本包已通过静态校验，真机验收待完成。
 
 随包提供应用运行时。使用本机写作时，可在“AI 写作模型”里选择电脑上 Ollama 已安装的文本模型。也可配置自己的云端模型。
 
-[GitHub 发行与校验文件](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.6)
+[GitHub 发行与校验文件](https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.7)
 
 ## 开始使用
 
