@@ -3,9 +3,11 @@
 <p align="center"><strong>把品牌资料、内容创作与发布结果，放进一个工作台。</strong></p>
 <p align="center"><a href="https://github.com/1319974153-ui/guanyin-geo/releases/tag/v0.49.0-beta.6">下载桌面预览</a> · <a href="docs/DOWNLOAD.md">安装与使用</a> · <a href="https://wenshu.tnyma.com/cases/guanyin-geo.html">了解观引</a> · <a href="https://github.com/1319974153-ui/guanyin-geo/issues/new/choose">问题反馈</a></p>
 
-## 观引是什么？
+## 观引 GEO · About
 
-观引是面向品牌、产品与个人的开源 GEO 工作台：整理真实资料，用自己的模型辅助写稿，选择已接入的账号发送内容，再核对平台回执和 AI 回答中的引用。
+观引 GEO 是一款开源的品牌 AI 可见性工作台。你可以查看 AI 回答如何提及品牌、引用了哪些来源，也可以用自己的模型把品牌资料写成文章，审核后发布到已接入的平台。
+
+Guanyin GEO is an open-source workspace for tracking brand visibility in AI answers. See how AI mentions your brand and which sources it cites. Use your own model to turn brand materials into articles, review them, and publish to supported platforms.
 
 **源码免费，MIT 许可。** 模型调用、云服务与第三方平台费用按你自己的账号计费；本地运行不需要 Codex。
 
